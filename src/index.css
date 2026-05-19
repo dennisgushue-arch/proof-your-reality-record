@@ -2,41 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body { font-family: 'Inter', system-ui, sans-serif; }
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Proof — calm legal-tech palette */
+    --background: 210 25% 98%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 222 47% 14%;
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 30% 95%;
+    --secondary-foreground: 222 47% 14%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 25% 94%;
+    --muted-foreground: 215 16% 42%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 212 90% 48%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 152 60% 36%;
+    --warning: 38 92% 50%;
 
-    --radius: 0.5rem;
+    --border: 214 25% 89%;
+    --input: 214 25% 89%;
+    --ring: 212 90% 48%;
+
+    --radius: 0.625rem;
+
+    --navy: 222 47% 11%;
+    --navy-foreground: 210 40% 98%;
+
+    --gradient-hero: linear-gradient(160deg, hsl(222 47% 11%) 0%, hsl(218 50% 18%) 60%, hsl(212 60% 24%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(210 25% 98%) 0%, hsl(210 30% 95%) 100%);
+    --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.04), 0 4px 16px hsl(222 47% 11% / 0.06);
+    --shadow-elevated: 0 10px 40px -10px hsl(222 47% 11% / 0.25);
 
     --sidebar-background: 0 0% 98%;
 
@@ -100,6 +114,19 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
   }
+
+  h1, h2, h3, h4 {
+    @apply tracking-tight text-foreground;
+    font-family: 'Fraunces', Georgia, serif;
+  }
+}
+
+@layer utilities {
+  .bg-hero { background: var(--gradient-hero); }
+  .bg-subtle { background: var(--gradient-subtle); }
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
 }
