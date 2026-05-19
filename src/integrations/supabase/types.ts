@@ -14,7 +14,205 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cases: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      evidence_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          filename: string | null
+          id: string
+          incident_id: string
+          storage_path: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          filename?: string | null
+          id?: string
+          incident_id: string
+          storage_path?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          filename?: string | null
+          id?: string
+          incident_id?: string
+          storage_path?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evidence_items_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incidents: {
+        Row: {
+          ai_analysis: Json | null
+          case_id: string
+          created_at: string
+          emotional_language_removed: string | null
+          evidence_quality_score: number | null
+          id: string
+          location: string | null
+          neutral_summary: string | null
+          occurred_at: string
+          people_involved: Json | null
+          raw_narrative: string
+          tags: Json | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_analysis?: Json | null
+          case_id: string
+          created_at?: string
+          emotional_language_removed?: string | null
+          evidence_quality_score?: number | null
+          id?: string
+          location?: string | null
+          neutral_summary?: string | null
+          occurred_at?: string
+          people_involved?: Json | null
+          raw_narrative?: string
+          tags?: Json | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_analysis?: Json | null
+          case_id?: string
+          created_at?: string
+          emotional_language_removed?: string | null
+          evidence_quality_score?: number | null
+          id?: string
+          location?: string | null
+          neutral_summary?: string | null
+          occurred_at?: string
+          people_involved?: Json | null
+          raw_narrative?: string
+          tags?: Json | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidents_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      reminders: {
+        Row: {
+          case_id: string
+          completed: boolean
+          created_at: string
+          due_at: string | null
+          id: string
+          incident_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          completed?: boolean
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          incident_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          completed?: boolean
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          incident_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reminders_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
