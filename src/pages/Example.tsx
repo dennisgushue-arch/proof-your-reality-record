@@ -15,7 +15,7 @@ const Example = () => (
     <AppHeader />
     <main className="container py-10 max-w-3xl">
       <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4 mr-1" /> Back to home</Link>
-      <article className="mt-6 rounded-xl bg-white shadow-elevated border border-border overflow-hidden">
+      <article className="mt-6 rounded-xl bg-card shadow-elevated border border-border overflow-hidden">
         <div className="bg-hero text-navy-foreground p-10">
           <div className="flex items-center gap-2 text-sm text-white/70"><Shield className="h-4 w-4" /> Sample Evidence Packet</div>
           <h1 className="mt-6 text-3xl md:text-4xl font-semibold text-white">Apartment 4B repairs</h1>
@@ -31,7 +31,7 @@ const Example = () => (
             <ol className="mt-4 space-y-6 border-l-2 border-border pl-6">
               {incidents.map((i) => (
                 <li key={i.title} className="relative">
-                  <span className="absolute -left-[31px] top-2 h-3 w-3 rounded-full bg-accent ring-4 ring-white" />
+                  <span className="absolute -left-[31px] top-2 h-3 w-3 rounded-full bg-accent ring-4 ring-background" />
                   <div className="text-xs font-mono text-muted-foreground">{i.date}</div>
                   <h3 className="mt-1 font-semibold">{i.title}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{i.summary}</p>

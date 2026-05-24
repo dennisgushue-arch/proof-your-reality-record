@@ -16,6 +16,8 @@ import ExportPreview from "./pages/ExportPreview.tsx";
 import Pricing from "./pages/Pricing.tsx";
 import Account from "./pages/Account.tsx";
 import Example from "./pages/Example.tsx";
+import IncidentPlayback from "./components/IncidentPlayback";
+import StressMode from "./components/StressMode";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +33,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/example" element={<Example />} />
+            <Route path="/demo/playback" element={<IncidentPlayback />} />
+            <Route path="/stress-mode" element={<ProtectedRoute><StressMode /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
             <Route path="/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />

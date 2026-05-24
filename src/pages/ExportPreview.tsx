@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Download, Shield } from "lucide-react";
+import { ArrowLeft, Download, Shield, MapPin, Users, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AppHeader } from "@/components/AppHeader";
+import { AppLayout } from "@/components/AppLayout";
 import { Disclaimer } from "@/components/Disclaimer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -17,71 +17,163 @@ const ExportPreview = () => {
     (async () => {
       const { data: c } = await supabase.from("cases").select("*").eq("id", id).maybeSingle();
       setCaseRow(c);
-      const { data: ins } = await supabase.from("incidents").select("*, evidence_items(*)").eq("case_id", id).order("occurred_at", { ascending: true });
+      const { data: ins } = await supabase
+        .from("incidents")
+        .select("*, evidence_items(*)")
+        .eq("case_id", id)
+        .order("occurred_at", { ascending: true });
       setIncidents(ins ?? []);
     })();
   }, [id]);
 
-  if (!caseRow) return (<div className="min-h-screen bg-subtle"><AppHeader /><div className="container py-10 text-muted-foreground">Loading…</div></div>);
+  if (!caseRow) return (
+    <AppLayout>
+      <div className="px-6 lg:px-10 py-10 text-muted-foreground text-sm">Loading…</div>
+    </AppLayout>
+  );
+
+  const generatedAt = new Date().toLocaleString(undefined, {
+    year: "numeric", month: "long", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 
   return (
-    <div className="min-h-screen bg-subtle">
-      <AppHeader />
-      <main className="container py-10 max-w-3xl">
-        <div className="flex items-center justify-between">
-          <Link to={`/cases/${id}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4 mr-1" /> Back to case</Link>
-          <Button onClick={() => toast.message("PDF export coming soon", { description: "Pro tier will enable downloadable PDF packets." })}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
+    <AppLayout>
+      <main className="px-6 lg:px-10 py-10 max-w-3xl">
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-8">
+          <Link
+            to={`/cases/${id}`}
+            className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to case
+          </Link>
+          <Button
+            onClick={() => toast.message("PDF export coming soon", { description: "Pro tier enables downloadable PDF packets." })}
+            className="bg-accent hover:bg-accent/90 text-white font-semibold"
+          >
+            <Download className="mr-2 h-4 w-4" /> Download PDF
+          </Button>
         </div>
 
-        {/* Packet preview */}
-        <article className="mt-6 rounded-xl bg-white shadow-elevated border border-border overflow-hidden">
-          {/* Cover */}
-          <div className="bg-hero text-navy-foreground p-10">
-            <div className="flex items-center gap-2 text-sm text-white/70"><Shield className="h-4 w-4" /> Evidence Packet</div>
-            <h1 className="mt-6 text-3xl md:text-4xl font-semibold text-white">{caseRow.title}</h1>
-            <p className="mt-2 text-white/70">{caseRow.category}</p>
-            <div className="mt-10 grid grid-cols-2 gap-6 text-sm">
-              <div><div className="text-white/60 uppercase text-xs tracking-wider">Generated</div><div className="mt-1 text-white">{new Date().toLocaleString()}</div></div>
-              <div><div className="text-white/60 uppercase text-xs tracking-wider">Incidents</div><div className="mt-1 text-white">{incidents.length}</div></div>
+        {/* Evidence packet document */}
+        <article className="rounded-lg border border-border bg-card shadow-elevated overflow-hidden">
+
+          {/* Cover / header */}
+          <header className="border-b border-border px-10 py-10">
+            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground mb-6">
+              <Shield className="h-3.5 w-3.5 text-accent" />
+              EVIDENCE PACKET — CONFIDENTIAL
             </div>
-          </div>
+            <h1 className="text-2xl md:text-3xl mb-1">{caseRow.title}</h1>
+            <p className="text-sm text-muted-foreground uppercase tracking-widest font-mono">{caseRow.category}</p>
 
-          <div className="p-10 space-y-10">
+            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-border pt-6">
+              <div>
+                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Generated</div>
+                <div className="text-xs text-foreground">{generatedAt}</div>
+              </div>
+              <div>
+                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Incidents</div>
+                <div className="text-xs text-foreground font-semibold">{incidents.length}</div>
+              </div>
+              <div>
+                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Date Range</div>
+                <div className="text-xs text-foreground">
+                  {incidents.length > 0
+                    ? `${new Date(incidents[0].occurred_at).toLocaleDateString()} – ${new Date(incidents[incidents.length - 1].occurred_at).toLocaleDateString()}`
+                    : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Evidence Items</div>
+                <div className="text-xs text-foreground font-semibold">
+                  {incidents.reduce((sum, i) => sum + (Array.isArray(i.evidence_items) ? i.evidence_items.length : 0), 0)}
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {/* Body */}
+          <div className="px-10 py-8 space-y-8">
+            {/* Case summary */}
+            {caseRow.description && (
+              <section>
+                <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-3 pb-2 border-b border-border">
+                  Case Summary
+                </h2>
+                <p className="text-sm text-foreground" style={{ lineHeight: 1.6 }}>{caseRow.description}</p>
+              </section>
+            )}
+
+            {/* Chronological incident log */}
             <section>
-              <h2 className="text-xl font-semibold">Case summary</h2>
-              <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{caseRow.description || "No additional description provided."}</p>
+              <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-4 pb-2 border-b border-border">
+                Chronological Incident Log
+              </h2>
+              {incidents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No incidents recorded.</p>
+              ) : (
+                <ol className="space-y-6">
+                  {incidents.map((i, idx) => (
+                    <li key={i.id} className="relative pl-8">
+                      {/* Incident number */}
+                      <div className="absolute left-0 top-0 h-5 w-5 rounded border border-border bg-background flex items-center justify-center">
+                        <span className="text-xs font-mono text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
+                      </div>
+
+                      <div className="text-xs font-mono text-muted-foreground mb-1">
+                        {new Date(i.occurred_at).toLocaleString(undefined, {
+                          weekday: "short", year: "numeric", month: "short", day: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </div>
+                      <h3 className="font-semibold text-sm mb-1">{i.title}</h3>
+
+                      {i.neutral_summary && (
+                        <p className="text-sm text-muted-foreground mb-2" style={{ lineHeight: 1.6 }}>
+                          {i.neutral_summary}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        {i.location && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {i.location}
+                          </span>
+                        )}
+                        {Array.isArray(i.people_involved) && i.people_involved.length > 0 && (
+                          <span className="inline-flex items-center gap-1">
+                            <Users className="h-3 w-3" /> {i.people_involved.join(", ")}
+                          </span>
+                        )}
+                        {Array.isArray(i.evidence_items) && i.evidence_items.length > 0 && (
+                          <span className="inline-flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" />
+                            {i.evidence_items.length} attached — {i.evidence_items.map((e: any) => e.filename).join(", ")}
+                          </span>
+                        )}
+                        {typeof i.evidence_quality_score === "number" && (
+                          <span className="font-mono">Evidence score: {i.evidence_quality_score}/100</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </section>
 
-            <section>
-              <h2 className="text-xl font-semibold">Chronological timeline</h2>
-              <ol className="mt-4 space-y-6 border-l-2 border-border pl-6">
-                {incidents.map((i) => (
-                  <li key={i.id} className="relative">
-                    <span className="absolute -left-[31px] top-2 h-3 w-3 rounded-full bg-accent ring-4 ring-white" />
-                    <div className="text-xs font-mono text-muted-foreground">{new Date(i.occurred_at).toLocaleString()}</div>
-                    <h3 className="mt-1 font-semibold">{i.title}</h3>
-                    {i.neutral_summary && <p className="mt-1 text-sm text-muted-foreground">{i.neutral_summary}</p>}
-                    <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
-                      {i.location && <div><span className="font-medium">Location:</span> {i.location}</div>}
-                      {Array.isArray(i.people_involved) && i.people_involved.length > 0 && (
-                        <div><span className="font-medium">People:</span> {i.people_involved.join(", ")}</div>
-                      )}
-                      {Array.isArray(i.evidence_items) && i.evidence_items.length > 0 && (
-                        <div><span className="font-medium">Evidence:</span> {i.evidence_items.map((e: any) => e.filename).join(", ")}</div>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </section>
-
-            <section className="border-t pt-6">
+            {/* Footer */}
+            <section className="border-t border-border pt-6">
               <Disclaimer />
+              <p className="mt-4 text-xs font-mono text-muted-foreground text-center">
+                Generated by Proof — {generatedAt}
+              </p>
             </section>
           </div>
         </article>
       </main>
-    </div>
+    </AppLayout>
   );
 };
 

@@ -2,109 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body { font-family: 'Inter', system-ui, sans-serif; }
-
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Proof — Dark forensic palette. Always dark. */
 
 @layer base {
   :root {
-    /* Proof — calm legal-tech palette */
-    --background: 210 25% 98%;
-    --foreground: 222 47% 11%;
+    --background: 220 49% 8%;
+    --foreground: 210 40% 96%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 220 41% 13%;
+    --card-foreground: 210 40% 96%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 220 41% 11%;
+    --popover-foreground: 210 40% 96%;
 
-    --primary: 222 47% 14%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 219 100% 65%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 30% 95%;
-    --secondary-foreground: 222 47% 14%;
+    --secondary: 218 32% 21%;
+    --secondary-foreground: 210 40% 96%;
 
-    --muted: 210 25% 94%;
-    --muted-foreground: 215 16% 42%;
+    --muted: 218 30% 18%;
+    --muted-foreground: 215 18% 52%;
 
-    --accent: 212 90% 48%;
+    --accent: 219 100% 65%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 50%;
+    --destructive: 6 78% 57%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 60% 36%;
-    --warning: 38 92% 50%;
+    --success: 145 63% 49%;
+    --warning: 37 90% 61%;
 
-    --border: 214 25% 89%;
-    --input: 214 25% 89%;
-    --ring: 212 90% 48%;
+    --border: 218 32% 21%;
+    --input: 218 32% 24%;
+    --ring: 219 100% 65%;
 
-    --radius: 0.625rem;
+    --radius: 0.5rem;
 
-    --navy: 222 47% 11%;
-    --navy-foreground: 210 40% 98%;
+    --navy: 220 49% 8%;
+    --navy-foreground: 210 40% 96%;
 
-    --gradient-hero: linear-gradient(160deg, hsl(222 47% 11%) 0%, hsl(218 50% 18%) 60%, hsl(212 60% 24%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(210 25% 98%) 0%, hsl(210 30% 95%) 100%);
-    --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.04), 0 4px 16px hsl(222 47% 11% / 0.06);
-    --shadow-elevated: 0 10px 40px -10px hsl(222 47% 11% / 0.25);
+    --shadow-card: 0 1px 3px hsl(220 49% 4% / 0.5), 0 4px 12px hsl(220 49% 4% / 0.3);
+    --shadow-elevated: 0 8px 30px -8px hsl(220 49% 4% / 0.7);
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 220 41% 11%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 219 100% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 218 30% 18%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 218 32% 21%;
+    --sidebar-ring: 219 100% 65%;
   }
 
+  /* .dark mirrors :root — app is always dark */
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --background: 220 49% 8%;
+    --foreground: 210 40% 96%;
+    --card: 220 41% 13%;
+    --card-foreground: 210 40% 96%;
+    --popover: 220 41% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 219 100% 65%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 218 32% 21%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 218 30% 18%;
+    --muted-foreground: 215 18% 52%;
+    --accent: 219 100% 65%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 6 78% 57%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 145 63% 49%;
+    --warning: 37 90% 61%;
+    --border: 218 32% 21%;
+    --input: 218 32% 24%;
+    --ring: 219 100% 65%;
+    --sidebar-background: 220 41% 11%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 219 100% 65%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 218 30% 18%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 218 32% 21%;
+    --sidebar-ring: 219 100% 65%;
   }
 }
 
@@ -113,20 +94,124 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html, body {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11", "ss01";
+    line-height: 1.6;
   }
 
   h1, h2, h3, h4 {
-    @apply tracking-tight text-foreground;
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    @apply text-foreground;
   }
 }
 
 @layer utilities {
-  .bg-hero { background: var(--gradient-hero); }
-  .bg-subtle { background: var(--gradient-subtle); }
+  /* Hero = deep background for landing page hero */
+  .bg-hero { background: hsl(var(--background)); }
+  /* Subtle = page background for app pages */
+  .bg-subtle { background: hsl(var(--background)); }
   .shadow-card { box-shadow: var(--shadow-card); }
   .shadow-elevated { box-shadow: var(--shadow-elevated); }
+
+  /* Contradiction / danger alert card */
+  .contradiction-card {
+    background: hsl(220 41% 10%);
+    border-left: 3px solid hsl(var(--destructive));
+  }
+
+  /* Shared legal-link affordance for consistent hover + keyboard focus behavior */
+  .legal-link {
+    @apply rounded-sm outline-none underline-offset-2 transition-colors hover:text-foreground focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .case-focus-glow {
+    animation: case-focus-glow 650ms ease-out;
+  }
+
+  .case-intelligence-fade {
+    animation: case-intelligence-fade 280ms ease-out;
+  }
+
+  .intelligence-glass {
+    background: linear-gradient(180deg, rgba(16, 24, 38, 0.96) 0%, rgba(10, 17, 29, 0.92) 100%);
+    backdrop-filter: blur(14px);
+  }
+
+  .indicator-pulse {
+    animation: indicator-pulse 1.8s ease-in-out infinite;
+  }
+
+  .live-banner-glow {
+    animation: live-banner-glow 2.2s ease-in-out infinite;
+  }
+
+  .counter-rise {
+    animation: counter-rise 520ms ease-out;
+  }
+
+  @keyframes case-focus-glow {
+    0% {
+      transform: translateY(2px) scale(0.995);
+      box-shadow: 0 0 0 0 rgba(79, 140, 255, 0);
+    }
+    45% {
+      transform: translateY(0) scale(1);
+      box-shadow: 0 0 0 6px rgba(79, 140, 255, 0.12);
+    }
+    100% {
+      transform: translateY(0) scale(1);
+      box-shadow: 0 0 0 1px rgba(79, 140, 255, 0.18);
+    }
+  }
+
+  @keyframes case-intelligence-fade {
+    0% {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes indicator-pulse {
+    0%, 100% {
+      opacity: 0.7;
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(79, 140, 255, 0.18);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+      box-shadow: 0 0 0 8px rgba(79, 140, 255, 0);
+    }
+  }
+
+  @keyframes live-banner-glow {
+    0%, 100% {
+      box-shadow: 0 0 0 1px rgba(231, 76, 60, 0.2), 0 8px 24px rgba(77, 10, 10, 0.22);
+    }
+    50% {
+      box-shadow: 0 0 0 1px rgba(231, 76, 60, 0.34), 0 12px 34px rgba(77, 10, 10, 0.32);
+    }
+  }
+
+  @keyframes counter-rise {
+    0% {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }

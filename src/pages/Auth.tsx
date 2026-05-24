@@ -51,17 +51,20 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-subtle">
-      <header className="container py-6">
+      <header className="container py-4 sm:py-6">
         <Link to="/" className="inline-flex items-center gap-2">
-          <div className="h-8 w-8 rounded-md bg-navy flex items-center justify-center">
-            <Shield className="h-4 w-4 text-navy-foreground" />
+          <div
+            className="h-8 w-8 rounded-md flex items-center justify-center"
+            style={{ background: "hsl(219 100% 65% / 0.12)" }}
+          >
+            <Shield className="h-4 w-4 text-accent" />
           </div>
           <span className="font-semibold text-lg">Proof</span>
         </Link>
       </header>
-      <main className="flex-1 flex items-center justify-center py-10 px-4">
-        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-elevated">
-          <h1 className="text-2xl font-semibold">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
+      <main className="flex-1 flex items-center justify-center py-6 sm:py-10 px-4">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-elevated">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-balance">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {mode === "signup" ? "Start your private evidence timeline." : "Sign in to continue documenting."}
           </p>
@@ -74,16 +77,21 @@ const Auth = () => {
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1.5" />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full h-11" disabled={loading}>
               {loading ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
             </Button>
           </form>
           <p className="mt-6 text-sm text-center text-muted-foreground">
             {mode === "signup" ? "Already have an account? " : "New here? "}
-            <button className="text-accent font-medium" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>
+            <button type="button" className="text-accent font-medium underline-offset-2 hover:underline" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>
               {mode === "signup" ? "Sign in" : "Create account"}
             </button>
           </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground leading-5">
+            <a href="/legal/privacy-policy.html" className="legal-link px-2 py-0.5">Privacy</a>
+            <a href="/legal/terms-of-service.html" className="legal-link px-2 py-0.5">Terms</a>
+            <a href="/legal/data-deletion.html" className="legal-link px-2 py-0.5">Data Deletion</a>
+          </div>
         </div>
       </main>
     </div>

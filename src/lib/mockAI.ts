@@ -1,13 +1,6 @@
-export type AIAnalysis = {
-  neutral_summary: string;
-  timeline: string[];
-  key_claims: string[];
-  contradictions: string[];
-  missing_evidence: string[];
-  follow_ups: string[];
-  emotional_language_removed: string;
-  evidence_quality_score: number;
-};
+import type { AIAnalysis } from "@/lib/aiAnalysis";
+
+export type { AIAnalysis } from "@/lib/aiAnalysis";
 
 const EMOTIONAL_WORDS = /\b(angry|furious|hate|stupid|awful|terrible|amazing|crazy|insane|ridiculous|outrageous|disgusting|horrible|absolutely|literally|totally|so much|ugh)\b/gi;
 
