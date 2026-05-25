@@ -47,7 +47,9 @@ const Example = () => (
         </div>
       </article>
       <div className="mt-8 text-center">
-        <Link to="/auth?mode=signup"><Button size="lg">Start your own evidence timeline</Button></Link>
+        <Button asChild size="lg">
+          <Link to="/auth?mode=signup">Start your own evidence timeline</Link>
+        </Button>
       </div>
     </main>
   </div>

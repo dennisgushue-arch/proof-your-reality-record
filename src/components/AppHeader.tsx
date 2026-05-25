@@ -32,15 +32,15 @@ export const AppHeader = () => {
           {legalLinks}
           {user ? (
             <>
-              <Link to="/dashboard">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Dashboard</Button>
-              </Link>
-              <Link to="/pricing">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Pricing</Button>
-              </Link>
-              <Link to="/account">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Account</Button>
-              </Link>
+              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Link to="/dashboard">Dashboard</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Link to="/pricing">Pricing</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Link to="/account">Account</Link>
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -53,18 +53,18 @@ export const AppHeader = () => {
             </>
           ) : (
             <>
-              <Link to="/pricing">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Pricing</Button>
-              </Link>
-              <Link to="/auth">
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">Sign in</Button>
-              </Link>
-              <Link to="/auth?mode=signup">
-                <Button size="sm" className="bg-accent hover:bg-accent/90 text-white font-semibold">
+              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Link to="/pricing">Pricing</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Link to="/auth">Sign in</Link>
+              </Button>
+              <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-white font-semibold">
+                <Link to="/auth?mode=signup">
                   <Mic className="mr-1.5 h-3.5 w-3.5" />
                   Start Recording
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </>
           )}
         </nav>

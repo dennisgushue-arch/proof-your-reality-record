@@ -18,6 +18,7 @@ import Account from "./pages/Account.tsx";
 import Example from "./pages/Example.tsx";
 import IncidentPlayback from "./components/IncidentPlayback";
 import StressMode from "./components/StressMode";
+import CentralIntelligenceScreen from "./components/CentralIntelligenceScreen.jsx";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/central-intelligence" element={<CentralIntelligenceScreen />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/example" element={<Example />} />

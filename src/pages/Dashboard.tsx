@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, Clock3, CircleHelp } from "lucide-react";
+import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, Clock3, CircleHelp, Bell, UserCircle2, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -768,6 +768,7 @@ const Dashboard = () => {
   const vaultIncidentCount = totalIncidents || 14;
   const vaultContradictionCount = totalContradictions || 3;
   const vaultMissingWarnings = totalMissingWarnings || 2;
+  const activeIncidentsDisplay = Math.max(1, selectedCaseIncidentRows.length || selectedCaseIncidents || 1);
 
   const displayCases = cases.length > 0 ? cases : [{
     id: "sample-case",
@@ -853,13 +854,29 @@ const Dashboard = () => {
           </div>
         )}
 
-        <section className="grid gap-4 xl:grid-cols-[1.4fr_0.95fr] mb-8">
-          <div className="rounded-[28px] border p-6 md:p-8 intelligence-glass" style={{ borderColor: "#243045" }}>
+        <section className="grid gap-4 xl:grid-cols-[1.4fr_0.95fr] xl:items-start mb-8">
+          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
             <p className="text-xs text-muted-foreground mb-1 font-mono">
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </p>
-            <p className="text-sm font-medium text-[#4F8CFF]">{getGreeting()}{displayName ? `, ${displayName}` : ""}.</p>
-            <h1 className="mt-4 text-4xl md:text-6xl font-semibold tracking-tight text-balance">Protect what happened.</h1>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-[#4F8CFF]">{getGreeting()}{displayName ? `, ${displayName}` : ""}.</p>
+                <h1 className="mt-3 text-4xl md:text-6xl font-semibold tracking-tight text-balance">REALITY INTELLIGENCE CENTER</h1>
+                <p className="mt-2 intel-label text-[#AAB4C8]">Live conflict monitoring and evidence analysis</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
+                  <Bell className="intel-inline-icon" /> {vaultContradictionCount} alerts
+                </span>
+                <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
+                  <Siren className="intel-inline-icon" /> {activeIncidentsDisplay} active
+                </span>
+                <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
+                  <UserCircle2 className="intel-inline-icon" /> {displayName || "Operator"}
+                </span>
+              </div>
+            </div>
             <p className="mt-4 text-base md:text-lg text-muted-foreground max-w-2xl">
               Capture incidents, organize evidence, and build clear timelines when it matters.
             </p>
@@ -868,37 +885,37 @@ const Dashboard = () => {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#4F8CFF]">
                   <ShieldCheck className="h-4 w-4" />
-                  Reality Intelligence Overview
+                  <span className="intel-section-title text-[#4F8CFF]">Reality Intelligence Overview</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#4F8CFF] indicator-pulse" />
-                  Pattern visibility online
+                  <span className="intel-metric-label text-muted-foreground">Pattern visibility online</span>
                 </div>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#4F8CFF] indicator-pulse" />
                     Active Incidents
                   </div>
                   <p className="mt-2 text-3xl font-bold counter-rise">{animatedIncidentCount}</p>
                 </div>
                 <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#E74C3C] indicator-pulse" />
                     Contradictions Detected
                   </div>
                   <p className="mt-2 text-3xl font-bold text-[#E74C3C] counter-rise">{animatedContradictionCount}</p>
                 </div>
                 <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#F2C94C] indicator-pulse" />
                     Missing Evidence Warnings
                   </div>
                   <p className="mt-2 text-3xl font-bold text-[#F2C94C] counter-rise">{animatedMissingWarnings}</p>
                 </div>
                 <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#2ECC71] indicator-pulse" />
                     Average Evidence Strength
                   </div>
@@ -1013,8 +1030,8 @@ const Dashboard = () => {
           </div>
 
           <div className="grid gap-4">
-            <div className="rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-              <p className="text-sm text-muted-foreground">Evidence Strength</p>
+            <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+              <p className="intel-label text-muted-foreground">Evidence Strength</p>
               <div className="mt-4 flex flex-col items-center justify-center gap-4 lg:flex-row lg:items-center">
                 <div
                   className="h-40 w-40 rounded-full p-[12px] transition-transform duration-300 hover:scale-[1.02]"
@@ -1030,16 +1047,16 @@ const Dashboard = () => {
                 </div>
                 <div className="text-center lg:text-left">
                   <h3 className="text-xl font-semibold">Evidence Strength Ring</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="intel-title-body">
                     Color shifts as the case gets stronger, incomplete, or weak.
                   </p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm" style={{ borderColor: selectedCaseStrengthTone.color, color: selectedCaseStrengthTone.color, background: `${selectedCaseStrengthTone.color}1A` }}>
+                    <div className="intel-chip-lg gap-2 text-sm" style={{ borderColor: selectedCaseStrengthTone.color, color: selectedCaseStrengthTone.color, background: `${selectedCaseStrengthTone.color}1A` }}>
                       <span className="inline-flex h-2 w-2 rounded-full indicator-pulse" style={{ background: selectedCaseStrengthTone.color }} />
                       {selectedCaseStrengthTone.label}
                     </div>
                     <div
-                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold tracking-[0.04em]"
+                      className="intel-chip-lg gap-2 text-xs font-semibold tracking-[0.04em]"
                       style={{
                         borderColor: selectedCaseConfidence.color,
                         color: selectedCaseConfidence.color,
@@ -1057,10 +1074,10 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-              <p className="text-sm text-muted-foreground">Live evidence capture</p>
+            <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+              <p className="intel-label text-muted-foreground">Live evidence capture</p>
               <h3 className="mt-2 text-xl font-semibold">START LIVE INCIDENT</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
+              <p className="intel-title-body">
                 Jump into fast capture mode for screenshots, witness notes, voice, and timeline logging.
               </p>
               <Link to="/stress-mode" className="mt-5 block">
@@ -1075,11 +1092,52 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr] mb-8">
-          <div className="rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="flex items-center gap-2 mb-4">
+        <section className="mb-8 grid gap-4 lg:grid-cols-5">
+          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+            <p className="intel-module-title text-[#4F8CFF]">INCIDENT CAPTURE</p>
+            <p className="intel-title-body">Live sessions, screenshots, voice notes, and raw event intake.</p>
+            <div className="mt-3 text-xs text-[#AAB4C8]">{activeIncidentsDisplay} active capture streams</div>
+          </div>
+          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "rgba(231, 76, 60, 0.45)" }}>
+            <p className="intel-module-title text-[#E74C3C]">THREAT / CONTRADICTION ENGINE</p>
+            <p className="intel-title-body">Changed stories, timeline conflicts, and claim mismatches.</p>
+            <div className="mt-3 text-xs text-[#E74C3C]">{vaultContradictionCount} contradiction alerts</div>
+          </div>
+          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+            <p className="intel-module-title text-[#4F8CFF]">TIMELINE RECONSTRUCTION</p>
+            <p className="intel-title-body">Playback sequencing and reconstructed incident flow.</p>
+            <div className="mt-3 text-xs text-[#AAB4C8]">35-day sequence heatmap online</div>
+          </div>
+          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+            <p className="intel-module-title text-[#2ECC71]">EVIDENCE SECURITY</p>
+            <p className="intel-title-body">Encrypted intake, integrity checks, and export-ready packets.</p>
+            <div className="mt-3 text-xs text-[#2ECC71] intel-chip-icon"><Lock className="intel-inline-icon" /> Integrity monitoring active</div>
+          </div>
+          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+            <p className="intel-module-title text-[#4F8CFF]">AI INTELLIGENCE</p>
+            <p className="intel-title-body">Behavior patterns, repeated phrases, and dynamic risk scoring.</p>
+            <div className="mt-3 text-xs text-[#AAB4C8] intel-chip-icon"><Sparkles className="intel-inline-icon" /> {selectedCaseBackendDisplay.label}</div>
+          </div>
+        </section>
+
+        <section className="mb-8 rounded-2xl border p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
+          <p className="intel-module-title text-[#AAB4C8] mb-3">INTELLIGENCE FLOW</p>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="intel-chip-lg" style={{ borderColor: "#243045", color: "#4F8CFF" }}>Capture</span>
+            <span className="text-[#AAB4C8]">→</span>
+            <span className="intel-chip-lg" style={{ borderColor: "#243045", color: "#4F8CFF" }}>Analysis</span>
+            <span className="text-[#AAB4C8]">→</span>
+            <span className="intel-chip-lg" style={{ borderColor: "rgba(231, 76, 60, 0.45)", color: "#E74C3C" }}>Contradictions</span>
+            <span className="text-[#AAB4C8]">→</span>
+            <span className="intel-chip-lg" style={{ borderColor: "#243045", color: "#2ECC71" }}>Evidence Packet</span>
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr] xl:items-start mb-8">
+          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+            <div className="intel-section-head">
               <FolderOpen className="h-4 w-4 text-[#4F8CFF]" />
-              <h3 className="text-lg font-semibold">Case Cards</h3>
+              <h3 className="intel-section-title text-foreground">Case Cards</h3>
             </div>
 
             {loading ? (
@@ -1112,22 +1170,22 @@ const Dashboard = () => {
                           <p className="text-sm text-muted-foreground mt-1">{caseCategoryLabel(c.category)}</p>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${categoryColor(c.category)}`}>
+                          <span className={`intel-chip-md intel-metric-label ${categoryColor(c.category)}`}>
                             {caseCategoryLabel(c.category)}
                           </span>
-                          <span className="inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold" style={{ color: risk.color, borderColor: risk.color, background: risk.background }}>
+                          <span className="intel-chip-md intel-metric-label" style={{ color: risk.color, borderColor: risk.color, background: risk.background }}>
                             {risk.label}
                           </span>
                         </div>
                       </div>
 
                       <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-lg border px-3 py-2" style={{ background: "#101826", borderColor: "#243045" }}>
-                          <p className="text-muted-foreground text-xs">Incidents</p>
+                        <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
+                          <p className="intel-metric-label text-muted-foreground">Incidents</p>
                           <p className="mt-1 font-semibold">{incidents}</p>
                         </div>
-                        <div className="rounded-lg border px-3 py-2" style={{ background: "#101826", borderColor: "#243045" }}>
-                          <p className="text-muted-foreground text-xs">Contradictions</p>
+                        <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
+                          <p className="intel-metric-label text-muted-foreground">Contradictions</p>
                           <p className="mt-1 font-semibold text-[#E74C3C]">{contradictions}</p>
                         </div>
                       </div>
@@ -1158,13 +1216,13 @@ const Dashboard = () => {
           </div>
 
           <div ref={intelligencePanelRef} className="grid gap-4 scroll-mt-20">
-            <div key={`feed-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-              <div className="flex items-center gap-2 mb-4">
+            <div key={`feed-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+              <div className="intel-section-head">
                 <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
-                <h3 className="text-lg font-semibold">Live Intelligence Feed</h3>
+                <h3 className="intel-section-title text-foreground">Live Intelligence Feed</h3>
               </div>
-              <div className="mb-4 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1 font-semibold uppercase tracking-[0.08em]">
+              <div className="mb-4 flex flex-wrap items-center gap-2 text-muted-foreground">
+                <span className="inline-flex items-center gap-1 intel-label">
                   Source legend
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -1183,18 +1241,18 @@ const Dashboard = () => {
                     </TooltipContent>
                   </Tooltip>
                 </span>
-                <span className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold" style={{ color: "#2ECC71", borderColor: "rgba(46, 204, 113, 0.45)", background: "rgba(46, 204, 113, 0.12)" }}>
+                <span className="intel-chip-sm intel-metric-label" style={{ color: "#2ECC71", borderColor: "rgba(46, 204, 113, 0.45)", background: "rgba(46, 204, 113, 0.12)" }}>
                   Live LLM
                 </span>
-                <span className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold" style={{ color: "#F2C94C", borderColor: "rgba(242, 201, 76, 0.45)", background: "rgba(242, 201, 76, 0.12)" }}>
+                <span className="intel-chip-sm intel-metric-label" style={{ color: "#F2C94C", borderColor: "rgba(242, 201, 76, 0.45)", background: "rgba(242, 201, 76, 0.12)" }}>
                   Fallback
                 </span>
-                <span className="inline-flex items-center rounded-full border px-2 py-0.5 font-semibold" style={{ color: "#4F8CFF", borderColor: "rgba(79, 140, 255, 0.45)", background: "rgba(79, 140, 255, 0.12)" }}>
+                <span className="intel-chip-sm intel-metric-label" style={{ color: "#4F8CFF", borderColor: "rgba(79, 140, 255, 0.45)", background: "rgba(79, 140, 255, 0.12)" }}>
                   Mixed Sources
                 </span>
               </div>
               {selectedCase && (
-                <div className="mb-4 rounded-lg border px-3 py-2 text-sm" style={{ background: "#050B16", borderColor: "#243045" }}>
+                <div className="mb-4 rounded-lg border intel-nested-inset text-sm" style={{ background: "#050B16", borderColor: "#243045" }}>
                   <span className="text-muted-foreground">Focused case:</span>{" "}
                   <span className="font-semibold text-foreground">{selectedCase.title}</span>
                 </div>
@@ -1212,7 +1270,7 @@ const Dashboard = () => {
                           <p className="text-xs text-muted-foreground">{item.timeAgo}</p>
                           {item.aiDerived && (
                             <span
-                              className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                              className="intel-chip-sm text-[10px] font-semibold"
                               style={{
                                 color: backendUsedDisplay(item.backendUsed ?? "unknown").color,
                                 borderColor: backendUsedDisplay(item.backendUsed ?? "unknown").borderColor,
@@ -1233,7 +1291,7 @@ const Dashboard = () => {
                     <p className="text-sm text-muted-foreground mt-1">{alert.body}</p>
                     <div className="mt-2">
                       <span
-                        className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                        className="intel-chip-sm text-[10px] font-semibold"
                         style={{
                           color: selectedCaseBackendDisplay.color,
                           borderColor: selectedCaseBackendDisplay.borderColor,
@@ -1248,27 +1306,27 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div key={`pattern-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-              <div className="flex items-center gap-2 mb-4">
+            <div key={`pattern-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+              <div className="intel-section-head">
                 <ShieldCheck className="h-4 w-4 text-[#4F8CFF]" />
-                <h3 className="text-lg font-semibold">AI Pattern Detection</h3>
+                <h3 className="intel-section-title text-foreground">AI Pattern Detection</h3>
               </div>
               {selectedCasePattern && (
                 <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <p className="text-sm font-semibold text-[#4F8CFF]">{selectedCasePattern.title}</p>
+                  <p className="intel-section-title text-[#4F8CFF]">{selectedCasePattern.title}</p>
                   <h4 className="mt-3 text-2xl font-semibold text-balance">{selectedCasePattern.headline}</h4>
-                  <p className="mt-3 text-sm text-muted-foreground">{selectedCasePattern.body}</p>
+                  <p className="intel-title-body">{selectedCasePattern.body}</p>
                 </div>
               )}
             </div>
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr] mb-8">
-          <div className="rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="flex items-center gap-2 mb-4">
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr] xl:items-start mb-8">
+          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+            <div className="intel-section-head">
               <Clock3 className="h-4 w-4 text-[#4F8CFF]" />
-              <h3 className="text-lg font-semibold">Timeline Heatmap</h3>
+              <h3 className="intel-section-title text-foreground">Timeline Heatmap</h3>
             </div>
             <p className="text-sm text-muted-foreground mb-5">See incident-heavy days, conflict spikes, and documentation frequency over the last five weeks.</p>
             <div className="grid grid-cols-7 gap-2">
@@ -1285,10 +1343,10 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="flex items-center gap-2 mb-4">
+          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+            <div className="intel-section-head">
               <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
-              <h3 className="text-lg font-semibold">Case Risk Scoring</h3>
+              <h3 className="intel-section-title text-foreground">Case Risk Scoring</h3>
             </div>
             <div className="space-y-3">
               {displayCases.slice(0, 4).map((c) => {
@@ -1301,7 +1359,7 @@ const Dashboard = () => {
                         <p className="text-sm font-semibold">{c.title}</p>
                         <p className="text-xs text-muted-foreground mt-1">{caseCategoryLabel(c.category)}</p>
                       </div>
-                      <span className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold" style={{ color: risk.color, borderColor: risk.color, background: risk.background }}>
+                      <span className="intel-chip-lg intel-metric-label" style={{ color: risk.color, borderColor: risk.color, background: risk.background }}>
                         {risk.label}
                       </span>
                     </div>
@@ -1314,13 +1372,37 @@ const Dashboard = () => {
                   <p className="text-xs text-muted-foreground">Focused case risk</p>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <span className="font-semibold">{selectedCase.title}</span>
-                    <span className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold" style={{ color: selectedCaseRisk.color, borderColor: selectedCaseRisk.color, background: selectedCaseRisk.background }}>
+                    <span className="intel-chip-lg intel-metric-label" style={{ color: selectedCaseRisk.color, borderColor: selectedCaseRisk.color, background: selectedCaseRisk.background }}>
                       {selectedCaseRisk.label}
                     </span>
                   </div>
                 </div>
               )}
             </div>
+          </div>
+        </section>
+
+        <section className="mb-8 rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
+          <div className="intel-section-head">
+            <Sparkles className="h-4 w-4 text-[#4F8CFF]" />
+            <h3 className="intel-section-title text-foreground">Reality Graph</h3>
+          </div>
+          <p className="text-sm text-muted-foreground mb-5">Entity relationship map for conflict intelligence: people, artifacts, financial events, contradictions, and incidents.</p>
+          <div className="grid gap-3 md:grid-cols-5">
+            {[
+              { label: "Person A", tone: "#4F8CFF" },
+              { label: "Text Message", tone: "#4F8CFF" },
+              { label: "Payment", tone: "#2ECC71" },
+              { label: "Contradiction", tone: "#E74C3C" },
+              { label: "Incident", tone: "#F2C94C" },
+            ].map((node, index, arr) => (
+              <div key={node.label} className="flex items-center gap-2">
+                <div className="rounded-lg border px-3 py-2 intel-metric-label w-full text-center" style={{ borderColor: node.tone, color: node.tone, background: `${node.tone}1A` }}>
+                  {node.label}
+                </div>
+                {index < arr.length - 1 && <span className="hidden md:inline text-[#AAB4C8]">→</span>}
+              </div>
+            ))}
           </div>
         </section>
 

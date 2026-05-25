@@ -156,6 +156,70 @@
     animation: counter-rise 520ms ease-out;
   }
 
+  .intel-label {
+    @apply uppercase font-semibold;
+    letter-spacing: 0.14em;
+    font-size: 0.68rem;
+    line-height: 1;
+  }
+
+  .intel-section-title {
+    @apply uppercase font-semibold;
+    letter-spacing: 0.08em;
+    font-size: 0.78rem;
+    line-height: 1.1;
+  }
+
+  .intel-module-title {
+    @apply uppercase font-semibold;
+    letter-spacing: 0.1em;
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+
+  .intel-metric-label {
+    @apply uppercase font-medium;
+    letter-spacing: 0.08em;
+    font-size: 0.64rem;
+    line-height: 1.05;
+  }
+
+  .intel-section-head {
+    @apply flex items-center gap-2 mb-4;
+  }
+
+  .intel-title-body {
+    @apply mt-2 text-sm text-muted-foreground leading-relaxed;
+  }
+
+  .intel-chip-sm {
+    @apply inline-flex items-center rounded-full border px-2 py-0.5;
+  }
+
+  .intel-chip-md {
+    @apply inline-flex items-center rounded-full border px-2.5 py-1;
+  }
+
+  .intel-chip-lg {
+    @apply inline-flex items-center rounded-full border px-3 py-1;
+  }
+
+  .intel-chip-icon {
+    @apply inline-flex items-center gap-1.5;
+  }
+
+  .intel-inline-icon {
+    @apply h-3.5 w-3.5 shrink-0;
+  }
+
+  .intel-nested-inset {
+    @apply px-3.5 py-2.5;
+  }
+
+  .intel-panel-inset {
+    @apply p-6 md:p-7 xl:p-6;
+  }
+
   @keyframes case-focus-glow {
     0% {
       transform: translateY(2px) scale(0.995);

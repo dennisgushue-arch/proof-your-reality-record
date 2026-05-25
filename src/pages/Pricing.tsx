@@ -121,7 +121,9 @@ const Pricing = () => {
                 ))}
               </ul>
               {t.name === "Free" ? (
-                <Link to="/auth?mode=signup" className="block mt-7 sm:mt-8"><Button className="w-full h-11">{t.cta}</Button></Link>
+                <Button asChild className="w-full mt-7 sm:mt-8 h-11">
+                  <Link to="/auth?mode=signup">{t.cta}</Link>
+                </Button>
               ) : (
                 <Button
                   className="w-full mt-7 sm:mt-8 h-11"
