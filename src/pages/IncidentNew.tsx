@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Camera, Mic, MicOff, Square, Upload, X } from "lucide-react";
+import { ArrowLeft, Camera, Mic, Square, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
 import { relabelCapturedPhotos } from "@/lib/capturedPhotoNaming";
+import { buildEvidenceStoragePath, uploadEvidenceFile } from "@/lib/evidenceStorage";
 import { toast } from "sonner";
 
 function localDT() {
@@ -62,12 +63,18 @@ const IncidentNew = () => {
       toast.error("Title and narrative are required");
       return;
     }
+    if (!caseId || !user) {
+      toast.error("Missing case or user context");
+      return;
+    }
+
     setSaving(true);
     const people = peopleStr.split(",").map((s) => s.trim()).filter(Boolean);
     const tags = tagsStr.split(",").map((s) => s.trim()).filter(Boolean);
+
     const { data, error } = await supabase.from("incidents").insert({
       case_id: caseId,
-      user_id: user!.id,
+      user_id: user.id,
       title: title.trim(),
       occurred_at: new Date(occurredAt).toISOString(),
       location: location.trim() || null,
@@ -75,19 +82,68 @@ const IncidentNew = () => {
       tags,
       raw_narrative: narrative.trim(),
     }).select().single();
-    setSaving(false);
+
     if (error || !data) { toast.error(error?.message ?? "Failed to save"); return; }
 
     if (files.length) {
-      await supabase.from("evidence_items").insert(files.map((f) => ({
-        incident_id: data.id,
-        user_id: user!.id,
-        type: f.type.split("/")[0] || "file",
-        filename: f.name,
-        storage_path: null,
-        description: null,
-      })));
+      const evidenceRows: Array<{
+        incident_id: string;
+        user_id: string;
+        type: string;
+        filename: string;
+        storage_path: string | null;
+        description: string | null;
+      }> = [];
+      let uploadFailures = 0;
+
+      for (const f of files) {
+        const type = f.type.split("/")[0] || "file";
+        const path = buildEvidenceStoragePath({
+          userId: user.id,
+          caseId,
+          incidentId: data.id,
+          fileName: f.name,
+        });
+
+        try {
+          await uploadEvidenceFile(f, path);
+          evidenceRows.push({
+            incident_id: data.id,
+            user_id: user.id,
+            type,
+            filename: f.name,
+            storage_path: path,
+            description: null,
+          });
+        } catch (uploadError) {
+          uploadFailures += 1;
+          evidenceRows.push({
+            incident_id: data.id,
+            user_id: user.id,
+            type,
+            filename: f.name,
+            storage_path: null,
+            description: uploadError instanceof Error ? `Upload failed: ${uploadError.message}` : "Upload failed",
+          });
+        }
+      }
+
+      const { error: evidenceInsertError } = await supabase.from("evidence_items").insert(evidenceRows);
+      if (evidenceInsertError) {
+        setSaving(false);
+        toast.error(`Incident saved but evidence metadata failed: ${evidenceInsertError.message}`);
+        nav(`/incidents/${data.id}`);
+        return;
+      }
+
+      if (uploadFailures > 0) {
+        toast.warning(`Incident saved with ${uploadFailures} upload issue${uploadFailures === 1 ? "" : "s"}`, {
+          description: "Some files could not be uploaded to secure storage. Check attached evidence details.",
+        });
+      }
     }
+
+    setSaving(false);
     toast.success("Incident saved");
     nav(`/incidents/${data.id}`);
   };

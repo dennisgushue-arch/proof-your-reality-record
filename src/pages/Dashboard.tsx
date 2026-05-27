@@ -768,7 +768,6 @@ const Dashboard = () => {
   const vaultIncidentCount = totalIncidents || 14;
   const vaultContradictionCount = totalContradictions || 3;
   const vaultMissingWarnings = totalMissingWarnings || 2;
-  const activeIncidentsDisplay = Math.max(1, selectedCaseIncidentRows.length || selectedCaseIncidents || 1);
 
   const displayCases = cases.length > 0 ? cases : [{
     id: "sample-case",
@@ -784,6 +783,7 @@ const Dashboard = () => {
   const selectedCaseIncidentRows = selectedCase && selectedCase.id !== "sample-case"
     ? (incidentsByCase[selectedCase.id] ?? [])
     : [];
+  const activeIncidentsDisplay = Math.max(1, selectedCaseIncidentRows.length || selectedCaseIncidents || 1);
   const selectedCaseContradictions = selectedCaseIncidentRows.length
     ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
     : caseContradictions(selectedCaseIncidents);

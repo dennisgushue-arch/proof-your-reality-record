@@ -7,6 +7,7 @@ import { Disclaimer } from "@/components/Disclaimer";
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeNarrative } from "@/lib/mockAI";
 import { AIAnalysisSchema, type AIAnalysis } from "@/lib/aiAnalysis";
+import { createEvidenceSignedUrl, removeEvidenceFile } from "@/lib/evidenceStorage";
 import { toast } from "sonner";
 
 const ScoreBadge = ({ score }: { score: number }) => {
@@ -78,6 +79,7 @@ const IncidentDetail = () => {
   const { id } = useParams<{ id: string }>();
   const [inc, setInc] = useState<any>(null);
   const [evidence, setEvidence] = useState<any[]>([]);
+  const [signedEvidenceUrls, setSignedEvidenceUrls] = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState(false);
 
   const load = async () => {
@@ -85,7 +87,21 @@ const IncidentDetail = () => {
     const { data } = await supabase.from("incidents").select("*").eq("id", id).maybeSingle();
     setInc(data);
     const { data: ev } = await supabase.from("evidence_items").select("*").eq("incident_id", id);
-    setEvidence(ev ?? []);
+    const evidenceRows = ev ?? [];
+    setEvidence(evidenceRows);
+
+    const signedMap: Record<string, string> = {};
+    await Promise.all(
+      evidenceRows.map(async (item: any) => {
+        if (!item.storage_path) return;
+        try {
+          signedMap[item.id] = await createEvidenceSignedUrl(item.storage_path);
+        } catch {
+          // Keep showing metadata even if URL signing fails.
+        }
+      }),
+    );
+    setSignedEvidenceUrls(signedMap);
   };
 
   useEffect(() => {
@@ -152,6 +168,18 @@ const IncidentDetail = () => {
   const removeEvidence = async (evidenceId: string) => {
     const confirmDelete = window.confirm("Remove this evidence item?");
     if (!confirmDelete) return;
+
+    const target = evidence.find((item) => item.id === evidenceId);
+    if (target?.storage_path) {
+      try {
+        await removeEvidenceFile(target.storage_path);
+      } catch (storageError) {
+        toast.warning("Could not delete underlying storage object", {
+          description: storageError instanceof Error ? storageError.message : "Storage cleanup failed.",
+        });
+      }
+    }
+
     const { error } = await supabase.from("evidence_items").delete().eq("id", evidenceId);
     if (error) { toast.error(error.message); return; }
     toast.success("Evidence removed");
@@ -372,6 +400,22 @@ const IncidentDetail = () => {
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{e.filename ?? "Untitled"}</div>
                     <div className="text-xs text-muted-foreground uppercase font-mono">{e.type}</div>
+                    {signedEvidenceUrls[e.id] && (
+                      <a
+                        href={signedEvidenceUrls[e.id]}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block text-xs text-accent hover:underline"
+                      >
+                        Open file
+                      </a>
+                    )}
+                    {!signedEvidenceUrls[e.id] && e.storage_path && (
+                      <div className="mt-1 text-xs text-muted-foreground">Stored securely (preview unavailable)</div>
+                    )}
+                    {!e.storage_path && (
+                      <div className="mt-1 text-xs text-warning">Storage upload failed for this item</div>
+                    )}
                   </div>
                   <Button
                     type="button"
