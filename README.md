@@ -44,6 +44,19 @@ VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-anon-key
 ```
 
+### Billing policy environment variables (Supabase Edge Functions)
+
+Configure these in your Supabase project secrets for Stripe checkout behavior:
+
+- `STRIPE_TRIAL_DAYS` (default: `7`)
+- `APP_LAUNCH_DATE_ISO` (example: `2026-06-01T00:00:00Z`)
+- `STRIPE_COUPON_ID_EARLY_ADOPTER_50` (Stripe coupon id for 50% off)
+
+Behavior:
+
+- New users (no existing subscription id) get a free trial for `STRIPE_TRIAL_DAYS`.
+- Users whose account creation date falls within 3 months of `APP_LAUNCH_DATE_ISO` automatically receive the early adopter coupon at checkout.
+
 ## Scripts
 
 - `npm run dev` — start local development server

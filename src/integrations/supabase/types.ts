@@ -147,6 +147,39 @@ export type Database = {
           },
         ]
       }
+      live_incident_events: {
+        Row: {
+          created_at: string
+          event_text: string
+          event_type: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_text: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_text?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

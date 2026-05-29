@@ -22,7 +22,7 @@ const tiers: Tier[] = [
     name: "Free",
     price: "$0",
     cadence: "forever",
-    features: ["1 incident per month", "Basic timeline view", "Text & photo uploads (placeholder)", "Private, encrypted storage"],
+    features: ["1 incident per month", "Basic timeline view", "Text & photo uploads", "Private, encrypted storage"],
     cta: "Get started",
     highlight: false,
   },
@@ -30,16 +30,16 @@ const tiers: Tier[] = [
     name: "Pro",
     price: "$14.99",
     cadence: "/month",
-    features: ["Unlimited cases & incidents", "AI structuring & summaries", "PDF evidence export", "Smart search & filters", "Follow-up reminders"],
-    cta: "Start Pro",
+    features: ["Unlimited cases & incidents", "AI structuring & summaries", "PDF evidence export", "Smart search & filters", "Follow-up reminders", "7-day free trial for new users"],
+    cta: "Start 7-day trial",
     highlight: true,
   },
   {
     name: "Premium",
     price: "$39",
     cadence: "/month",
-    features: ["Everything in Pro", "Contradiction engine across cases", "Collaborative case access", "Attorney / insurance sharing", "Advanced export templates"],
-    cta: "Start Premium",
+    features: ["Everything in Pro", "Contradiction engine across cases", "Collaborative case access", "Advanced export templates", "7-day free trial for new users"],
+    cta: "Start 7-day trial",
     highlight: false,
   },
 ];
@@ -55,7 +55,7 @@ const Pricing = () => {
     if (!checkout) return;
 
     if (checkout === "success") {
-      toast.success("Subscription started", { description: "Welcome to Proof paid plan." });
+      toast.success("Subscription started", { description: "Your 7-day trial or discounted plan is now active." });
     }
 
     if (checkout === "canceled") {
@@ -103,9 +103,11 @@ const Pricing = () => {
       <AppHeader />
       <main className="container py-12 sm:py-16">
         <div className="text-center max-w-2xl mx-auto">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-balance">Simple, honest pricing</h1>
-          <p className="mt-4 text-muted-foreground">Start free. Upgrade when the record matters.</p>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-balance">Private, straightforward pricing</h1>
+          <p className="mt-4 text-muted-foreground">Start free, then choose the plan that fits your case load. New users get a 7-day trial, and early users receive 50% off. Your records stay encrypted and account-scoped.</p>
         </div>
+        <p className="mt-4 text-center text-xs text-muted-foreground">Private by default. No public sharing, and no hidden fees.</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">Early user discount applies to accounts created during the first 3 months after launch.</p>
         <div className="mt-10 sm:mt-12 grid gap-5 sm:gap-6 md:grid-cols-3 max-w-5xl mx-auto">
           {tiers.map((t) => (
             <div key={t.name} className={`rounded-2xl border p-5 sm:p-8 ${t.highlight ? "border-accent bg-card shadow-elevated ring-1 ring-accent/30" : "border-border bg-card shadow-card"}`}>

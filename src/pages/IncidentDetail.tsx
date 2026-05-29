@@ -8,7 +8,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { analyzeNarrative } from "@/lib/mockAI";
 import { AIAnalysisSchema, type AIAnalysis } from "@/lib/aiAnalysis";
 import { createEvidenceSignedUrl, removeEvidenceFile } from "@/lib/evidenceStorage";
+import { playUiTone, triggerHaptic } from "@/lib/feedback";
 import { toast } from "sonner";
+
+const ANALYSIS_LOADING_STEPS = [
+  "Analyzing timeline…",
+  "Detecting contradictions…",
+  "Reconstructing incident…",
+] as const;
 
 const ScoreBadge = ({ score }: { score: number }) => {
   const color =
@@ -75,12 +82,41 @@ function backendBadgeStyle(backend: AnalysisBackendUsed) {
   };
 }
 
+function getLiveSessionTimelineSnippet(rawNarrative: string) {
+  if (!rawNarrative?.trim()) return [] as string[];
+
+  const sections = rawNarrative.split(/\n\n+/).map((part) => part.trim());
+  const timelineSection = sections.find((part) => part.toLowerCase().startsWith("timeline events"));
+  if (timelineSection) {
+    const lines = timelineSection
+      .split("\n")
+      .slice(1)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+    if (lines.length) return lines;
+  }
+
+  const transcriptSection = sections.find((part) => part.toLowerCase().startsWith("transcript"));
+  if (!transcriptSection) return [];
+
+  return transcriptSection
+    .split("\n")
+    .slice(1)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .map((line) => line.replace(/^Voice transcript:\s*/i, ""));
+}
+
 const IncidentDetail = () => {
   const { id } = useParams<{ id: string }>();
   const [inc, setInc] = useState<any>(null);
   const [evidence, setEvidence] = useState<any[]>([]);
   const [signedEvidenceUrls, setSignedEvidenceUrls] = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisStepIndex, setAnalysisStepIndex] = useState(0);
+  const [showContradictionWow, setShowContradictionWow] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -109,9 +145,27 @@ const IncidentDetail = () => {
     // eslint-disable-next-line
   }, [id]);
 
+  useEffect(() => {
+    if (!analyzing) {
+      setAnalysisStepIndex(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setAnalysisStepIndex((prev) => (prev + 1) % ANALYSIS_LOADING_STEPS.length);
+    }, 1200);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [analyzing]);
+
   const analyze = async () => {
     if (!inc) return;
     setAnalyzing(true);
+    setShowContradictionWow(false);
+    playUiTone("intelligence");
+    triggerHaptic("light");
 
     const analysisInput = {
       title: inc.title,
@@ -162,6 +216,16 @@ const IncidentDetail = () => {
     } else {
       toast.success("AI analysis complete");
     }
+
+    if (ai.contradictions.length > 0) {
+      setShowContradictionWow(true);
+      playUiTone("alert");
+      triggerHaptic("alert");
+    } else {
+      playUiTone("success");
+      triggerHaptic("success");
+    }
+
     load();
   };
 
@@ -196,6 +260,12 @@ const IncidentDetail = () => {
   const ai: AIAnalysis | null = aiParsed.success ? aiParsed.data : null;
   const backendUsed = readBackendUsed(inc.ai_analysis);
   const backendStyle = backendBadgeStyle(backendUsed);
+  const sourceMarker =
+    inc.ai_analysis && typeof inc.ai_analysis === "object" && !Array.isArray(inc.ai_analysis)
+      ? (inc.ai_analysis as Record<string, unknown>)._source
+      : null;
+  const isLiveSessionFinalized = sourceMarker === "live-session";
+  const liveSessionSnippet = isLiveSessionFinalized ? getLiveSessionTimelineSnippet(inc.raw_narrative ?? "") : [];
 
   return (
     <AppLayout>
@@ -246,13 +316,40 @@ const IncidentDetail = () => {
                 {backendStyle.label}
               </div>
             )}
+            {isLiveSessionFinalized && (
+              <div className="mt-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold" style={{ color: "#4F8CFF", borderColor: "rgba(79, 140, 255, 0.45)", background: "rgba(79, 140, 255, 0.12)" }}>
+                Finalized from Live Session
+              </div>
+            )}
           </div>
           {typeof inc.evidence_quality_score === "number" && (
             <ScoreBadge score={inc.evidence_quality_score} />
           )}
         </div>
 
+        {isLiveSessionFinalized && liveSessionSnippet.length > 0 && (
+          <section className="mb-5 rounded-lg border border-border bg-card p-5 shadow-card">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Live Session Source Timeline</h2>
+            <ul className="space-y-2">
+              {liveSessionSnippet.map((line, index) => (
+                <li key={`${line}-${index}`} className="text-sm text-foreground flex gap-2">
+                  <span className="text-accent font-mono text-xs shrink-0 mt-0.5">{String(index + 1).padStart(2, "0")}</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Split view: Raw narrative + AI panel */}
+        {showContradictionWow && (
+          <section className="mb-5 rounded-xl border px-5 py-4 contradiction-wow" style={{ borderColor: "rgba(231, 76, 60, 0.5)", background: "rgba(231, 76, 60, 0.1)" }}>
+            <p className="text-xs uppercase tracking-[0.14em] text-[#E74C3C] font-semibold">AI Alert</p>
+            <h2 className="mt-1 text-xl font-semibold">⚠ Contradiction Detected</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Statements conflict across your timeline. Review highlighted claims below.</p>
+          </section>
+        )}
+
         {ai ? (
           <div className="grid gap-5 lg:grid-cols-2 mb-5">
             {/* LEFT: Raw transcript */}
@@ -304,8 +401,13 @@ const IncidentDetail = () => {
             </div>
             <Button onClick={analyze} disabled={analyzing} className="bg-accent hover:bg-accent/90 text-white font-semibold">
               <Sparkles className="mr-2 h-4 w-4" />
-              {analyzing ? "Analyzing…" : "Analyze with AI"}
+              {analyzing ? ANALYSIS_LOADING_STEPS[analysisStepIndex] : "Analyze with AI"}
             </Button>
+            {analyzing && (
+              <p className="mt-2 text-xs text-muted-foreground animate-pulse">
+                {ANALYSIS_LOADING_STEPS[analysisStepIndex]}
+              </p>
+            )}
           </section>
         )}
 

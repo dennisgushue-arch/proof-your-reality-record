@@ -9,9 +9,9 @@ export async function seedDemoIfEmpty(userId: string) {
     .from("cases")
     .insert({
       user_id: userId,
-      title: "Sample case — Apartment 4B repairs",
-      category: "Landlord/Tenant",
-      description: "Demo case showing how Proof organizes incidents into a timeline.",
+      title: "Sample case — Kitchen Remodel Dispute",
+      category: "Contractor",
+      description: "Demo contractor dispute showing timeline playback, contradiction detection, and export-ready evidence.",
     })
     .select()
     .single();
@@ -19,31 +19,40 @@ export async function seedDemoIfEmpty(userId: string) {
 
   const incidents = [
     {
-      title: "Reported broken heater",
+      title: "Contract signed with completion promise",
       occurred_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-      location: "Apartment 4B",
-      people_involved: ["Landlord Mike"],
+      location: "124 Oak Street",
+      people_involved: ["Contractor Dan", "Homeowner"],
       raw_narrative:
-        "I texted Mike at 7:42pm letting him know the heater stopped working. He replied within 10 minutes and said he would send someone tomorrow morning. I told him the apartment was 58F. He promised it would be fixed by Friday.",
-      tags: ["text", "promise"],
+        "At 9:10am we signed a remodel agreement. Dan said cabinets were already ordered and the project would be complete by April 18. I took screenshots of the quote, payment receipt, and completion date from our text thread.",
+      tags: ["contract", "promise", "screenshot"],
     },
     {
-      title: "No one showed up",
+      title: "Timeline slips and messages conflict",
       occurred_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 12).toISOString(),
-      location: "Apartment 4B",
-      people_involved: ["Landlord Mike"],
+      location: "124 Oak Street",
+      people_involved: ["Contractor Dan", "Homeowner"],
       raw_narrative:
-        "Nobody showed up between 9am and 5pm. I called Mike twice, no answer. He sent a text at 6:15pm saying his plumber rescheduled. Earlier he said he would be here Tuesday, but now he's saying Thursday.",
-      tags: ["missed", "phone"],
+        "No crew arrived. Dan texted at 6:15pm saying supplier delays prevented ordering the cabinets. Earlier he said cabinets were already ordered. I uploaded screenshot evidence and a voice note describing the missed appointment.",
+      tags: ["delay", "phone", "contradiction", "voice-note"],
     },
     {
-      title: "Partial repair attempt",
+      title: "Payment dispute and revised statement",
       occurred_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-      location: "Apartment 4B",
-      people_involved: ["Repair tech", "Landlord Mike"],
+      location: "124 Oak Street",
+      people_involved: ["Contractor Dan", "Homeowner"],
       raw_narrative:
-        "Tech arrived at 11:20am, looked at the heater for 15 minutes, said the part needed to be ordered. Mike said the part would arrive within 3 business days. The apartment is still cold.",
-      tags: ["visit"],
+        "Dan arrived at 11:20am and said demolition could not continue until another payment was sent. He also said he never promised April 18 completion, despite previous texts saying exactly that. I logged witness details and attached payment receipts.",
+      tags: ["payment", "witness", "contradiction"],
+    },
+    {
+      title: "Final contradiction and escalation",
+      occurred_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+      location: "124 Oak Street",
+      people_involved: ["Contractor Dan", "Homeowner", "Neighbor witness"],
+      raw_narrative:
+        "At 4:40pm Dan said delays were caused by permit issues, but there were no permit notices filed for this scope. This conflicts with prior claims about ordered cabinets and supplier delays. I captured screenshots, recorded a note, and prepared an export packet.",
+      tags: ["escalation", "export", "contradiction", "screenshot"],
     },
   ];
 

@@ -46,14 +46,19 @@ export function useDictation(options: DictationOptions) {
   const [language, setLanguage] = useState(initialLanguage);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const shouldContinueRef = useRef(false);
 
   const isSupported = Boolean(getSpeechRecognitionCtor());
 
   const stop = () => {
+    shouldContinueRef.current = false;
     recognitionRef.current?.stop();
+    setIsDictating(false);
   };
 
   const start = () => {
+    if (recognitionRef.current) return;
+
     const Ctor = getSpeechRecognitionCtor();
     if (!Ctor) {
       onError?.("Speech dictation is not supported in this browser.");
@@ -62,29 +67,46 @@ export function useDictation(options: DictationOptions) {
 
     const recognition = new Ctor();
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = language;
 
     recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results)
-        .slice(event.resultIndex)
-        .map((result: any) => result?.[0]?.transcript ?? "")
-        .join(" ")
-        .trim();
-
-      if (transcript) onTranscript(transcript);
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const transcript = event.results[i]?.[0]?.transcript?.trim?.() ?? "";
+        if (!transcript) continue;
+        onTranscript(transcript);
+      }
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event: any) => {
+      const code = event?.error;
+      if (code === "not-allowed" || code === "service-not-allowed") {
+        shouldContinueRef.current = false;
+        setIsDictating(false);
+        recognitionRef.current = null;
+        onError?.("Microphone permission is blocked. Please allow mic access and try again.");
+        return;
+      }
+
       onError?.("Could not continue dictation.");
     };
 
     recognition.onend = () => {
+      if (shouldContinueRef.current) {
+        try {
+          recognition.start();
+          return;
+        } catch {
+          onError?.("Could not continue dictation.");
+        }
+      }
+
       setIsDictating(false);
       recognitionRef.current = null;
     };
 
     recognitionRef.current = recognition;
+    shouldContinueRef.current = true;
     setIsDictating(true);
     recognition.start();
   };
@@ -99,6 +121,7 @@ export function useDictation(options: DictationOptions) {
 
   useEffect(() => {
     return () => {
+      shouldContinueRef.current = false;
       recognitionRef.current?.stop();
     };
   }, []);

@@ -1,5 +1,5 @@
-import { useRef, useState, type CSSProperties } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Drawer,
@@ -12,11 +12,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { playUiTone, triggerHaptic } from "@/lib/feedback";
+import { useDictation } from "@/hooks/useDictation";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents, persistLiveIncidentEvent, type LiveIncidentEventType } from "@/lib/liveIncidentEvents";
 import { clearLiveIncidentState, readLiveIncidentState, writeLiveIncidentState } from "@/lib/liveIncident";
 
 type TimelineEvent = {
-  time: string;
+  occurredAt: string;
   text: string;
+  type: LiveIncidentEventType;
 };
 
 const formatTime = (date = new Date()) =>
@@ -27,48 +33,275 @@ const getElapsedLabel = (startedAt: Date) => {
   return `Session started ${minutes} min ago`;
 };
 
+const createSessionId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `session-${Date.now()}`;
+};
+
 export default function StressMode() {
-  const [sessionStartedAt] = useState(() => new Date());
-  const [recording, setRecording] = useState(() => readLiveIncidentState()?.active ?? false);
+  const { user } = useAuth();
+  const nav = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preferredCaseId = searchParams.get("caseId");
+
+  const initialLiveState = readLiveIncidentState();
+  const [sessionStartedAt] = useState(() =>
+    initialLiveState?.startedAt ? new Date(initialLiveState.startedAt) : new Date(),
+  );
+  const [sessionId] = useState(() => initialLiveState?.sessionId ?? createSessionId());
+  const [recording, setRecording] = useState(() => initialLiveState?.active ?? false);
   const [activeSheet, setActiveSheet] = useState<"witness" | "note" | null>(null);
   const [witnessInput, setWitnessInput] = useState("");
   const [noteInput, setNoteInput] = useState("");
-  const [events, setEvents] = useState<TimelineEvent[]>([
-    { time: formatTime(), text: "Stress mode activated" },
-  ]);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [finalizing, setFinalizing] = useState(false);
+  const [lastTranscriptPreview, setLastTranscriptPreview] = useState("");
 
   const screenshotInputRef = useRef<HTMLInputElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const lastTranscriptRef = useRef("");
 
-  const addEvent = (text: string) => {
-    setEvents((prev) => [{ time: formatTime(), text }, ...prev].slice(0, 20));
+  const {
+    isSupported: isDictationSupported,
+    isDictating,
+    language,
+    setLanguage,
+    toggle: toggleDictation,
+    stop: stopDictation,
+  } = useDictation({
+    initialLanguage: "en-US",
+    onTranscript: (chunk) => {
+      const normalized = chunk.trim().replace(/\s+/g, " ");
+      if (!normalized) return;
+
+      setLastTranscriptPreview(normalized);
+
+      if (normalized === lastTranscriptRef.current) return;
+      lastTranscriptRef.current = normalized;
+
+      appendEvent(`Voice transcript: “${normalized}”`, "transcript", {
+        persist: true,
+      });
+    },
+    onError: (message) => {
+      toast.error(message);
+    },
+  });
+
+  const appendEvent = (
+    text: string,
+    type: LiveIncidentEventType,
+    options?: { metadata?: Record<string, unknown>; occurredAt?: string; persist?: boolean },
+  ) => {
+    const occurredAt = options?.occurredAt ?? new Date().toISOString();
+    const event: TimelineEvent = { occurredAt, text, type };
+    setEvents((prev) => [...prev, event].slice(-80));
+
+    if (!options?.persist || !user) return;
+    void persistLiveIncidentEvent({
+      userId: user.id,
+      sessionId,
+      type,
+      text,
+      occurredAt,
+      metadata: options.metadata,
+    });
   };
 
-  const onToggleRecording = () => {
-    setRecording((prev) => {
-      const next = !prev;
-      addEvent(next ? "Voice recording started" : "Voice recording stopped");
-      toast.success(next ? "Voice capture started" : "Voice capture stopped");
-      if (next) {
-        writeLiveIncidentState({ active: true, startedAt: sessionStartedAt.toISOString() });
-      } else {
-        clearLiveIncidentState();
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const persisted = await loadLiveIncidentEvents(user.id, sessionId);
+        if (cancelled) return;
+
+        if (persisted.length > 0) {
+          setEvents(persisted);
+          return;
+        }
+
+        const seedOccurredAt = sessionStartedAt.toISOString();
+        appendEvent("Stress mode activated", "system", {
+          occurredAt: seedOccurredAt,
+          persist: true,
+          metadata: { source: "stress-mode" },
+        });
+      } catch {
+        if (cancelled) return;
+        const seedOccurredAt = sessionStartedAt.toISOString();
+        appendEvent("Stress mode activated", "system", {
+          occurredAt: seedOccurredAt,
+          persist: false,
+        });
       }
-      return next;
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, sessionId]);
+
+  const onToggleRecording = () => {
+    const next = !recording;
+    setRecording(next);
+    playUiTone(next ? "intelligence" : "click");
+    triggerHaptic("light");
+    appendEvent(next ? "Voice recording started" : "Voice recording stopped", "system", {
+      persist: true,
+      metadata: { action: next ? "start" : "stop" },
     });
+
+    if (next) {
+      lastTranscriptRef.current = "";
+      setLastTranscriptPreview("");
+      writeLiveIncidentState({
+        active: true,
+        startedAt: sessionStartedAt.toISOString(),
+        sessionId,
+      });
+
+      if (isDictationSupported) {
+        if (!isDictating) toggleDictation();
+        toast.success("Voice capture + live transcript started");
+      } else {
+        toast.success("Voice capture started", {
+          description: "Live transcript is unavailable in this browser.",
+        });
+      }
+      return;
+    }
+
+    if (isDictating) stopDictation();
+    lastTranscriptRef.current = "";
+    setLastTranscriptPreview("");
+    clearLiveIncidentState();
+    toast.success("Voice capture stopped");
+  };
+
+  const resolveTargetCaseId = async () => {
+    if (!user) return null;
+
+    if (preferredCaseId) {
+      const { data: explicitCase, error: explicitCaseError } = await supabase
+        .from("cases")
+        .select("id")
+        .eq("id", preferredCaseId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!explicitCaseError && explicitCase?.id) return explicitCase.id;
+    }
+
+    const { data: latestCase, error: latestCaseError } = await supabase
+      .from("cases")
+      .select("id")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestCaseError) return null;
+    return latestCase?.id ?? null;
+  };
+
+  const finalizeSession = async () => {
+    if (!user) {
+      toast.error("You need to be signed in to finalize this session.");
+      return;
+    }
+
+    if (!events.length) {
+      toast.error("No live session events yet.", {
+        description: "Capture at least one transcript or timeline event before finalizing.",
+      });
+      return;
+    }
+
+    setFinalizing(true);
+
+    if (recording) {
+      setRecording(false);
+      if (isDictating) stopDictation();
+      setLastTranscriptPreview("");
+      appendEvent("Voice recording stopped", "system", {
+        persist: true,
+        metadata: { action: "stop-finalize" },
+      });
+    }
+    clearLiveIncidentState();
+
+    const targetCaseId = await resolveTargetCaseId();
+    if (!targetCaseId) {
+      setFinalizing(false);
+      toast.error("No case found for this live session.", {
+        description: "Create or open a case first, then finalize again.",
+      });
+      nav("/dashboard");
+      return;
+    }
+
+    const draft = buildIncidentDraftFromLiveEvents(events);
+    const people = draft.peopleCsv.split(",").map((s) => s.trim()).filter(Boolean);
+    const tags = draft.tagsCsv.split(",").map((s) => s.trim()).filter(Boolean);
+    const occurredAt = new Date(draft.occurredAt);
+    const occurredAtIso = Number.isNaN(occurredAt.getTime()) ? new Date().toISOString() : occurredAt.toISOString();
+
+    const { data, error } = await supabase.from("incidents").insert({
+      case_id: targetCaseId,
+      user_id: user.id,
+      title: draft.title || "Live incident",
+      occurred_at: occurredAtIso,
+      people_involved: people,
+      tags,
+      ai_analysis: {
+        _source: "live-session",
+        _live_session_id: sessionId,
+        _live_event_count: events.length,
+      },
+      raw_narrative: draft.narrative || events.map((event) => `${formatTime(new Date(event.occurredAt))} — ${event.text}`).join("\n"),
+    }).select("id").single();
+
+    setFinalizing(false);
+
+    if (error || !data) {
+      toast.error(error?.message ?? "Failed to finalize session.");
+      return;
+    }
+
+    playUiTone("success");
+    triggerHaptic("success");
+    toast.success("Session finalized", {
+      description: "Live session converted into a new incident record.",
+    });
+    nav(`/incidents/${data.id}`);
   };
 
   const onScreenshotSelected = (incoming: FileList | null) => {
     const count = incoming?.length ?? 0;
     if (!count) return;
-    addEvent(count === 1 ? "Screenshot uploaded" : `${count} screenshots uploaded`);
+    playUiTone("success");
+    triggerHaptic("success");
+    appendEvent(count === 1 ? "Screenshot uploaded" : `${count} screenshots uploaded`, "screenshot", {
+      persist: true,
+      metadata: { count },
+    });
     toast.success(count === 1 ? "Screenshot added" : `${count} screenshots added`);
   };
 
   const onPhotoSelected = (incoming: FileList | null) => {
     const count = incoming?.length ?? 0;
     if (!count) return;
-    addEvent(count === 1 ? "Photo captured" : `${count} photos captured`);
+    playUiTone("success");
+    triggerHaptic("success");
+    appendEvent(count === 1 ? "Photo captured" : `${count} photos captured`, "photo", {
+      persist: true,
+      metadata: { count },
+    });
     toast.success(count === 1 ? "Photo added" : `${count} photos added`);
   };
 
@@ -88,7 +321,11 @@ export default function StressMode() {
       toast.error("Please enter witness details");
       return;
     }
-    addEvent(`Witness added: ${value}`);
+    appendEvent(`Witness added: ${value}`, "witness", {
+      persist: true,
+    });
+    playUiTone("success");
+    triggerHaptic("success");
     toast.success("Witness added to timeline");
     closeSheet();
   };
@@ -99,7 +336,11 @@ export default function StressMode() {
       toast.error("Please enter a quick note");
       return;
     }
-    addEvent(`Quick note: ${value}`);
+    appendEvent(`Quick note: ${value}`, "note", {
+      persist: true,
+    });
+    playUiTone("success");
+    triggerHaptic("success");
     toast.success("Quick note saved");
     closeSheet();
   };
@@ -137,6 +378,40 @@ export default function StressMode() {
         >
           {recording ? "STOP RECORDING" : "START VOICE CAPTURE"}
         </button>
+
+        {(recording || lastTranscriptPreview) && (
+          <p style={styles.transcriptPreview}>
+            {lastTranscriptPreview
+              ? `Live transcript: “${lastTranscriptPreview}”`
+              : "Listening… speak now to capture transcript."}
+          </p>
+        )}
+
+        <div style={styles.dictationRow}>
+          <span style={styles.dictationLabel}>
+            {isDictationSupported
+              ? (isDictating ? "Live transcript listening…" : "Transcript ready")
+              : "Transcript unavailable in this browser"}
+          </span>
+          <label style={styles.languageWrap}>
+            <span style={styles.languageLabel}>Language</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              style={styles.languageSelect}
+              disabled={recording}
+            >
+              <option value="en-US">English (US)</option>
+              <option value="en-GB">English (UK)</option>
+              <option value="es-ES">Spanish</option>
+              <option value="fr-FR">French</option>
+              <option value="de-DE">German</option>
+              <option value="it-IT">Italian</option>
+              <option value="pt-BR">Portuguese (BR)</option>
+              <option value="hi-IN">Hindi</option>
+            </select>
+          </label>
+        </div>
 
         <input
           ref={screenshotInputRef}
@@ -181,13 +456,24 @@ export default function StressMode() {
 
         {events.map((event, idx) => (
           <div
-            key={`${event.time}-${event.text}-${idx}`}
+            key={`${event.occurredAt}-${event.text}-${idx}`}
             style={idx === events.length - 1 ? { ...styles.timelineEvent, borderBottom: "none" } : styles.timelineEvent}
           >
-            <span style={styles.time}>{event.time}</span>
+            <span style={styles.time}>{formatTime(new Date(event.occurredAt))}</span>
             <span>{event.text}</span>
           </div>
         ))}
+
+        <div style={styles.finalizeRow}>
+          <Button
+            onClick={finalizeSession}
+            disabled={finalizing || events.length === 0}
+            className="bg-[#2ECC71] hover:bg-[#2ECC71]/90 text-[#041008] font-semibold"
+          >
+            {finalizing ? "Finalizing session…" : "Finalize Session"}
+          </Button>
+          <p style={styles.finalizeHint}>Creates a new incident and opens incident detail automatically.</p>
+        </div>
       </div>
 
       <Drawer
@@ -327,6 +613,55 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "18px",
   },
 
+  transcriptPreview: {
+    color: "#C9D3E6",
+    maxWidth: "680px",
+    marginTop: "-16px",
+    marginBottom: "20px",
+    fontSize: "13px",
+    lineHeight: 1.5,
+    fontStyle: "italic",
+    opacity: 0.95,
+  },
+
+  dictationRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginTop: "-20px",
+    marginBottom: "30px",
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+
+  dictationLabel: {
+    color: "#AAB4C8",
+    fontSize: "13px",
+  },
+
+  languageWrap: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+
+  languageLabel: {
+    color: "#8B96A8",
+    fontSize: "12px",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    fontWeight: 600,
+  },
+
+  languageSelect: {
+    background: "#131C2E",
+    color: "white",
+    border: "1px solid #243045",
+    borderRadius: "10px",
+    padding: "6px 10px",
+    fontSize: "13px",
+  },
+
   recordButton: {
     background: "#4F8CFF",
     border: "none",
@@ -390,6 +725,22 @@ const styles: Record<string, CSSProperties> = {
     padding: "14px 0",
     borderBottom: "1px solid #1C2637",
     flexWrap: "wrap",
+  },
+
+  finalizeRow: {
+    marginTop: "18px",
+    borderTop: "1px solid #1C2637",
+    paddingTop: "16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    alignItems: "flex-start",
+  },
+
+  finalizeHint: {
+    color: "#8B96A8",
+    fontSize: "12px",
+    margin: 0,
   },
 
   time: {

@@ -4,6 +4,7 @@ export const LIVE_INCIDENT_EVENT = "proof-live-incident-changed";
 export type LiveIncidentState = {
   active: boolean;
   startedAt: string;
+  sessionId?: string;
 };
 
 export function readLiveIncidentState(): LiveIncidentState | null {

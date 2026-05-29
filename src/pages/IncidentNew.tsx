@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Camera, Mic, Square, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
 import { relabelCapturedPhotos } from "@/lib/capturedPhotoNaming";
 import { buildEvidenceStoragePath, uploadEvidenceFile } from "@/lib/evidenceStorage";
+import { readLiveIncidentState } from "@/lib/liveIncident";
+import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents } from "@/lib/liveIncidentEvents";
 import { toast } from "sonner";
 
 function localDT() {
@@ -25,6 +27,7 @@ const IncidentNew = () => {
   const { id: caseId } = useParams<{ id: string }>();
   const { user } = useAuth();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [title, setTitle] = useState("");
   const [occurredAt, setOccurredAt] = useState(localDT());
@@ -34,6 +37,8 @@ const IncidentNew = () => {
   const [narrative, setNarrative] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [loadedLiveDraft, setLoadedLiveDraft] = useState(false);
+  const [liveSourceSessionId, setLiveSourceSessionId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -44,6 +49,51 @@ const IncidentNew = () => {
     },
     onError: (message) => toast.error(message),
   });
+
+  useEffect(() => {
+    if (!user || !caseId || loadedLiveDraft) return;
+
+    const sessionFromQuery = searchParams.get("liveSession");
+    const sessionFromState = readLiveIncidentState()?.sessionId;
+    const sessionId = sessionFromQuery ?? sessionFromState;
+    if (!sessionId) {
+      setLoadedLiveDraft(true);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const events = await loadLiveIncidentEvents(user.id, sessionId);
+        if (cancelled) return;
+        if (!events.length) {
+          setLoadedLiveDraft(true);
+          return;
+        }
+
+        const draft = buildIncidentDraftFromLiveEvents(events);
+
+        setTitle((prev) => prev || draft.title);
+        setOccurredAt((prev) => (prev === localDT() ? draft.occurredAt : prev));
+        setPeopleStr((prev) => prev || draft.peopleCsv);
+        setTagsStr((prev) => prev || draft.tagsCsv);
+        setNarrative((prev) => prev || draft.narrative);
+        setLiveSourceSessionId(sessionId);
+
+        toast.success("Live session imported", {
+          description: "Draft incident fields were prefilled from your live timeline.",
+        });
+      } catch {
+        // Non-blocking; form still works manually.
+      } finally {
+        if (!cancelled) setLoadedLiveDraft(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, caseId, searchParams, loadedLiveDraft]);
 
   const addFiles = (incoming: File[], source: "camera" | "files" = "files") => {
     if (!incoming.length) return;
@@ -80,6 +130,12 @@ const IncidentNew = () => {
       location: location.trim() || null,
       people_involved: people,
       tags,
+      ai_analysis: liveSourceSessionId
+        ? {
+            _source: "live-session",
+            _live_session_id: liveSourceSessionId,
+          }
+        : null,
       raw_narrative: narrative.trim(),
     }).select().single();
 

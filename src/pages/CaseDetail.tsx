@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { categoryColor } from "@/lib/categories";
+import { LIVE_INCIDENT_EVENT, readLiveIncidentState } from "@/lib/liveIncident";
 
 type Inc = {
   id: string;
@@ -23,6 +24,7 @@ const CaseDetail = () => {
   const [caseRow, setCaseRow] = useState<any>(null);
   const [incidents, setIncidents] = useState<Inc[]>([]);
   const [q, setQ] = useState("");
+  const [activeLiveSessionId, setActiveLiveSessionId] = useState<string | null>(null);
 
   const load = async () => {
     if (!id) return;
@@ -40,6 +42,22 @@ const CaseDetail = () => {
     load();
     // eslint-disable-next-line
   }, [id]);
+
+  useEffect(() => {
+    const syncLiveSession = () => {
+      const state = readLiveIncidentState();
+      setActiveLiveSessionId(state?.sessionId ?? null);
+    };
+
+    syncLiveSession();
+    window.addEventListener("storage", syncLiveSession);
+    window.addEventListener(LIVE_INCIDENT_EVENT, syncLiveSession as EventListener);
+
+    return () => {
+      window.removeEventListener("storage", syncLiveSession);
+      window.removeEventListener(LIVE_INCIDENT_EVENT, syncLiveSession as EventListener);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     if (!q.trim()) return incidents;
@@ -89,6 +107,13 @@ const CaseDetail = () => {
                 <FileDown className="mr-2 h-4 w-4" /> Export Packet
               </Button>
             </Link>
+            {activeLiveSessionId && (
+              <Link to={`/cases/${id}/incidents/new?liveSession=${encodeURIComponent(activeLiveSessionId)}`}>
+                <Button variant="outline" className="border-border">
+                  Create from Live Session
+                </Button>
+              </Link>
+            )}
             <Link to={`/cases/${id}/incidents/new`}>
               <Button className="bg-accent hover:bg-accent/90 text-white font-semibold">
                 <Plus className="mr-2 h-4 w-4" /> New Incident

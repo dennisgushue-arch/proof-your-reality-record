@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Download, Shield, MapPin, Users, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ const ExportPreview = () => {
   const { id } = useParams<{ id: string }>();
   const [caseRow, setCaseRow] = useState<any>(null);
   const [incidents, setIncidents] = useState<any[]>([]);
+  const documentRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -37,11 +38,19 @@ const ExportPreview = () => {
     hour: "2-digit", minute: "2-digit",
   });
 
+  const downloadPdf = () => {
+    if (!documentRef.current) return;
+    toast.message("Opening print dialog", {
+      description: "Choose “Save as PDF” in your browser/device print options.",
+    });
+    window.print();
+  };
+
   return (
     <AppLayout>
       <main className="px-6 lg:px-10 py-10 max-w-3xl">
         {/* Top bar */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 print:hidden">
           <Link
             to={`/cases/${id}`}
             className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono"
@@ -49,7 +58,7 @@ const ExportPreview = () => {
             <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to case
           </Link>
           <Button
-            onClick={() => toast.message("PDF export coming soon", { description: "Pro tier enables downloadable PDF packets." })}
+            onClick={downloadPdf}
             className="bg-accent hover:bg-accent/90 text-white font-semibold"
           >
             <Download className="mr-2 h-4 w-4" /> Download PDF
@@ -57,7 +66,7 @@ const ExportPreview = () => {
         </div>
 
         {/* Evidence packet document */}
-        <article className="rounded-lg border border-border bg-card shadow-elevated overflow-hidden">
+        <article ref={documentRef} className="rounded-lg border border-border bg-card shadow-elevated overflow-hidden print:border-0 print:shadow-none">
 
           {/* Cover / header */}
           <header className="border-b border-border px-10 py-10">

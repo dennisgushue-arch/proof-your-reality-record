@@ -128,6 +128,7 @@ const Account = () => {
 
         <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card space-y-3">
           <h2 className="text-lg font-semibold">Billing</h2>
+          <p className="text-xs text-muted-foreground">New paid signups include a 7-day trial. Early users may also have launch discount pricing applied at checkout.</p>
           <p className="text-sm text-muted-foreground">
             Plan: <span className="text-foreground font-medium uppercase">{subscription?.plan ?? "free"}</span>
             {subscription?.status ? ` · Status: ${subscription.status}` : ""}
@@ -141,7 +142,7 @@ const Account = () => {
         </div>
 
         <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card text-sm text-muted-foreground">
-          Your data is private and scoped to your account. Only you can read or export it.
+          Your data is private and scoped to your account. Only you can access it from within your account.
         </div>
 
         <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card space-y-3">

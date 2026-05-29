@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, Clock3, CircleHelp, Bell, UserCircle2, Sparkles, Lock } from "lucide-react";
+import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, Clock3, CircleHelp, Bell, UserCircle2, Sparkles, Lock, Cloud, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
+import { playUiTone, triggerHaptic } from "@/lib/feedback";
 import { toast } from "sonner";
 
 type CaseRow = {
@@ -586,13 +587,38 @@ function heatmapColor(intensity: number) {
   }
 }
 
+const ONBOARDING_STEPS = [
+  {
+    title: "Conflict happens fast.",
+    body: "Memory changes. Evidence disappears.",
+  },
+  {
+    title: "Capture incidents in real time.",
+    body: "Use voice notes, screenshots, and timestamps while details are fresh.",
+  },
+  {
+    title: "Proof reconstructs what happened.",
+    body: "Timelines, contradiction detection, and evidence organization happen automatically.",
+  },
+] as const;
+
+const ANALYSIS_LOADING_LINES = [
+  "Analyzing timeline…",
+  "Detecting contradictions…",
+  "Reconstructing incident…",
+] as const;
+
 const Dashboard = () => {
   const { user } = useAuth();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [incidentsByCase, setIncidentsByCase] = useState<Record<string, IncidentIntelRow[]>>({});
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [liveIncidentState, setLiveIncidentState] = useState<LiveIncidentState | null>(() => readLiveIncidentState());
   const [loading, setLoading] = useState(true);
+  const [loadingLineIndex, setLoadingLineIndex] = useState(0);
+  const [seedingDemo, setSeedingDemo] = useState(false);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState<string>("Other");
@@ -601,6 +627,7 @@ const Dashboard = () => {
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const intelligencePanelRef = useRef<HTMLDivElement | null>(null);
+  const contradictionAlertPlayedForCase = useRef<string | null>(null);
 
   const { isDictating, language, setLanguage, toggle: toggleDictation } = useDictation({
     onTranscript: (transcript) => {
@@ -611,7 +638,8 @@ const Dashboard = () => {
 
   const load = async () => {
     if (!user) return;
-    await seedDemoIfEmpty(user.id);
+    setLoading(true);
+
     const { data } = await supabase
       .from("cases")
       .select("id, title, category, created_at, updated_at, incidents(count)")
@@ -629,6 +657,29 @@ const Dashboard = () => {
     load();
     // eslint-disable-next-line
   }, [user]);
+
+  useEffect(() => {
+    if (!user || typeof window === "undefined") return;
+    const onboardingKey = `proof_onboarding_seen_${user.id}`;
+    const seen = window.localStorage.getItem(onboardingKey);
+    setShowOnboarding(!seen);
+    setOnboardingStep(0);
+  }, [user]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingLineIndex(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setLoadingLineIndex((prev) => (prev + 1) % ANALYSIS_LOADING_LINES.length);
+    }, 1200);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [loading]);
 
   useEffect(() => {
     if (!cases.length) {
@@ -769,21 +820,14 @@ const Dashboard = () => {
   const vaultContradictionCount = totalContradictions || 3;
   const vaultMissingWarnings = totalMissingWarnings || 2;
 
-  const displayCases = cases.length > 0 ? cases : [{
-    id: "sample-case",
-    title: "Kitchen Remodel Dispute",
-    category: "Contractor",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    incident_count: 8,
-  } as CaseRow];
+  const displayCases = cases;
 
-  const selectedCase = displayCases.find((c) => c.id === selectedCaseId) ?? displayCases[0];
+  const selectedCase = displayCases.find((c) => c.id === selectedCaseId) ?? null;
   const selectedCaseIncidents = selectedCase?.incident_count ?? 0;
-  const selectedCaseIncidentRows = selectedCase && selectedCase.id !== "sample-case"
+  const selectedCaseIncidentRows = selectedCase
     ? (incidentsByCase[selectedCase.id] ?? [])
     : [];
-  const activeIncidentsDisplay = Math.max(1, selectedCaseIncidentRows.length || selectedCaseIncidents || 1);
+  const activeIncidentsDisplay = Math.max(0, selectedCaseIncidentRows.length || selectedCaseIncidents || 0);
   const selectedCaseContradictions = selectedCaseIncidentRows.length
     ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
     : caseContradictions(selectedCaseIncidents);
@@ -824,6 +868,13 @@ const Dashboard = () => {
     () => buildHeatmap(selectedCaseIncidentRows),
     [selectedCaseIncidentRows],
   );
+  const liveSessionId = liveIncidentState?.sessionId ?? null;
+  const resumeLiveLink = liveSessionId
+    ? `/stress-mode?liveSession=${encodeURIComponent(liveSessionId)}${selectedCase ? `&caseId=${encodeURIComponent(selectedCase.id)}` : ""}`
+    : "/stress-mode";
+  const createFromLiveLink = liveSessionId && selectedCase
+    ? `/cases/${selectedCase.id}/incidents/new?liveSession=${encodeURIComponent(liveSessionId)}`
+    : null;
 
   const animatedIncidentCount = useAnimatedNumber(vaultIncidentCount);
   const animatedContradictionCount = useAnimatedNumber(vaultContradictionCount);
@@ -831,8 +882,19 @@ const Dashboard = () => {
   const animatedAverageStrength = useAnimatedNumber(averageEvidenceStrength);
   const animatedSelectedScore = useAnimatedNumber(selectedCaseScore);
 
+  useEffect(() => {
+    if (!selectedCase || selectedCaseContradictions < 1) return;
+    if (contradictionAlertPlayedForCase.current === selectedCase.id) return;
+
+    contradictionAlertPlayedForCase.current = selectedCase.id;
+    playUiTone("alert");
+    triggerHaptic("alert");
+  }, [selectedCase, selectedCaseContradictions]);
+
   const focusCase = (caseId: string) => {
     setSelectedCaseId(caseId);
+    playUiTone("click");
+    triggerHaptic("light");
 
     if (typeof window !== "undefined" && window.innerWidth < 1280) {
       requestAnimationFrame(() => {
@@ -841,9 +903,95 @@ const Dashboard = () => {
     }
   };
 
+  const dismissOnboarding = () => {
+    if (user && typeof window !== "undefined") {
+      window.localStorage.setItem(`proof_onboarding_seen_${user.id}`, "true");
+    }
+    setShowOnboarding(false);
+  };
+
+  const nextOnboardingStep = () => {
+    setOnboardingStep((prev) => {
+      const next = Math.min(prev + 1, ONBOARDING_STEPS.length - 1);
+      if (next !== prev) {
+        playUiTone("click");
+        triggerHaptic("light");
+      }
+      return next;
+    });
+  };
+
+  const previousOnboardingStep = () => {
+    setOnboardingStep((prev) => Math.max(0, prev - 1));
+    playUiTone("click");
+    triggerHaptic("light");
+  };
+
+  const exploreDemoCase = async () => {
+    if (!user) return;
+    setSeedingDemo(true);
+    playUiTone("intelligence");
+
+    await seedDemoIfEmpty(user.id);
+    await load();
+
+    setSeedingDemo(false);
+    triggerHaptic("success");
+    toast.success("Demo case loaded", {
+      description: "Contractor dispute scenario is now ready to explore.",
+    });
+  };
+
   return (
     <AppLayout>
       <main className="px-6 lg:px-10 py-10 pb-28 lg:pb-10" style={{ background: "#050B16" }}>
+        {showOnboarding && (
+          <section className="mb-6 rounded-2xl border p-5 intelligence-glass case-intelligence-fade" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="intel-module-title text-[#4F8CFF]">ONBOARDING</p>
+                <h2 className="mt-1 text-lg font-semibold">Welcome to Proof — here’s the 30-second orientation</h2>
+                <div className="mt-3 rounded-xl border p-4" style={{ borderColor: "#243045", background: "#050B16" }}>
+                  <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Screen {onboardingStep + 1} of {ONBOARDING_STEPS.length}</p>
+                  <h3 className="mt-2 text-base font-semibold">{ONBOARDING_STEPS[onboardingStep].title}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{ONBOARDING_STEPS[onboardingStep].body}</p>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5">
+                  {ONBOARDING_STEPS.map((_, idx) => (
+                    <span
+                      key={`onboarding-dot-${idx}`}
+                      className="inline-flex h-1.5 w-6 rounded-full"
+                      style={{ background: idx === onboardingStep ? "#4F8CFF" : "rgba(79, 140, 255, 0.25)" }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" className="border-border tactile-button" onClick={dismissOnboarding}>
+                  Skip
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-border tactile-button"
+                  onClick={previousOnboardingStep}
+                  disabled={onboardingStep === 0}
+                >
+                  Back
+                </Button>
+                {onboardingStep < ONBOARDING_STEPS.length - 1 ? (
+                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button" onClick={nextOnboardingStep}>
+                    Next
+                  </Button>
+                ) : (
+                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button" onClick={dismissOnboarding}>
+                    Let’s go
+                  </Button>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
         {liveIncidentState?.active && (
           <div className="sticky top-[4.5rem] lg:top-4 z-20 mb-6 rounded-2xl border px-4 py-3 intelligence-glass live-banner-glow" style={{ borderColor: "rgba(231, 76, 60, 0.35)" }}>
             <div className="flex flex-wrap items-center gap-3">
@@ -852,6 +1000,38 @@ const Dashboard = () => {
               <span className="text-sm text-muted-foreground">{liveIncidentAgeLabel(liveIncidentState.startedAt)}</span>
             </div>
           </div>
+        )}
+
+        {liveSessionId && (
+          <section className="mb-6 rounded-2xl border p-5 intelligence-glass case-intelligence-fade" style={{ borderColor: "rgba(79, 140, 255, 0.35)" }}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="intel-module-title text-[#4F8CFF]">LIVE SESSION</p>
+                <h2 className="mt-1 text-lg font-semibold">Resume Live Session</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Continue capturing your active timeline or auto-create a draft incident from this session.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link to={resumeLiveLink}>
+                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
+                    Resume capture
+                  </Button>
+                </Link>
+                {createFromLiveLink ? (
+                  <Link to={createFromLiveLink}>
+                    <Button variant="outline" className="border-border tactile-button">
+                      Create incident draft
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button variant="outline" disabled className="border-border">
+                    Create incident draft
+                  </Button>
+                )}
+              </div>
+            </div>
+          </section>
         )}
 
         <section className="grid gap-4 xl:grid-cols-[1.4fr_0.95fr] xl:items-start mb-8">
@@ -927,7 +1107,7 @@ const Dashboard = () => {
             <div className="mt-6 flex flex-wrap gap-3">
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button size="lg" className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white font-semibold">
+                  <Button size="lg" className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white font-semibold tactile-button">
                     <Plus className="mr-2 h-4 w-4" /> New Case
                   </Button>
                 </DialogTrigger>
@@ -971,7 +1151,7 @@ const Dashboard = () => {
                               ))}
                             </SelectContent>
                           </Select>
-                          <Button type="button" variant="outline" size="sm" onClick={toggleDictation} className="border-border">
+                          <Button type="button" variant="outline" size="sm" onClick={toggleDictation} className="border-border tactile-button">
                             {isDictating ? <Square className="mr-1 h-3.5 w-3.5" /> : <Mic className="mr-1 h-3.5 w-3.5" />}
                             {isDictating ? "Stop" : "Dictate"}
                           </Button>
@@ -980,7 +1160,7 @@ const Dashboard = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => cameraInputRef.current?.click()}
-                            className="border-border"
+                            className="border-border tactile-button"
                             aria-label="Take photo"
                           >
                             <Camera className="h-3.5 w-3.5" />
@@ -1020,12 +1200,27 @@ const Dashboard = () => {
                         </ul>
                       )}
                     </div>
-                    <Button onClick={create} className="w-full bg-accent hover:bg-accent/90 text-white font-semibold">
+                    <Button onClick={create} className="w-full bg-accent hover:bg-accent/90 text-white font-semibold tactile-button">
                       Create Case
                     </Button>
                   </div>
                 </DialogContent>
               </Dialog>
+
+              <Button
+                variant="outline"
+                className="border-border text-muted-foreground hover:text-foreground tactile-button"
+                onClick={exploreDemoCase}
+                disabled={seedingDemo}
+              >
+                {seedingDemo ? "Loading demo…" : "Explore Demo Case"}
+              </Button>
+
+              <Link to="/demo/playback" className="inline-flex">
+                <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground tactile-button">
+                  Watch Demo Playback
+                </Button>
+              </Link>
             </div>
           </div>
 
@@ -1081,9 +1276,7 @@ const Dashboard = () => {
                 Jump into fast capture mode for screenshots, witness notes, voice, and timeline logging.
               </p>
               <Link to="/stress-mode" className="mt-5 block">
-                <Button
-                  className="w-full h-20 text-lg md:text-xl font-extrabold tracking-[0.08em] bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated"
-                >
+                <Button className="w-full h-20 text-lg md:text-xl font-extrabold tracking-[0.08em] bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated tactile-button">
                   <Siren className="mr-3 h-5 w-5" />
                   START LIVE INCIDENT
                 </Button>
@@ -1133,6 +1326,17 @@ const Dashboard = () => {
           </div>
         </section>
 
+        <section className="mb-8 rounded-2xl border p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
+          <p className="intel-module-title text-[#AAB4C8] mb-3">TRUST SIGNALS</p>
+          <div className="flex flex-wrap gap-2">
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#2ECC71" }}><Lock className="intel-inline-icon" /> Encrypted</span>
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#4F8CFF" }}><Clock3 className="intel-inline-icon" /> Timestamp verified</span>
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8" }}><ShieldCheck className="intel-inline-icon" /> Evidence secured</span>
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8" }}><Fingerprint className="intel-inline-icon" /> Private storage</span>
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8" }}><Cloud className="intel-inline-icon" /> Cloud backup</span>
+          </div>
+        </section>
+
         <section className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr] xl:items-start mb-8">
           <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
             <div className="intel-section-head">
@@ -1141,7 +1345,23 @@ const Dashboard = () => {
             </div>
 
             {loading ? (
-              <p className="text-muted-foreground text-sm">Loading cases…</p>
+              <div className="rounded-xl border p-5 case-intelligence-fade" style={{ background: "#050B16", borderColor: "#243045" }}>
+                <p className="text-sm text-muted-foreground animate-pulse">{ANALYSIS_LOADING_LINES[loadingLineIndex]}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Preparing your case intelligence workspace…</p>
+              </div>
+            ) : cases.length === 0 ? (
+              <div className="rounded-xl border p-5 case-intelligence-fade" style={{ background: "#050B16", borderColor: "#243045" }}>
+                <h4 className="text-lg font-semibold">No incidents recorded yet.</h4>
+                <p className="mt-2 text-sm text-muted-foreground">Start documenting while details are fresh. You can also load the demo contractor dispute to explore the full flow instantly.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button onClick={() => setOpen(true)} className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
+                    <Plus className="mr-2 h-4 w-4" /> Start first case
+                  </Button>
+                  <Button variant="outline" className="border-border tactile-button" onClick={exploreDemoCase} disabled={seedingDemo}>
+                    {seedingDemo ? "Loading demo…" : "Explore Demo Case"}
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
                 {displayCases.map((c) => {
@@ -1152,11 +1372,14 @@ const Dashboard = () => {
                   const score = evidenceScoreFromIncidents(incidentRows, incidents);
                   const risk = caseRiskFromIncidents(incidentRows, incidents);
                   const isSelected = c.id === selectedCase?.id;
+                  const cardContradictions = incidentRows.length
+                    ? incidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
+                    : contradictions;
 
                   return (
                     <div
                       key={c.id}
-                      className={`rounded-xl border p-5 transition-all duration-200 hover:border-[#4F8CFF]/50 hover:shadow-card cursor-pointer ${isSelected ? "case-focus-glow" : ""}`}
+                      className={`rounded-xl border p-5 transition-all duration-200 hover:border-[#4F8CFF]/50 hover:shadow-card cursor-pointer micro-lift ${isSelected ? "case-focus-glow" : ""}`}
                       style={{
                         background: "#050B16",
                         borderColor: isSelected ? "#4F8CFF" : "#243045",
@@ -1186,7 +1409,7 @@ const Dashboard = () => {
                         </div>
                         <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
                           <p className="intel-metric-label text-muted-foreground">Contradictions</p>
-                          <p className="mt-1 font-semibold text-[#E74C3C]">{contradictions}</p>
+                          <p className="mt-1 font-semibold text-[#E74C3C]">{cardContradictions}</p>
                         </div>
                       </div>
 
@@ -1198,15 +1421,13 @@ const Dashboard = () => {
 
                       <div className="mt-4 flex items-center justify-between gap-3">
                         <span className="text-xs text-muted-foreground">{isSelected ? "Focused for intelligence" : "Tap to focus intelligence"}</span>
-                        {c.id !== "sample-case" && (
-                          <Link
-                            to={`/cases/${c.id}`}
-                            className="text-sm font-semibold text-[#4F8CFF] hover:text-white"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Open case
-                          </Link>
-                        )}
+                        <Link
+                          to={`/cases/${c.id}`}
+                          className="text-sm font-semibold text-[#4F8CFF] hover:text-white"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Open case
+                        </Link>
                       </div>
                     </div>
                   );
@@ -1286,7 +1507,7 @@ const Dashboard = () => {
                   </div>
                 ))}
                 {selectedCaseAlerts.map((alert) => (
-                  <div key={`${alert.title}-${alert.body}`} className="rounded-lg border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <div key={`${alert.title}-${alert.body}`} className={`rounded-lg border p-4 ${alert.title.includes("Contradiction") ? "contradiction-subtle" : ""}`} style={{ background: "#050B16", borderColor: "#243045" }}>
                     <p className="text-sm font-semibold" style={{ color: alert.tone === "success" ? "#2ECC71" : "#E74C3C" }}>{alert.title}</p>
                     <p className="text-sm text-muted-foreground mt-1">{alert.body}</p>
                     <div className="mt-2">
@@ -1330,8 +1551,17 @@ const Dashboard = () => {
             </div>
             <p className="text-sm text-muted-foreground mb-5">See incident-heavy days, conflict spikes, and documentation frequency over the last five weeks.</p>
             <div className="grid grid-cols-7 gap-2">
-              {heatmap.map((day) => (
-                <div key={day.key} className="aspect-square rounded-md border" style={{ background: heatmapColor(day.intensity), borderColor: "rgba(255,255,255,0.06)" }} title={day.label} />
+              {heatmap.map((day, idx) => (
+                <div
+                  key={day.key}
+                  className="aspect-square rounded-md border timeline-fade-in"
+                  style={{
+                    background: heatmapColor(day.intensity),
+                    borderColor: "rgba(255,255,255,0.06)",
+                    animationDelay: `${Math.min(idx * 15, 420)}ms`,
+                  }}
+                  title={day.label}
+                />
               ))}
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

@@ -79,6 +79,8 @@ export default function IncidentPlayback() {
                 key={index}
                 style={{
                   ...styles.event,
+                  animation: "timeline-fade 420ms ease-out both",
+                  animationDelay: `${index * 120}ms`,
                   ...(event.type === "contradiction" ? styles.contradiction : {}),
                 }}
               >
@@ -155,6 +157,9 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "14px 22px",
     fontWeight: "700",
     cursor: "pointer",
+    transform: "translateY(0)",
+    boxShadow: "0 8px 20px rgba(79, 140, 255, 0.24)",
+    transition: "transform 160ms ease, box-shadow 160ms ease",
   },
   grid: {
     display: "grid",

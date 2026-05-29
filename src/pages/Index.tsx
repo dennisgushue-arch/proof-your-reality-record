@@ -36,14 +36,14 @@ const Index = () => (
           </Link>
           <Link to="/example">
             <Button size="lg" variant="outline" className="border-border text-foreground hover:bg-card">
-              View Sample Evidence Packet
+              View Sample Private Evidence Packet
             </Button>
           </Link>
         </div>
         <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
           <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-accent" /> Row-level encrypted records</div>
           <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-accent" /> Tamper-evident timestamps</div>
-          <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-accent" /> Court-ready exports</div>
+          <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-accent" /> Private export packets</div>
         </div>
       </div>
     </section>
@@ -132,7 +132,7 @@ const Index = () => (
         {[
           { icon: Mic, n: "01", t: "Capture", d: "Speak or type what happened the moment it happens. Attach photos, screenshots, voice notes. No formatting required." },
           { icon: Sparkles, n: "02", t: "Structure", d: "AI turns your raw narrative into a neutral summary, timeline, key claims, and missing-evidence checklist." },
-          { icon: FileText, n: "03", t: "Export", d: "Generate a clean, chronological evidence packet ready to share with a lawyer, mediator, or insurer." },
+          { icon: FileText, n: "03", t: "Export", d: "Generate a clean, chronological evidence packet you can keep, print, or export when needed." },
         ].map((s) => (
           <div key={s.n} className="rounded-lg border border-border bg-card p-7 shadow-card">
             <div className="text-xs font-mono text-muted-foreground">{s.n}</div>
@@ -161,7 +161,7 @@ const Index = () => (
               "Chronological timeline you can search and filter",
               "Contradiction detection across past incidents",
               "Missing evidence suggestions before it's too late",
-              "Clean evidence packets ready to share in one click",
+              "Clean evidence packets ready to export in one click",
             ].map((f) => (
               <li key={f} className="flex gap-3 rounded-lg border border-border bg-card p-4">
                 <Check className="h-4 w-4 text-success shrink-0 mt-0.5" />

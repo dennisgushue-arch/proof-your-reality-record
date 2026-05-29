@@ -5,7 +5,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { Disclaimer } from "@/components/Disclaimer";
 
 const incidents = [
-  { date: "Mar 03, 2026 · 7:42 PM", title: "Reported broken heater", summary: "Texted landlord that heater stopped working. He replied within 10 minutes and said he would send someone the next morning.", location: "Apartment 4B", people: "Landlord Mike" },
+  { date: "Mar 03, 2026 · 7:42 PM", title: "Reported broken heater", summary: "Texted landlord that heater stopped working. He replied within 10 minutes and said he would arrange a visit the next morning.", location: "Apartment 4B", people: "Landlord Mike" },
   { date: "Mar 05, 2026 · 5:00 PM", title: "No one showed up", summary: "No technician arrived between 9 AM and 5 PM. Two unanswered calls. Landlord stated the plumber rescheduled.", location: "Apartment 4B", people: "Landlord Mike" },
   { date: "Mar 10, 2026 · 11:20 AM", title: "Partial repair attempt", summary: "Technician inspected for 15 minutes and said a part was needed. Landlord stated the part would arrive within 3 business days.", location: "Apartment 4B", people: "Repair tech, Landlord Mike" },
 ];
@@ -17,7 +17,7 @@ const Example = () => (
       <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4 mr-1" /> Back to home</Link>
       <article className="mt-6 rounded-xl bg-card shadow-elevated border border-border overflow-hidden">
         <div className="bg-hero text-navy-foreground p-10">
-          <div className="flex items-center gap-2 text-sm text-white/70"><Shield className="h-4 w-4" /> Sample Evidence Packet</div>
+          <div className="flex items-center gap-2 text-sm text-white/70"><Shield className="h-4 w-4" /> Sample Private Evidence Packet</div>
           <h1 className="mt-6 text-3xl md:text-4xl font-semibold text-white">Apartment 4B repairs</h1>
           <p className="mt-2 text-white/70">Landlord/Tenant</p>
         </div>
@@ -48,7 +48,7 @@ const Example = () => (
       </article>
       <div className="mt-8 text-center">
         <Button asChild size="lg">
-          <Link to="/auth?mode=signup">Start your own evidence timeline</Link>
+          <Link to="/auth?mode=signup">Create your own private timeline</Link>
         </Button>
       </div>
     </main>

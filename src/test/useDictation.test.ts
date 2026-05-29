@@ -87,7 +87,7 @@ describe("useDictation", () => {
     expect(instances).toHaveLength(1);
     expect(instances[0].lang).toBe("en-GB");
     expect(instances[0].continuous).toBe(true);
-    expect(instances[0].interimResults).toBe(false);
+    expect(instances[0].interimResults).toBe(true);
     expect(instances[0].start).toHaveBeenCalledTimes(1);
     expect(result.current.isDictating).toBe(true);
 
@@ -98,5 +98,98 @@ describe("useDictation", () => {
     expect(instances[0].stop).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
     expect(onTranscript).not.toHaveBeenCalled();
+  });
+
+  it("forwards transcript chunks from recognition results", () => {
+    const instances: MockRecognition[] = [];
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onresult = null;
+      onerror = null;
+      onend = null;
+      start = vi.fn();
+      stop = vi.fn();
+
+      constructor() {
+        instances.push(this as unknown as MockRecognition);
+      }
+    }
+
+    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+
+    const onTranscript = vi.fn();
+
+    const { result } = renderHook(() =>
+      useDictation({
+        onTranscript,
+      })
+    );
+
+    act(() => {
+      result.current.toggle();
+    });
+
+    act(() => {
+      instances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          [{ transcript: "first chunk" }],
+          [{ transcript: "second chunk" }],
+        ],
+      });
+    });
+
+    expect(onTranscript).toHaveBeenNthCalledWith(1, "first chunk");
+    expect(onTranscript).toHaveBeenNthCalledWith(2, "second chunk");
+  });
+
+  it("restarts recognition on end while dictation should continue", () => {
+    const instances: MockRecognition[] = [];
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onresult = null;
+      onerror = null;
+      onend = null;
+      start = vi.fn();
+      stop = vi.fn();
+
+      constructor() {
+        instances.push(this as unknown as MockRecognition);
+      }
+    }
+
+    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+
+    const { result } = renderHook(() =>
+      useDictation({
+        onTranscript: vi.fn(),
+      })
+    );
+
+    act(() => {
+      result.current.toggle();
+    });
+
+    expect(instances[0].start).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      instances[0].onend?.();
+    });
+
+    expect(instances[0].start).toHaveBeenCalledTimes(2);
+    expect(result.current.isDictating).toBe(true);
+
+    act(() => {
+      result.current.stop();
+    });
+
+    expect(instances[0].stop).toHaveBeenCalledTimes(1);
+    expect(result.current.isDictating).toBe(false);
   });
 });
