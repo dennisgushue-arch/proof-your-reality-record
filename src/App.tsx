@@ -16,6 +16,7 @@ import ExportPreview from "./pages/ExportPreview.tsx";
 import Pricing from "./pages/Pricing.tsx";
 import Account from "./pages/Account.tsx";
 import Example from "./pages/Example.tsx";
+import PrepareInteraction from "./pages/PrepareInteraction.tsx";
 import IncidentPlayback from "./components/IncidentPlayback";
 import StressMode from "./components/StressMode";
 import CentralIntelligenceScreen from "./components/CentralIntelligenceScreen.jsx";
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
             <Route path="/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
+            <Route path="/cases/:id/prepare" element={<ProtectedRoute><PrepareInteraction /></ProtectedRoute>} />
             <Route path="/cases/:id/incidents/new" element={<ProtectedRoute><IncidentNew /></ProtectedRoute>} />
             <Route path="/cases/:id/export" element={<ProtectedRoute><ExportPreview /></ProtectedRoute>} />
             <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />

@@ -51,6 +51,19 @@ type ThreatFeedItem = {
   backendUsed?: BackendUsed;
 };
 
+type ReminderRow = {
+  id: string;
+  case_id: string;
+  title: string;
+  due_at: string | null;
+  completed: boolean;
+};
+
+type SubscriptionRow = {
+  plan: string;
+  status: string;
+};
+
 type PatternInsight = {
   title: string;
   headline: string;
@@ -624,6 +637,8 @@ const Dashboard = () => {
   const [category, setCategory] = useState<string>("Other");
   const [description, setDescription] = useState("");
   const [capturedPhotos, setCapturedPhotos] = useState<File[]>([]);
+  const [upcomingReminder, setUpcomingReminder] = useState<ReminderRow | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const intelligencePanelRef = useRef<HTMLDivElement | null>(null);
@@ -640,16 +655,36 @@ const Dashboard = () => {
     if (!user) return;
     setLoading(true);
 
-    const { data } = await supabase
-      .from("cases")
-      .select("id, title, category, created_at, updated_at, incidents(count)")
-      .order("updated_at", { ascending: false });
+    const [{ data }, { data: reminderData }, { data: subscriptionData }] = await Promise.all([
+      supabase
+        .from("cases")
+        .select("id, title, category, created_at, updated_at, incidents(count)")
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("reminders")
+        .select("id, case_id, title, due_at, completed")
+        .eq("user_id", user.id)
+        .eq("completed", false)
+        .not("due_at", "is", null)
+        .gte("due_at", new Date().toISOString())
+        .order("due_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("subscriptions")
+        .select("plan, status")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
+
     setCases(
       (data ?? []).map((c: any) => ({
         ...c,
         incident_count: c.incidents?.[0]?.count ?? 0,
       })),
     );
+    setUpcomingReminder((reminderData as ReminderRow | null) ?? null);
+    setSubscription((subscriptionData as SubscriptionRow | null) ?? null);
     setLoading(false);
   };
 
@@ -869,6 +904,14 @@ const Dashboard = () => {
     [selectedCaseIncidentRows],
   );
   const liveSessionId = liveIncidentState?.sessionId ?? null;
+  const hasPrepareAccess = subscription?.plan === "pro" || subscription?.plan === "premium";
+  const nextInteractionCase = upcomingReminder
+    ? displayCases.find((c) => c.id === upcomingReminder.case_id) ?? selectedCase
+    : selectedCase;
+  const nextInteractionLabel = upcomingReminder?.title ?? (nextInteractionCase ? `${caseCategoryLabel(nextInteractionCase.category)} check-in` : "No interaction scheduled");
+  const nextInteractionTime = upcomingReminder?.due_at
+    ? new Date(upcomingReminder.due_at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "Set up the next conversation when you're ready.";
   const resumeLiveLink = liveSessionId
     ? `/stress-mode?liveSession=${encodeURIComponent(liveSessionId)}${selectedCase ? `&caseId=${encodeURIComponent(selectedCase.id)}` : ""}`
     : "/stress-mode";
@@ -1033,6 +1076,35 @@ const Dashboard = () => {
             </div>
           </section>
         )}
+
+        <section className="mb-6 rounded-2xl border p-5 intelligence-glass case-intelligence-fade" style={{ borderColor: hasPrepareAccess ? "rgba(79, 140, 255, 0.35)" : "rgba(242, 201, 76, 0.35)" }}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="intel-module-title text-[#4F8CFF]">NEXT INTERACTION</p>
+              <h2 className="mt-1 text-lg font-semibold">{hasPrepareAccess ? nextInteractionLabel : "Unlock Prepare Me"}</h2>
+              <p className="mt-2 text-sm text-muted-foreground max-w-xl">
+                {hasPrepareAccess
+                  ? `${nextInteractionCase?.title ?? "Select a case"} • ${nextInteractionTime}`
+                  : "Prepare Me is a Pro feature that briefs users before custody exchanges, meetings, mediation, calls, and difficult conversations."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {hasPrepareAccess && nextInteractionCase ? (
+                <Link to={`/cases/${nextInteractionCase.id}/prepare`}>
+                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
+                    <Sparkles className="mr-2 h-4 w-4" /> PREPARE ME
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/pricing">
+                  <Button className="bg-[#F2C94C] hover:bg-[#F2C94C]/90 text-[#05111A] tactile-button">
+                    <Sparkles className="mr-2 h-4 w-4" /> Unlock Pro
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.4fr_0.95fr] xl:items-start mb-8">
           <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
@@ -1421,13 +1493,22 @@ const Dashboard = () => {
 
                       <div className="mt-4 flex items-center justify-between gap-3">
                         <span className="text-xs text-muted-foreground">{isSelected ? "Focused for intelligence" : "Tap to focus intelligence"}</span>
-                        <Link
-                          to={`/cases/${c.id}`}
-                          className="text-sm font-semibold text-[#4F8CFF] hover:text-white"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Open case
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <Link
+                            to={`/cases/${c.id}/prepare`}
+                            className="text-sm font-semibold text-[#AAB4C8] hover:text-white"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Prepare Me
+                          </Link>
+                          <Link
+                            to={`/cases/${c.id}`}
+                            className="text-sm font-semibold text-[#4F8CFF] hover:text-white"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Open case
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   );

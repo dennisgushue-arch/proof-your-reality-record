@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Search, FileDown, MapPin, Users, Tag } from "lucide-react";
+import { ArrowLeft, Plus, Search, FileDown, MapPin, Users, Tag, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppLayout } from "@/components/AppLayout";
@@ -102,6 +102,11 @@ const CaseDetail = () => {
             )}
           </div>
           <div className="flex gap-2 shrink-0">
+            <Link to={`/cases/${id}/prepare`}>
+              <Button variant="outline" className="border-border">
+                <Sparkles className="mr-2 h-4 w-4" /> Prepare Me
+              </Button>
+            </Link>
             <Link to={`/cases/${id}/export`}>
               <Button variant="outline" className="border-border">
                 <FileDown className="mr-2 h-4 w-4" /> Export Packet
