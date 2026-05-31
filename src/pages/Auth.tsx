@@ -44,8 +44,8 @@ const Auth = () => {
         if (error) throw error;
       }
       nav("/dashboard", { replace: true });
-    } catch (e: any) {
-      toast.error(e.message ?? "Something went wrong");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally { setLoading(false); }
   };
 

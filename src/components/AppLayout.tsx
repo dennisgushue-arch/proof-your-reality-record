@@ -1,8 +1,14 @@
 import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { Shield, LayoutDashboard, FolderOpen, CreditCard, Settings, LogOut, Siren } from "lucide-react";
+import { Shield, LayoutDashboard, CreditCard, Settings, LogOut, Siren } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+
+const mobileNavChipClass = (isActive: boolean) =>
+  cn(
+    "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+    isActive ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-white/5",
+  );
 
 const SidebarLink = ({
   to,
@@ -58,9 +64,6 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
           <SidebarLink to="/dashboard" icon={LayoutDashboard} end>
             Dashboard
-          </SidebarLink>
-          <SidebarLink to="/dashboard" icon={FolderOpen}>
-            Cases
           </SidebarLink>
           <SidebarLink to="/stress-mode" icon={Siren}>
             Stress Mode
@@ -124,45 +127,25 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <NavLink
                 to="/dashboard"
                 end
-                className={({ isActive }) =>
-                  cn(
-                    "px-3 py-1.5 rounded-md text-xs font-medium",
-                    isActive ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  )
-                }
+                className={({ isActive }) => mobileNavChipClass(isActive)}
               >
                 Dashboard
               </NavLink>
               <NavLink
                 to="/stress-mode"
-                className={({ isActive }) =>
-                  cn(
-                    "px-3 py-1.5 rounded-md text-xs font-medium",
-                    isActive ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  )
-                }
+                className={({ isActive }) => mobileNavChipClass(isActive)}
               >
                 Stress Mode
               </NavLink>
               <NavLink
                 to="/pricing"
-                className={({ isActive }) =>
-                  cn(
-                    "px-3 py-1.5 rounded-md text-xs font-medium",
-                    isActive ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  )
-                }
+                className={({ isActive }) => mobileNavChipClass(isActive)}
               >
                 Billing
               </NavLink>
               <NavLink
                 to="/account"
-                className={({ isActive }) =>
-                  cn(
-                    "px-3 py-1.5 rounded-md text-xs font-medium",
-                    isActive ? "bg-accent/10 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  )
-                }
+                className={({ isActive }) => mobileNavChipClass(isActive)}
               >
                 Settings
               </NavLink>

@@ -7,23 +7,45 @@ import { Disclaimer } from "@/components/Disclaimer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+type CaseRow = {
+  id: string;
+  title: string;
+  category: string;
+  description: string | null;
+};
+
+type EvidenceItem = {
+  filename: string | null;
+};
+
+type IncidentExportRow = {
+  id: string;
+  occurred_at: string;
+  title: string;
+  neutral_summary: string | null;
+  location: string | null;
+  people_involved: string[] | null;
+  evidence_items: EvidenceItem[] | null;
+  evidence_quality_score: number | null;
+};
+
 const ExportPreview = () => {
   const { id } = useParams<{ id: string }>();
-  const [caseRow, setCaseRow] = useState<any>(null);
-  const [incidents, setIncidents] = useState<any[]>([]);
+  const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
+  const [incidents, setIncidents] = useState<IncidentExportRow[]>([]);
   const documentRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
       const { data: c } = await supabase.from("cases").select("*").eq("id", id).maybeSingle();
-      setCaseRow(c);
+      setCaseRow((c as CaseRow | null) ?? null);
       const { data: ins } = await supabase
         .from("incidents")
         .select("*, evidence_items(*)")
         .eq("case_id", id)
         .order("occurred_at", { ascending: true });
-      setIncidents(ins ?? []);
+      setIncidents((ins as IncidentExportRow[] | null) ?? []);
     })();
   }, [id]);
 
@@ -159,7 +181,7 @@ const ExportPreview = () => {
                         {Array.isArray(i.evidence_items) && i.evidence_items.length > 0 && (
                           <span className="inline-flex items-center gap-1">
                             <Paperclip className="h-3 w-3" />
-                            {i.evidence_items.length} attached — {i.evidence_items.map((e: any) => e.filename).join(", ")}
+                            {i.evidence_items.length} attached — {i.evidence_items.map((e) => e.filename).filter(Boolean).join(", ")}
                           </span>
                         )}
                         {typeof i.evidence_quality_score === "number" && (

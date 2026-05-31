@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CircleAlert, Clock3, FileWarning, ListChecks, Lock, MessageSquareQuote, Siren, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
@@ -96,7 +96,6 @@ function parseReminderType(title?: string | null): PrepareInteractionType {
 
 const PrepareInteraction = () => {
   const { id } = useParams<{ id: string }>();
-  const nav = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingSetup, setSavingSetup] = useState(false);
@@ -256,7 +255,7 @@ const PrepareInteraction = () => {
 
   return (
     <AppLayout>
-      <main className="px-6 lg:px-10 py-10 max-w-5xl">
+      <main className="px-6 lg:px-10 py-10 max-w-5xl space-y-6">
         <Link
           to={`/cases/${caseRow.id}`}
           className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono mb-6"
@@ -264,7 +263,7 @@ const PrepareInteraction = () => {
           <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to case
         </Link>
 
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-card">
+        <div className="rounded-2xl border border-border bg-card p-6 md:p-7 shadow-card">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-accent font-semibold">Prepare Me™</p>
@@ -288,7 +287,7 @@ const PrepareInteraction = () => {
             {STEP_TITLES.map((title, index) => (
               <span
                 key={title}
-                className="inline-flex rounded-full border px-2.5 py-1 text-[11px]"
+                className="inline-flex rounded-full border px-2.5 py-1 text-[11px] leading-none"
                 style={{
                   borderColor: index === step ? "rgba(79, 140, 255, 0.55)" : "hsl(var(--border))",
                   color: index === step ? "#4F8CFF" : "hsl(var(--muted-foreground))",
@@ -302,7 +301,7 @@ const PrepareInteraction = () => {
         </div>
 
         {!hasPrepareAccess ? (
-          <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-card">
+          <section className="rounded-2xl border border-border bg-card p-6 md:p-7 shadow-card">
             <div className="flex items-start gap-3">
               <Lock className="h-5 w-5 text-accent mt-0.5" />
               <div>
@@ -323,7 +322,7 @@ const PrepareInteraction = () => {
           </section>
         ) : (
           <>
-            <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-card">
+            <section className="rounded-2xl border border-border bg-card p-6 md:p-7 shadow-card">
               {step === 0 && (
                 <div>
                   <div className="flex items-center gap-2 text-accent mb-3"><CalendarClock className="h-4 w-4" /><span className="text-xs font-semibold uppercase tracking-[0.14em]">Interaction Setup</span></div>
@@ -333,7 +332,7 @@ const PrepareInteraction = () => {
                       <button
                         key={option.value}
                         type="button"
-                        className="rounded-xl border p-4 text-left transition-colors"
+                        className="rounded-xl border p-4 text-left transition-colors hover:border-accent/50"
                         style={{
                           borderColor: interactionType === option.value ? "rgba(79, 140, 255, 0.5)" : "hsl(var(--border))",
                           background: interactionType === option.value ? "rgba(79, 140, 255, 0.08)" : "transparent",

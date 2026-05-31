@@ -677,8 +677,10 @@ const Dashboard = () => {
         .maybeSingle(),
     ]);
 
+    type CaseWithIncidentCount = CaseRow & { incidents?: Array<{ count: number }> | null };
+
     setCases(
-      (data ?? []).map((c: any) => ({
+      ((data as CaseWithIncidentCount[] | null) ?? []).map((c) => ({
         ...c,
         incident_count: c.incidents?.[0]?.count ?? 0,
       })),

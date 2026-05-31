@@ -13,15 +13,22 @@ type Inc = {
   title: string;
   occurred_at: string;
   location: string | null;
-  people_involved: any;
-  tags: any;
+  people_involved: string[] | null;
+  tags: string[] | null;
   neutral_summary: string | null;
   evidence_quality_score: number | null;
 };
 
+type CaseRow = {
+  id: string;
+  title: string;
+  category: string;
+  description: string | null;
+};
+
 const CaseDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const [caseRow, setCaseRow] = useState<any>(null);
+  const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [incidents, setIncidents] = useState<Inc[]>([]);
   const [q, setQ] = useState("");
   const [activeLiveSessionId, setActiveLiveSessionId] = useState<string | null>(null);
@@ -29,13 +36,13 @@ const CaseDetail = () => {
   const load = async () => {
     if (!id) return;
     const { data: c } = await supabase.from("cases").select("*").eq("id", id).maybeSingle();
-    setCaseRow(c);
+    setCaseRow((c as CaseRow | null) ?? null);
     const { data: ins } = await supabase
       .from("incidents")
       .select("id, title, occurred_at, location, people_involved, tags, neutral_summary, evidence_quality_score")
       .eq("case_id", id)
       .order("occurred_at", { ascending: false });
-    setIncidents(ins ?? []);
+    setIncidents(((ins as Inc[] | null) ?? []));
   };
 
   useEffect(() => {
@@ -80,7 +87,7 @@ const CaseDetail = () => {
 
   return (
     <AppLayout>
-      <main className="px-6 lg:px-10 py-10 max-w-4xl">
+      <main className="px-6 lg:px-10 py-10 max-w-5xl">
         <Link
           to="/dashboard"
           className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono mb-6"
@@ -101,26 +108,26 @@ const CaseDetail = () => {
               </p>
             )}
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Link to={`/cases/${id}/prepare`}>
-              <Button variant="outline" className="border-border">
+          <div className="flex w-full flex-wrap gap-2 shrink-0 md:w-auto">
+            <Link to={`/cases/${id}/prepare`} className="w-full sm:w-auto">
+              <Button variant="outline" className="border-border w-full sm:w-auto">
                 <Sparkles className="mr-2 h-4 w-4" /> Prepare Me
               </Button>
             </Link>
-            <Link to={`/cases/${id}/export`}>
-              <Button variant="outline" className="border-border">
+            <Link to={`/cases/${id}/export`} className="w-full sm:w-auto">
+              <Button variant="outline" className="border-border w-full sm:w-auto">
                 <FileDown className="mr-2 h-4 w-4" /> Export Packet
               </Button>
             </Link>
             {activeLiveSessionId && (
-              <Link to={`/cases/${id}/incidents/new?liveSession=${encodeURIComponent(activeLiveSessionId)}`}>
-                <Button variant="outline" className="border-border">
+              <Link to={`/cases/${id}/incidents/new?liveSession=${encodeURIComponent(activeLiveSessionId)}`} className="w-full sm:w-auto">
+                <Button variant="outline" className="border-border w-full sm:w-auto">
                   Create from Live Session
                 </Button>
               </Link>
             )}
-            <Link to={`/cases/${id}/incidents/new`}>
-              <Button className="bg-accent hover:bg-accent/90 text-white font-semibold">
+            <Link to={`/cases/${id}/incidents/new`} className="w-full sm:w-auto">
+              <Button className="bg-accent hover:bg-accent/90 text-white font-semibold w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" /> New Incident
               </Button>
             </Link>
@@ -144,7 +151,7 @@ const CaseDetail = () => {
             <p className="text-sm">No incidents yet. Click "New Incident" to start your evidence timeline.</p>
           </div>
         ) : (
-          <div className="space-y-px">
+          <div className="space-y-1">
             {filtered.map((i, idx) => (
               <div key={i.id} className="relative flex gap-5">
                 {/* Timeline spine */}
@@ -158,7 +165,7 @@ const CaseDetail = () => {
                 {/* Incident card */}
                 <Link
                   to={`/incidents/${i.id}`}
-                  className="block flex-1 mb-4 rounded-lg border border-border bg-card p-5 shadow-card hover:shadow-elevated hover:border-accent/30 transition-all"
+                  className="block flex-1 mb-4 rounded-xl border border-border bg-card p-5 shadow-card hover:shadow-elevated hover:border-accent/30 transition-all"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                     <div className="text-xs font-mono text-muted-foreground">

@@ -11,6 +11,28 @@ import { createEvidenceSignedUrl, removeEvidenceFile } from "@/lib/evidenceStora
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
 import { toast } from "sonner";
 
+type IncidentRow = {
+  id: string;
+  case_id: string;
+  title: string;
+  occurred_at: string;
+  location: string | null;
+  people_involved: string[] | null;
+  tags: string[] | null;
+  raw_narrative: string;
+  neutral_summary: string | null;
+  evidence_quality_score: number | null;
+  emotional_language_removed: string | null;
+  ai_analysis: unknown;
+};
+
+type EvidenceItemRow = {
+  id: string;
+  filename: string | null;
+  type: string;
+  storage_path: string | null;
+};
+
 const ANALYSIS_LOADING_STEPS = [
   "Analyzing timeline…",
   "Detecting contradictions…",
@@ -111,8 +133,8 @@ function getLiveSessionTimelineSnippet(rawNarrative: string) {
 
 const IncidentDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const [inc, setInc] = useState<any>(null);
-  const [evidence, setEvidence] = useState<any[]>([]);
+  const [inc, setInc] = useState<IncidentRow | null>(null);
+  const [evidence, setEvidence] = useState<EvidenceItemRow[]>([]);
   const [signedEvidenceUrls, setSignedEvidenceUrls] = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStepIndex, setAnalysisStepIndex] = useState(0);
@@ -121,14 +143,14 @@ const IncidentDetail = () => {
   const load = async () => {
     if (!id) return;
     const { data } = await supabase.from("incidents").select("*").eq("id", id).maybeSingle();
-    setInc(data);
+    setInc((data as IncidentRow | null) ?? null);
     const { data: ev } = await supabase.from("evidence_items").select("*").eq("incident_id", id);
-    const evidenceRows = ev ?? [];
+    const evidenceRows = (ev as EvidenceItemRow[] | null) ?? [];
     setEvidence(evidenceRows);
 
     const signedMap: Record<string, string> = {};
     await Promise.all(
-      evidenceRows.map(async (item: any) => {
+      evidenceRows.map(async (item) => {
         if (!item.storage_path) return;
         try {
           signedMap[item.id] = await createEvidenceSignedUrl(item.storage_path);
@@ -205,7 +227,7 @@ const IncidentDetail = () => {
       ai_analysis: {
         ...ai,
         _backend_used: usedFallback ? "fallback" : "live-llm",
-      } as any,
+      },
     }).eq("id", inc.id);
     setAnalyzing(false);
     if (error) { toast.error(error.message); return; }
