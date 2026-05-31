@@ -36,7 +36,11 @@ export default defineConfig({
             return "supabase-vendor";
           }
 
-          if (id.includes("node_modules/@radix-ui/") || id.includes("node_modules/lucide-react")) {
+          if (id.includes("node_modules/lucide-react")) {
+            return "icons-vendor";
+          }
+
+          if (id.includes("node_modules/@radix-ui/")) {
             return "ui-vendor";
           }
 

@@ -1,12 +1,28 @@
-import { Link, useNavigate } from "react-router-dom";
-import { Shield, LogOut, Mic } from "lucide-react";
+import { Suspense, lazy } from "react";
+import { Link } from "react-router-dom";
+import { Shield, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/contexts/AuthContext";
+
+const AppHeaderAuthControls = lazy(() => import("@/components/AppHeaderAuthControls"));
+
+const GuestHeaderControls = () => (
+  <>
+    <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+      <Link to="/pricing">Pricing</Link>
+    </Button>
+    <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+      <Link to="/auth">Sign in</Link>
+    </Button>
+    <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-white font-semibold">
+      <Link to="/auth?mode=signup">
+        <Mic className="mr-1.5 h-3.5 w-3.5" />
+        Start Recording
+      </Link>
+    </Button>
+  </>
+);
 
 export const AppHeader = () => {
-  const { user, signOut } = useAuth();
-  const nav = useNavigate();
-
   const legalLinks = (
     <div className="hidden lg:flex items-center gap-3 mr-2">
       <a href="/legal/privacy-policy.html" className="legal-link text-xs text-muted-foreground">Privacy</a>
@@ -18,7 +34,7 @@ export const AppHeader = () => {
   return (
     <header className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-40">
       <div className="container flex h-16 items-center justify-between">
-        <Link to={user ? "/dashboard" : "/"} className="flex items-center gap-2.5">
+        <Link to="/" className="flex items-center gap-2.5">
           <div
             className="h-7 w-7 rounded flex items-center justify-center shrink-0"
             style={{ background: "hsl(219 100% 65% / 0.12)" }}
@@ -30,43 +46,9 @@ export const AppHeader = () => {
         <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
           <a href="/legal/privacy-policy.html" className="legal-link lg:hidden text-xs text-muted-foreground px-2 py-1 whitespace-nowrap">Privacy</a>
           {legalLinks}
-          {user ? (
-            <>
-              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                <Link to="/dashboard">Dashboard</Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                <Link to="/pricing">Pricing</Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                <Link to="/account">Account</Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-border"
-                onClick={async () => { await signOut(); nav("/"); }}
-                aria-label="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                <Link to="/pricing">Pricing</Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-                <Link to="/auth">Sign in</Link>
-              </Button>
-              <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-white font-semibold">
-                <Link to="/auth?mode=signup">
-                  <Mic className="mr-1.5 h-3.5 w-3.5" />
-                  Start Recording
-                </Link>
-              </Button>
-            </>
-          )}
+          <Suspense fallback={<GuestHeaderControls />}>
+            <AppHeaderAuthControls />
+          </Suspense>
         </nav>
       </div>
     </header>
