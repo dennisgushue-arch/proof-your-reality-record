@@ -1,8 +1,9 @@
-# Release Notes — vX.Y.Z
+# Release Notes — Untagged Release Candidate
 
 **Release date:** 2026-06-01  
 **Release branch:** `main`  
-**Release commit (head):** `45fecd3`
+**Release tag:** `TBD (no Git tag found on HEAD)`  
+**Release commit (head):** `a8bef8a`
 
 ---
 
