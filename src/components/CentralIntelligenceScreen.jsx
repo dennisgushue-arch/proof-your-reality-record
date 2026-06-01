@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function CentralIntelligenceScreen() {
 return (
 <div style={styles.page}>
@@ -34,9 +36,9 @@ contradiction detection, and timeline reconstruction.
 </p>
 </div>
 
-<button style={styles.actionButton}>
+<Link to="/stress-mode" style={styles.actionButton}>
 START LIVE INCIDENT
-</button>
+</Link>
 </div>
 
 {/* MAIN ARCHITECTURE */}
@@ -279,6 +281,9 @@ borderRadius: "16px",
 fontWeight: "700",
 fontSize: "16px",
 cursor: "pointer",
+textDecoration: "none",
+display: "inline-flex",
+alignItems: "center",
 },
 
 architectureGrid: {
