@@ -98,11 +98,11 @@ describe("AppHeader navigation controls", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/dashboard");
-    expect(screen.getByRole("link", { name: /pricing/i })).toHaveAttribute("href", "/pricing");
-    expect(screen.getByRole("link", { name: /account/i })).toHaveAttribute("href", "/account");
+    expect(await screen.findByRole("link", { name: /dashboard/i })).toHaveAttribute("href", "/dashboard");
+    expect(await screen.findByRole("link", { name: /pricing/i })).toHaveAttribute("href", "/pricing");
+    expect(await screen.findByRole("link", { name: /account/i })).toHaveAttribute("href", "/account");
 
-    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /sign out/i }));
     await waitFor(() => {
       expect(authState.signOut).toHaveBeenCalledTimes(1);
     });
