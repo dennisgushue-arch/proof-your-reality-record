@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Proof</string>
+    <string name="title_activity_main">Proof</string>
+    <string name="package_name">com.proofyourreality.record</string>
+    <string name="custom_url_scheme">com.proofyourreality.record</string>
+</resources>
