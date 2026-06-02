@@ -75,7 +75,7 @@ export async function seedDemoIfEmpty(userId: string) {
       neutral_summary: ai.neutral_summary,
       emotional_language_removed: ai.emotional_language_removed,
       evidence_quality_score: ai.evidence_quality_score,
-      ai_analysis: ai as any,
+      ai_analysis: ai,
       tags: inc.tags,
     });
   }

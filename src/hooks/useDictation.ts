@@ -4,11 +4,26 @@ type SpeechRecognitionLike = {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
+};
+
+type SpeechRecognitionResultLike = {
+  0?: {
+    transcript?: string;
+  };
+};
+
+type SpeechRecognitionResultEventLike = {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
 };
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
@@ -70,7 +85,7 @@ export function useDictation(options: DictationOptions) {
     recognition.interimResults = true;
     recognition.lang = language;
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const transcript = event.results[i]?.[0]?.transcript?.trim?.() ?? "";
         if (!transcript) continue;
@@ -78,7 +93,7 @@ export function useDictation(options: DictationOptions) {
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event) => {
       const code = event?.error;
       if (code === "not-allowed" || code === "service-not-allowed") {
         shouldContinueRef.current = false;

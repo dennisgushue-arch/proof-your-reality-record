@@ -861,9 +861,10 @@ const Dashboard = () => {
 
   const selectedCase = displayCases.find((c) => c.id === selectedCaseId) ?? null;
   const selectedCaseIncidents = selectedCase?.incident_count ?? 0;
-  const selectedCaseIncidentRows = selectedCase
-    ? (incidentsByCase[selectedCase.id] ?? [])
-    : [];
+  const selectedCaseIncidentRows = useMemo(
+    () => (selectedCase ? (incidentsByCase[selectedCase.id] ?? []) : []),
+    [selectedCase, incidentsByCase],
+  );
   const activeIncidentsDisplay = Math.max(0, selectedCaseIncidentRows.length || selectedCaseIncidents || 0);
   const selectedCaseContradictions = selectedCaseIncidentRows.length
     ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
