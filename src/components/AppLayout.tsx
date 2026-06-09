@@ -44,6 +44,9 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-background flex">
+      <a href="#page-main-content" className="skip-link">
+        Skip to main content
+      </a>
       {/* Fixed sidebar */}
       <aside
         className="fixed inset-y-0 left-0 w-60 border-r border-border flex-col z-40 hidden lg:flex"
@@ -62,11 +65,11 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
         {/* Nav */}
         <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-          <SidebarLink to="/dashboard" icon={LayoutDashboard} end>
-            Dashboard
-          </SidebarLink>
           <SidebarLink to="/stress-mode" icon={Siren}>
             Stress Mode
+          </SidebarLink>
+          <SidebarLink to="/dashboard" icon={LayoutDashboard} end>
+            Dashboard
           </SidebarLink>
           <SidebarLink to="/pricing" icon={CreditCard}>
             Billing
@@ -125,17 +128,17 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="px-3 pb-2 overflow-x-auto">
             <div className="inline-flex gap-1 min-w-max">
               <NavLink
+                to="/stress-mode"
+                className={({ isActive }) => mobileNavChipClass(isActive)}
+              >
+                Stress Mode
+              </NavLink>
+              <NavLink
                 to="/dashboard"
                 end
                 className={({ isActive }) => mobileNavChipClass(isActive)}
               >
                 Dashboard
-              </NavLink>
-              <NavLink
-                to="/stress-mode"
-                className={({ isActive }) => mobileNavChipClass(isActive)}
-              >
-                Stress Mode
               </NavLink>
               <NavLink
                 to="/pricing"

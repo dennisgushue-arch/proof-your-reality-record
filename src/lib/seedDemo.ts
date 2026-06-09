@@ -1,21 +1,29 @@
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeNarrative } from "./mockAI";
 
+const DEMO_CASE_TITLE = "Sample case — Kitchen Remodel Dispute";
+
 export async function seedDemoIfEmpty(userId: string) {
-  const { count } = await supabase.from("cases").select("id", { count: "exact", head: true }).eq("user_id", userId);
-  if ((count ?? 0) > 0) return;
+  const { data: existingDemoCase } = await supabase
+    .from("cases")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("title", DEMO_CASE_TITLE)
+    .maybeSingle();
+
+  if (existingDemoCase?.id) return existingDemoCase.id;
 
   const { data: caseRow, error } = await supabase
     .from("cases")
     .insert({
       user_id: userId,
-      title: "Sample case — Kitchen Remodel Dispute",
+      title: DEMO_CASE_TITLE,
       category: "Contractor",
       description: "Demo contractor dispute showing timeline playback, contradiction detection, and export-ready evidence.",
     })
     .select()
     .single();
-  if (error || !caseRow) return;
+  if (error || !caseRow) return null;
 
   const incidents = [
     {
@@ -79,4 +87,6 @@ export async function seedDemoIfEmpty(userId: string) {
       tags: inc.tags,
     });
   }
+
+  return caseRow.id;
 }

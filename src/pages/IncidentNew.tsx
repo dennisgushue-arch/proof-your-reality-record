@@ -206,19 +206,23 @@ const IncidentNew = () => {
 
   return (
     <AppLayout>
-      <main className="px-6 lg:px-10 py-10 max-w-3xl">
+      <main id="page-main-content" tabIndex={-1} className="mx-auto w-full max-w-4xl px-6 py-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:px-10 lg:py-12">
         <Link
           to={`/cases/${caseId}`}
-          className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono mb-6"
+          className="mb-6 inline-flex items-center font-mono text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to case
         </Link>
 
-        <h1 className="text-3xl md:text-4xl mb-2">New Incident</h1>
-        <p className="text-sm text-muted-foreground mb-8">Write it down now. AI will structure it on the next screen.</p>
+        <header className="mb-8 rounded-xl border border-border bg-card p-6 shadow-card md:p-7">
+          <h1 className="text-3xl md:text-4xl">New Incident</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground md:text-base">
+            Capture facts while they are fresh. You can dictate first, then refine details before saving.
+          </p>
+        </header>
 
         {/* Voice capture — primary CTA */}
-        <div className="rounded-lg border border-border bg-card p-8 mb-6 text-center">
+        <section className="mb-7 rounded-xl border border-border bg-card p-6 text-center shadow-card md:p-8">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-5">
             Tell Proof what happened
           </p>
@@ -226,7 +230,7 @@ const IncidentNew = () => {
             type="button"
             onClick={toggleDictation}
             className={[
-              "inline-flex items-center justify-center gap-3 rounded-lg px-8 py-5 text-base font-semibold transition-all w-full md:w-auto",
+              "inline-flex w-full items-center justify-center gap-3 rounded-lg px-8 py-5 text-base font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:w-auto",
               isDictating
                 ? "bg-destructive/15 border border-destructive text-destructive hover:bg-destructive/20"
                 : "bg-accent text-white hover:bg-accent/90 shadow-elevated",
@@ -245,7 +249,7 @@ const IncidentNew = () => {
             )}
           </button>
           {isDictating && (
-            <p className="mt-3 text-xs text-muted-foreground animate-pulse">
+            <p className="mt-3 text-xs text-muted-foreground animate-pulse" aria-live="polite">
               Listening… speak naturally about what happened.
             </p>
           )}
@@ -262,11 +266,17 @@ const IncidentNew = () => {
               </SelectContent>
             </Select>
           </div>
-        </div>
+        </section>
 
         {/* Form */}
-        <div className="rounded-lg border border-border bg-card p-6 shadow-card space-y-5">
-          <div>
+        <section className="rounded-xl border border-border bg-card p-6 shadow-card md:p-8">
+          <div className="space-y-7">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold">Incident details</h2>
+              <p className="text-sm text-muted-foreground">Add context so timeline review and exports stay clear and complete.</p>
+            </div>
+
+            <div>
             <Label htmlFor="inc-title">Incident title <span className="text-destructive">*</span></Label>
             <Input
               id="inc-title"
@@ -277,7 +287,7 @@ const IncidentNew = () => {
             />
           </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid gap-5 sm:grid-cols-2">
             <div>
               <Label htmlFor="inc-dt">Date &amp; time</Label>
               <Input
@@ -298,9 +308,9 @@ const IncidentNew = () => {
                 className="mt-1.5 bg-background border-border"
               />
             </div>
-          </div>
+            </div>
 
-          <div>
+            <div>
             <Label htmlFor="inc-people">People involved (comma-separated)</Label>
             <Input
               id="inc-people"
@@ -309,9 +319,9 @@ const IncidentNew = () => {
               placeholder="e.g. John Smith, Sarah Lee"
               className="mt-1.5 bg-background border-border"
             />
-          </div>
+            </div>
 
-          <div>
+            <div>
             <Label htmlFor="inc-narrative">
               What happened? <span className="text-destructive">*</span>
             </Label>
@@ -320,12 +330,12 @@ const IncidentNew = () => {
               value={narrative}
               onChange={(e) => setNarrative(e.target.value)}
               placeholder="In your own words — what was said, what you saw, dates and times. No filtering needed."
-              rows={9}
-              className="mt-1.5 bg-background border-border font-mono text-sm"
+              rows={11}
+              className="mt-1.5 bg-background border-border font-mono text-sm leading-relaxed"
             />
-          </div>
+            </div>
 
-          <div>
+            <div>
             <Label htmlFor="inc-tags">Tags (comma-separated)</Label>
             <Input
               id="inc-tags"
@@ -334,11 +344,14 @@ const IncidentNew = () => {
               placeholder="e.g. text-message, promise, missed-payment"
               className="mt-1.5 bg-background border-border"
             />
-          </div>
+            </div>
 
-          {/* Evidence */}
-          <div>
+            {/* Evidence */}
+            <div>
+              <div className="mb-2 space-y-1">
             <Label>Attach evidence (optional)</Label>
+                <p className="text-xs leading-relaxed text-muted-foreground">Photos, screenshots, recordings, and documents all strengthen timeline reconstruction.</p>
+              </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -377,10 +390,15 @@ const IncidentNew = () => {
               />
             </div>
 
-            <label className="mt-3 flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center cursor-pointer hover:bg-muted/30 transition">
+              <label className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 p-7 text-center transition hover:bg-muted/30 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
               <Upload className="h-5 w-5 text-muted-foreground mb-2" />
-              <span className="text-sm text-muted-foreground">Drop photos, screenshots, documents, audio, or video</span>
-              <input type="file" multiple className="hidden" onChange={(e) => addFiles(Array.from(e.target.files ?? []))} />
+                <span className="text-sm text-muted-foreground">Drop photos, screenshots, documents, audio, or video</span>
+                <input
+                  type="file"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => addFiles(Array.from(e.target.files ?? []))}
+                />
             </label>
 
             {files.length > 0 && (
@@ -391,7 +409,7 @@ const IncidentNew = () => {
                     <button
                       type="button"
                       onClick={() => setFiles(files.filter((_, j) => j !== i))}
-                      className="shrink-0 text-muted-foreground hover:text-foreground ml-2"
+                      className="ml-2 shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       aria-label={`Remove ${f.name}`}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -400,11 +418,11 @@ const IncidentNew = () => {
                 ))}
               </ul>
             )}
-          </div>
+            </div>
 
-          <Disclaimer />
+            <Disclaimer />
 
-          <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
             <Link to={`/cases/${caseId}`}>
               <Button variant="outline" className="border-border">Cancel</Button>
             </Link>
@@ -415,8 +433,9 @@ const IncidentNew = () => {
             >
               {saving ? "Saving…" : "Save Incident"}
             </Button>
+            </div>
           </div>
-        </div>
+        </section>
       </main>
     </AppLayout>
   );

@@ -12,6 +12,7 @@ type CaseRow = {
   title: string;
   category: string;
   description: string | null;
+  created_at: string;
 };
 
 type EvidenceItem = {
@@ -27,6 +28,110 @@ type IncidentExportRow = {
   people_involved: string[] | null;
   evidence_items: EvidenceItem[] | null;
   evidence_quality_score: number | null;
+  ai_analysis: unknown;
+  tags: string[] | null;
+};
+
+type StoryChange = {
+  statementA: string;
+  statementB: string;
+};
+
+type EvidenceIndexItem = {
+  id: string;
+  label: string;
+  type: string;
+  uploadedAt: string;
+};
+
+const asStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+};
+
+const readAnalysis = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+};
+
+const contradictionList = (incident: IncidentExportRow) => {
+  const analysis = readAnalysis(incident.ai_analysis);
+  return asStringArray(analysis?.contradictions);
+};
+
+const inferEvidenceType = (filename: string) => {
+  const normalized = filename.toLowerCase();
+  if (/voice|audio|\.m4a$|\.mp3$|\.wav$/.test(normalized)) return "Voice Note";
+  if (/screenshot|screen|\.png$/.test(normalized)) return "Screenshot";
+  if (/photo|image|\.jpg$|\.jpeg$|\.heic$|\.webp$/.test(normalized)) return "Photo";
+  return "Attachment";
+};
+
+const buildStoryChangeCards = (incidents: IncidentExportRow[]): StoryChange[] => {
+  const contradictions = incidents.flatMap((incident) => contradictionList(incident));
+  const unique = Array.from(new Set(contradictions)).slice(0, 6);
+
+  return unique.map((entry) => {
+    const lower = entry.toLowerCase();
+    if (entry.includes(" but ")) {
+      const [a, ...rest] = entry.split(" but ");
+      return {
+        statementA: a.trim(),
+        statementB: rest.join(" but ").trim(),
+      };
+    }
+    if (lower.includes("previous") && lower.includes("later")) {
+      const parts = entry.split(/later|now|however/i).map((segment) => segment.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        return {
+          statementA: parts[0],
+          statementB: parts[1],
+        };
+      }
+    }
+
+    return {
+      statementA: entry,
+      statementB: "Follow-up statement conflicts with prior record.",
+    };
+  });
+};
+
+const buildEvidenceIndex = (incidents: IncidentExportRow[]): EvidenceIndexItem[] => {
+  const explicit = incidents.flatMap((incident) => {
+    const occurredAt = new Date(incident.occurred_at).toLocaleDateString();
+    return (incident.evidence_items ?? [])
+      .filter((item): item is EvidenceItem & { filename: string } => Boolean(item.filename))
+      .map((item, index) => ({
+        id: `${incident.id}-explicit-${index}`,
+        label: item.filename,
+        type: inferEvidenceType(item.filename),
+        uploadedAt: occurredAt,
+      }));
+  });
+
+  if (explicit.length > 0) return explicit;
+
+  return incidents.flatMap((incident, incidentIndex) => {
+    const uploadedAt = new Date(incident.occurred_at).toLocaleDateString();
+    const tags = asStringArray(incident.tags);
+    const inferredTypes = new Set<string>();
+    tags.forEach((tag) => {
+      const normalized = tag.toLowerCase();
+      if (normalized.includes("screenshot")) inferredTypes.add("Screenshot");
+      if (normalized.includes("voice")) inferredTypes.add("Voice Note");
+      if (normalized.includes("photo")) inferredTypes.add("Photo");
+    });
+
+    if (inferredTypes.size === 0) inferredTypes.add("Attachment");
+
+    return Array.from(inferredTypes).map((type, idx) => ({
+      id: `${incident.id}-inferred-${idx}`,
+      label: `${type} from ${incident.title}`,
+      type,
+      uploadedAt,
+    }));
+  }).slice(0, 24);
 };
 
 const ExportPreview = () => {
@@ -68,14 +173,33 @@ const ExportPreview = () => {
     window.print();
   };
 
+  const integrityScores = incidents
+    .map((incident) => incident.evidence_quality_score)
+    .filter((score): score is number => typeof score === "number");
+  const integrityScore = integrityScores.length
+    ? Math.round(integrityScores.reduce((sum, score) => sum + score, 0) / integrityScores.length)
+    : 58;
+  const contradictionsDetected = incidents.reduce((sum, incident) => sum + contradictionList(incident).length, 0);
+  const executiveSummary =
+    caseRow.description
+      ?? incidents
+        .map((incident) => incident.neutral_summary)
+        .filter((summary): summary is string => typeof summary === "string" && summary.trim().length > 0)
+        .slice(0, 2)
+        .join(" ")
+      ?? "No executive summary is available yet. Continue documenting incidents to build your packet narrative.";
+  const storyChanges = buildStoryChangeCards(incidents);
+  const evidenceIndex = buildEvidenceIndex(incidents);
+  const caseCreatedDate = new Date(caseRow.created_at).toLocaleDateString();
+
   return (
     <AppLayout>
-      <main className="px-6 lg:px-10 py-10 max-w-3xl">
+      <main id="page-main-content" tabIndex={-1} className="mx-auto w-full max-w-6xl px-6 py-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:px-10 lg:py-12">
         {/* Top bar */}
-        <div className="flex items-center justify-between mb-8 print:hidden">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <Link
             to={`/cases/${id}`}
-            className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono"
+            className="inline-flex items-center font-mono text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to case
           </Link>
@@ -87,121 +211,135 @@ const ExportPreview = () => {
           </Button>
         </div>
 
-        {/* Evidence packet document */}
-        <article ref={documentRef} className="rounded-lg border border-border bg-card shadow-elevated overflow-hidden print:border-0 print:shadow-none">
-
-          {/* Cover / header */}
-          <header className="border-b border-border px-10 py-10">
-            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground mb-6">
+        <article ref={documentRef} className="overflow-hidden rounded-xl border border-border bg-card shadow-elevated print:border-0 print:shadow-none">
+          {/* Page 1 */}
+          <section className="min-h-[780px] px-8 py-10 md:px-12 md:py-12 print:min-h-0">
+            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground mb-5">
               <Shield className="h-3.5 w-3.5 text-accent" />
-              EVIDENCE PACKET — CONFIDENTIAL
+              PROOF — REALITY RECORD
             </div>
-            <h1 className="text-2xl md:text-3xl mb-1">{caseRow.title}</h1>
-            <p className="text-sm text-muted-foreground uppercase tracking-widest font-mono">{caseRow.category}</p>
+            <h1 className="text-3xl font-semibold">{caseRow.title}</h1>
+            <p className="mt-1 text-sm uppercase tracking-widest text-muted-foreground">{caseRow.category}</p>
 
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-border pt-6">
+            <div className="mt-9 grid grid-cols-1 gap-4 rounded-lg border border-border bg-background/50 p-5 sm:grid-cols-2 xl:grid-cols-5">
               <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Generated</div>
-                <div className="text-xs text-foreground">{generatedAt}</div>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Case Name</p>
+                <p className="mt-1 text-sm font-semibold">{caseRow.title}</p>
               </div>
               <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Incidents</div>
-                <div className="text-xs text-foreground font-semibold">{incidents.length}</div>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Case Type</p>
+                <p className="mt-1 text-sm font-semibold">{caseRow.category}</p>
               </div>
               <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Date Range</div>
-                <div className="text-xs text-foreground">
-                  {incidents.length > 0
-                    ? `${new Date(incidents[0].occurred_at).toLocaleDateString()} – ${new Date(incidents[incidents.length - 1].occurred_at).toLocaleDateString()}`
-                    : "—"}
-                </div>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Created Date</p>
+                <p className="mt-1 text-sm font-semibold">{caseCreatedDate}</p>
               </div>
               <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Evidence Items</div>
-                <div className="text-xs text-foreground font-semibold">
-                  {incidents.reduce((sum, i) => sum + (Array.isArray(i.evidence_items) ? i.evidence_items.length : 0), 0)}
-                </div>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Evidence Integrity Score</p>
+                <p className="mt-1 text-sm font-semibold text-[#2ECC71]">{integrityScore}%</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">Contradictions Detected</p>
+                <p className="mt-1 text-sm font-semibold text-[#E74C3C]">{contradictionsDetected}</p>
               </div>
             </div>
-          </header>
 
-          {/* Body */}
-          <div className="px-10 py-8 space-y-8">
-            {/* Case summary */}
-            {caseRow.description && (
-              <section>
-                <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-3 pb-2 border-b border-border">
-                  Case Summary
-                </h2>
-                <p className="text-sm text-foreground" style={{ lineHeight: 1.6 }}>{caseRow.description}</p>
-              </section>
+            <section className="mt-9">
+              <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-3 pb-2 border-b border-border">
+                Executive Summary
+              </h2>
+              <p className="text-sm leading-relaxed text-foreground md:text-[0.96rem]">{executiveSummary}</p>
+            </section>
+          </section>
+
+          {/* Page 2 */}
+          <section className="min-h-[780px] border-t border-border px-8 py-10 md:px-12 md:py-12 print:break-before-page print:min-h-0">
+            <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-4 pb-2 border-b border-border">
+              Timeline Reconstruction
+            </h2>
+            {incidents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No incidents recorded yet.</p>
+            ) : (
+              <ol className="space-y-6">
+                {incidents.map((incident) => (
+                  <li key={incident.id} className="rounded-lg border border-border bg-background/50 p-5">
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {new Date(incident.occurred_at).toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+                    </p>
+                    <h3 className="mt-1 text-sm font-semibold">{incident.title}</h3>
+                    {incident.neutral_summary && (
+                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{incident.neutral_summary}</p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      {incident.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {incident.location}</span>}
+                      {Array.isArray(incident.people_involved) && incident.people_involved.length > 0 && (
+                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {incident.people_involved.join(", ")}</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+
+          {/* Page 3 */}
+          <section className="min-h-[780px] border-t border-border px-8 py-10 md:px-12 md:py-12 print:break-before-page print:min-h-0">
+            <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-4 pb-2 border-b border-border">
+              Story Changes Detected
+            </h2>
+            {storyChanges.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No contradiction pairs detected yet.</p>
+            ) : (
+              <div className="space-y-5">
+                {storyChanges.map((change, idx) => (
+                  <article key={`${change.statementA}-${idx}`} className="rounded-lg border p-5" style={{ borderColor: "hsl(var(--destructive) / 0.5)", background: "hsl(var(--destructive) / 0.12)" }}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "hsl(var(--destructive))" }}>Story Changed™</p>
+                    <div className="mt-3 space-y-2">
+                      <div className="rounded-md border p-3" style={{ borderColor: "hsl(var(--destructive) / 0.4)", background: "hsl(220 41% 13%)" }}>
+                        <p className="text-xs font-semibold" style={{ color: "hsl(var(--destructive) / 0.95)" }}>Statement A</p>
+                        <p className="mt-1 text-sm text-foreground">“{change.statementA}”</p>
+                      </div>
+                      <div className="rounded-md border p-3" style={{ borderColor: "hsl(var(--destructive) / 0.4)", background: "hsl(220 41% 13%)" }}>
+                        <p className="text-xs font-semibold" style={{ color: "hsl(var(--destructive) / 0.95)" }}>Statement B</p>
+                        <p className="mt-1 text-sm text-foreground">“{change.statementB}”</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-xs font-semibold" style={{ color: "hsl(var(--destructive) / 0.95)" }}>Status: Timeline conflict detected</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Page 4+ */}
+          <section className="border-t border-border px-8 py-10 md:px-12 md:py-12 print:break-before-page">
+            <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-4 pb-2 border-b border-border">
+              Evidence Index
+            </h2>
+            {evidenceIndex.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No evidence references have been indexed yet.</p>
+            ) : (
+              <ol className="space-y-4">
+                {evidenceIndex.map((item, idx) => (
+                  <li key={item.id} className="rounded-lg border border-border bg-background/50 p-5">
+                    <p className="text-xs font-mono text-muted-foreground">Evidence #{idx + 1}</p>
+                    <p className="mt-1 text-sm font-semibold">{item.type}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.label}</p>
+                    <div className="mt-2 text-xs text-muted-foreground inline-flex items-center gap-1">
+                      <Paperclip className="h-3 w-3" /> Uploaded {item.uploadedAt}
+                    </div>
+                  </li>
+                ))}
+              </ol>
             )}
 
-            {/* Chronological incident log */}
-            <section>
-              <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-4 pb-2 border-b border-border">
-                Chronological Incident Log
-              </h2>
-              {incidents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No incidents recorded.</p>
-              ) : (
-                <ol className="space-y-6">
-                  {incidents.map((i, idx) => (
-                    <li key={i.id} className="relative pl-8">
-                      {/* Incident number */}
-                      <div className="absolute left-0 top-0 h-5 w-5 rounded border border-border bg-background flex items-center justify-center">
-                        <span className="text-xs font-mono text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
-                      </div>
-
-                      <div className="text-xs font-mono text-muted-foreground mb-1">
-                        {new Date(i.occurred_at).toLocaleString(undefined, {
-                          weekday: "short", year: "numeric", month: "short", day: "numeric",
-                          hour: "2-digit", minute: "2-digit",
-                        })}
-                      </div>
-                      <h3 className="font-semibold text-sm mb-1">{i.title}</h3>
-
-                      {i.neutral_summary && (
-                        <p className="text-sm text-muted-foreground mb-2" style={{ lineHeight: 1.6 }}>
-                          {i.neutral_summary}
-                        </p>
-                      )}
-
-                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        {i.location && (
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" /> {i.location}
-                          </span>
-                        )}
-                        {Array.isArray(i.people_involved) && i.people_involved.length > 0 && (
-                          <span className="inline-flex items-center gap-1">
-                            <Users className="h-3 w-3" /> {i.people_involved.join(", ")}
-                          </span>
-                        )}
-                        {Array.isArray(i.evidence_items) && i.evidence_items.length > 0 && (
-                          <span className="inline-flex items-center gap-1">
-                            <Paperclip className="h-3 w-3" />
-                            {i.evidence_items.length} attached — {i.evidence_items.map((e) => e.filename).filter(Boolean).join(", ")}
-                          </span>
-                        )}
-                        {typeof i.evidence_quality_score === "number" && (
-                          <span className="font-mono">Evidence score: {i.evidence_quality_score}/100</span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </section>
-
-            {/* Footer */}
-            <section className="border-t border-border pt-6">
+            <section className="border-t border-border pt-6 mt-8">
               <Disclaimer />
               <p className="mt-4 text-xs font-mono text-muted-foreground text-center">
                 Generated by Proof — {generatedAt}
               </p>
             </section>
-          </div>
+          </section>
         </article>
       </main>
     </AppLayout>
