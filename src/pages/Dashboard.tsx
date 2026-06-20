@@ -1360,6 +1360,8 @@ const Dashboard = () => {
                 {seedingDemo ? "Loading demo…" : "EXPLORE DEMO CASE"}
               </Button>
 
+              <span className="ml-3 inline-flex items-center rounded-full bg-indigo-700 text-xs px-2 py-1 text-white">Multi-evidence demo</span>
+
               <Link to="/demo/playback" className="inline-flex">
                 <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground tactile-button">
                   Watch Demo Playback
@@ -1534,6 +1536,7 @@ const Dashboard = () => {
                     {seedingDemo ? "Loading demo…" : "EXPLORE DEMO CASE"}
                   </Button>
                 </div>
+                <p className="mt-3 text-xs text-[#AAB4C8]">Advanced multi-evidence demo now includes photo, video, voice, GPS, witness, contradiction, and export-ready incident examples.</p>
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">

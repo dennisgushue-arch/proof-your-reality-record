@@ -74,11 +74,85 @@ Configure these in your Supabase project secrets for Stripe checkout behavior:
 - `STRIPE_TRIAL_DAYS` (default: `7`)
 - `APP_LAUNCH_DATE_ISO` (example: `2026-06-01T00:00:00Z`)
 - `STRIPE_COUPON_ID_EARLY_ADOPTER_50` (Stripe coupon id for 50% off)
+- `STRIPE_PRICE_ID_PRO` (Stripe price ID for the Pro plan)
+- `STRIPE_PRICE_ID_PREMIUM` (Stripe price ID for the Premium plan)
+- `STRIPE_SECRET_KEY` (your Stripe secret key)
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
+- `SITE_URL` (optional; falls back to request origin)
+- `STRIPE_WEBHOOK_SECRET` (required for webhook verification)
 
 Behavior:
 
 - New users (no existing subscription id) get a free trial for `STRIPE_TRIAL_DAYS`.
 - Users whose account creation date falls within 3 months of `APP_LAUNCH_DATE_ISO` automatically receive the early adopter coupon at checkout.
+
+### Demo case
+
+The dashboard now includes a new advanced multi-evidence demo flow that seeds a case with:
+
+- photo, video, and voice-note evidence
+- GPS location tracking
+- witness statements
+- contradictory claims and timeline analysis
+- export packet preparation
+
+Open the dashboard and click the `EXPLORE DEMO CASE` button to launch the advanced demo case in Export preview.
+
+Note: the dashboard shows a small "Multi-evidence demo" badge next to the Explore button to indicate this richer demo flow.
+
+### Stripe function validation
+
+The repo includes helper npm scripts to validate Supabase edge functions with Deno:
+
+- `npm run supabase:functions:lint`
+- `npm run supabase:functions:check`
+- `npm run supabase:functions:validate`
+
+These expect `deno` to be installed and will run against `supabase/functions`.
+
+#### Local Deno validation example
+
+Create a local `.env` file for validation only (do not commit secrets):
+
+```env
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PRICE_ID_PRO=price_...
+STRIPE_PRICE_ID_PREMIUM=price_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=public-anon-key
+SUPABASE_SERVICE_ROLE_KEY=service-role-key
+SITE_URL=http://localhost:5173
+STRIPE_TRIAL_DAYS=7
+APP_LAUNCH_DATE_ISO=2026-06-01T00:00:00Z
+STRIPE_COUPON_ID_EARLY_ADOPTER_50=coupon_...
+```
+
+Run validation with:
+
+```bash
+deno lint supabase/functions
+npx deno check supabase/functions
+```
+
+### Continuous integration (CI)
+
+A GitHub Actions workflow has been added to run the following checks on pushes and pull requests:
+
+- ESLint
+- TypeScript type checks (npx tsc --noEmit)
+- Unit tests (Vitest)
+- Deno lint & check for Supabase edge functions
+
+This ensures the Deno-based Supabase functions are validated even when Deno is not available locally. The workflow file is at `.github/workflows/ci.yml`.
+
+### Stripe env troubleshooting
+
+- `deno` is required to run the validation scripts. Install it from [https://deno.land](https://deno.land).
+- `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID_PRO` / `STRIPE_PRICE_ID_PREMIUM` must be set for checkout creation.
+- `STRIPE_WEBHOOK_SECRET` is required for webhook verification in `supabase/functions/stripe-webhook`.
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` must point to the correct Supabase project.
+- If validation fails, check for missing env vars and incorrect Stripe price IDs before debugging code.
 
 ## Scripts
 
@@ -137,3 +211,52 @@ Use the canonical PR checklist in `.github/pull_request_template.md` for every p
 For quarterly product quality and accessibility reviews, use `docs/QUARTERLY_UX_REVIEW_CHECKLIST.md`.
 
 To update in-app "What’s New" release notes, edit `src/content/whatsNew.ts` (no UI component edits required).
+
+## Keystore & signing: secure handling and rotation
+
+I removed tracked `android/key.properties` and any upload keystore files from the repository to avoid leaking signing material. Follow these steps to rotate and store your keystore securely:
+
+
+1. Rotate the key (preferred): use the Google Play App Signing flow to rotate signing keys if the old key was exposed.
+  - See the Play Console docs: [Rotate your app signing key](https://support.google.com/googleplay/android-developer/answer/9842756)
+
+2. Locally: keep a private `android/key.properties` file (not checked in). Use `android/key.properties.example` as a template.
+
+3. CI / GitHub Actions: store your signing keystore and passwords in GitHub Secrets and configure signing in your CI pipeline. Example pattern:
+
+```bash
+# Add secrets in the repo settings (Settings → Secrets → Actions):
+# ANDROID_KEYSTORE_BASE64 (base64 of the .jks file)
+# ANDROID_KEYSTORE_PASSWORD
+# ANDROID_KEY_ALIAS
+# ANDROID_KEY_PASSWORD
+```
+
+In CI you can decode the keystore at runtime and use it for signing (example in GH Actions):
+
+```yaml
+- name: Decode keystore
+  run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > upload-keystore.jks
+
+- name: Build & sign
+  run: ./gradlew bundleRelease -Pandroid.injected.signing.store.file=upload-keystore.jks \
+    -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+    -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+    -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+```
+
+### Remove leaked secrets from git history
+
+If sensitive files were previously committed, remove them from the current branch and then cleanse history if necessary.
+
+Quick (removes from current branch only):
+
+```bash
+git rm --cached android/key.properties
+git commit -m "Remove tracked key.properties"
+git push
+```
+
+To cleanse history, use the BFG Repo-Cleaner or `git filter-repo` (preferred) and then rotate the keys.
+
+If you'd like, I can open a PR that removes tracked files (already removed here) and adds these instructions.

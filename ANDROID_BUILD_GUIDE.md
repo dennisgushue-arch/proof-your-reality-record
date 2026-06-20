@@ -102,6 +102,8 @@ buildTypes {
 }
 ```
 
+> Important: Do not build a release App Bundle without `android/key.properties` configured. The release build must be signed with your real release keystore and will fail fast if signing is not configured.
+
 ### 5. Set ANDROID_HOME & Build
 
 ```bash

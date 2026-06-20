@@ -117,7 +117,7 @@ const Account = () => {
     const body = encodeURIComponent(
       feedbackNote.trim() || "Hi Proof team,\n\nHere is my feedback:\n\n",
     );
-    window.location.href = `mailto:support@proof-app.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:proofrealityrecord@yahoo.com?subject=${subject}&body=${body}`;
     toast.success("Opening your email client for feedback");
   };
 
