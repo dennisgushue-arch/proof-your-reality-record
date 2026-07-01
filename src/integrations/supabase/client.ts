@@ -5,12 +5,50 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+const createSafeStorage = () => {
+  const memoryStorage = new Map<string, string>();
+
+  const fallbackStorage = {
+    getItem: async (key: string) => memoryStorage.get(key) ?? null,
+    setItem: async (key: string, value: string) => {
+      memoryStorage.set(key, value);
+    },
+    removeItem: async (key: string) => {
+      memoryStorage.delete(key);
+    },
+  };
+
+  if (typeof window === 'undefined') {
+    return fallbackStorage;
+  }
+
+  try {
+    const storage = window.localStorage;
+    const probeKey = '__proof_storage_probe__';
+    storage.setItem(probeKey, '1');
+    storage.removeItem(probeKey);
+
+    return {
+      getItem: async (key: string) => storage.getItem(key),
+      setItem: async (key: string, value: string) => {
+        storage.setItem(key, value);
+      },
+      removeItem: async (key: string) => {
+        storage.removeItem(key);
+      },
+    };
+  } catch (error) {
+    console.warn('Local storage unavailable for Supabase auth persistence; falling back to in-memory session storage.', error);
+    return fallbackStorage;
+  }
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: createSafeStorage(),
     persistSession: true,
     autoRefreshToken: true,
   }
