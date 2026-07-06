@@ -1,5 +1,4 @@
 const AUTH_ENDPOINT_PATTERN = /\/auth\/v1\//i;
-const JSON_CONTENT_TYPE_PATTERN = /application\/json/i;
 
 const resolveUrl = (input: RequestInfo | URL) => {
   if (typeof input === "string") return input;
@@ -8,11 +7,7 @@ const resolveUrl = (input: RequestInfo | URL) => {
   return String(input);
 };
 
-const isAuthJsonResponse = (url: string, response: Response) => {
-  if (!AUTH_ENDPOINT_PATTERN.test(url)) return false;
-  const contentType = response.headers.get("content-type") ?? "";
-  return JSON_CONTENT_TYPE_PATTERN.test(contentType);
-};
+const isAuthResponse = (url: string) => AUTH_ENDPOINT_PATTERN.test(url);
 
 const toJsonObjectResponse = (response: Response) => {
   const headers = new Headers(response.headers);
@@ -29,11 +24,22 @@ export const supabaseSafeFetch: typeof fetch = async (input, init) => {
   const response = await globalThis.fetch(input, init);
   const url = resolveUrl(input);
 
-  if (!isAuthJsonResponse(url, response)) {
+  if (!isAuthResponse(url)) {
     return response;
   }
 
-  const bodyText = await response.clone().text();
+  let bodyText = "";
+  try {
+    bodyText = await response.clone().text();
+  } catch (error) {
+    console.warn("Supabase auth response body could not be read; leaving response unchanged", {
+      url,
+      status: response.status,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return response;
+  }
+
   if (bodyText.trim().length > 0) {
     return response;
   }

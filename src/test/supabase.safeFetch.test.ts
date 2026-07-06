@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { supabaseSafeFetch } from "@/integrations/supabase/safeFetch";
 
 describe("supabaseSafeFetch", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("normalizes empty auth JSON response body", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
@@ -20,8 +24,25 @@ describe("supabaseSafeFetch", () => {
 
     const json = await response.json();
     expect(json).toEqual({});
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
 
-    fetchSpy.mockRestore();
+  it("normalizes empty auth response when content-type is missing", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response("", {
+          status: 200,
+        }),
+      );
+
+    const response = await supabaseSafeFetch("https://example.supabase.co/auth/v1/signup", {
+      method: "POST",
+    });
+
+    const json = await response.json();
+    expect(json).toEqual({});
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("preserves non-empty auth JSON responses", async () => {
@@ -42,8 +63,7 @@ describe("supabaseSafeFetch", () => {
 
     const json = await response.json();
     expect(json).toEqual({ ok: true });
-
-    fetchSpy.mockRestore();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("does not alter non-auth responses", async () => {
@@ -63,7 +83,6 @@ describe("supabaseSafeFetch", () => {
     });
 
     expect(response.status).toBe(204);
-
-    fetchSpy.mockRestore();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
