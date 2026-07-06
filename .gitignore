@@ -35,3 +35,6 @@ android/app/*.pem
 
 # Root-level Android release artifacts
 /app-release.aab
+
+# Supabase local CLI temp artifacts
+supabase/.temp/
