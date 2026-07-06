@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+
 import {
   Drawer,
   DrawerContent,
@@ -17,8 +19,17 @@ import { playUiTone, triggerHaptic } from "@/lib/feedback";
 import { useDictation } from "@/hooks/useDictation";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents, persistLiveIncidentEvent, type LiveIncidentEventType } from "@/lib/liveIncidentEvents";
-import { clearLiveIncidentState, readLiveIncidentState, writeLiveIncidentState } from "@/lib/liveIncident";
+import {
+  buildIncidentDraftFromLiveEvents,
+  loadLiveIncidentEvents,
+  persistLiveIncidentEvent,
+  type LiveIncidentEventType,
+} from "@/lib/liveIncidentEvents";
+import {
+  clearLiveIncidentState,
+  readLiveIncidentState,
+  writeLiveIncidentState,
+} from "@/lib/liveIncident";
 
 type TimelineEvent = {
   occurredAt: string;

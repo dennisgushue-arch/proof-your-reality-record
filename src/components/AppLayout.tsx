@@ -87,6 +87,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </div>
           )}
           <button
+            type="button"
             onClick={async () => {
               await signOut();
               nav("/");

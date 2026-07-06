@@ -112,7 +112,7 @@ const buildEvidenceIndex = (incidents: IncidentExportRow[]): EvidenceIndexItem[]
 
   if (explicit.length > 0) return explicit;
 
-  return incidents.flatMap((incident, incidentIndex) => {
+  return incidents.flatMap((incident) => {
     const uploadedAt = new Date(incident.occurred_at).toLocaleDateString();
     const tags = asStringArray(incident.tags);
     const inferredTypes = new Set<string>();

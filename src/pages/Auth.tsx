@@ -46,6 +46,11 @@ const DEBUG_COPY_SUCCESS_LABEL = "Copied!";
 const DEBUG_COPY_SUCCESS_TOAST = "Debug auth URL copied";
 const DEBUG_COPY_RESET_MS = 1500;
 
+const isJsonParseResponseError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /failed to execute 'json' on 'response'|unexpected end of json input/i.test(message);
+};
+
 const Auth = () => {
   const [params] = useSearchParams();
   const [mode, setMode] = useState<"signin" | "signup">(params.get("mode") === "signup" ? "signup" : "signin");
@@ -93,6 +98,28 @@ const Auth = () => {
       }
       nav("/dashboard", { replace: true });
     } catch (e: unknown) {
+      if (mode === "signup" && isJsonParseResponseError(e)) {
+        try {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: parsed.data.email,
+            password: parsed.data.password,
+          });
+
+          if (!signInError) {
+            toast.success("Account created. Welcome to Proof.");
+            nav("/dashboard", { replace: true });
+            return;
+          }
+        } catch {
+          // Fall through to friendly error below.
+        }
+
+        toast.error("Signup response was incomplete", {
+          description: "Please try again. If this continues, check Supabase Auth logs for /auth/v1/signup.",
+        });
+        return;
+      }
+
       toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally { setLoading(false); }
   };

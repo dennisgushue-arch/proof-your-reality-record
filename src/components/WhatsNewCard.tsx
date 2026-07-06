@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Megaphone } from "lucide-react";
+
 import { WHATS_NEW_ITEMS } from "@/content/whatsNew";
 
 export const WhatsNewCard = ({ className = "", maxItems }: { className?: string; maxItems?: number }) => {

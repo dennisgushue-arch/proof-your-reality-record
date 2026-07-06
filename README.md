@@ -74,8 +74,13 @@ Configure these in your Supabase project secrets for Stripe checkout behavior:
 - `STRIPE_TRIAL_DAYS` (default: `7`)
 - `APP_LAUNCH_DATE_ISO` (example: `2026-06-01T00:00:00Z`)
 - `STRIPE_COUPON_ID_EARLY_ADOPTER_50` (Stripe coupon id for 50% off)
-- `STRIPE_PRICE_ID_PRO` (Stripe price ID for the Pro plan)
-- `STRIPE_PRICE_ID_PREMIUM` (Stripe price ID for the Premium plan)
+- `STRIPE_PRICE_ID_PRO` (optional legacy Pro price ID)
+- `STRIPE_PRICE_ID_PREMIUM` (optional legacy Premium price ID)
+- `STRIPE_PRICE_ID_PREMIUM_MONTHLY` (Stripe price ID for the auto-renewing monthly premium plan)
+- `STRIPE_PRICE_ID_PREMIUM_ANNUAL` (Stripe price ID for the auto-renewing annual premium plan)
+- `STRIPE_PRICE_ID_PREPAID_90` (Stripe price ID for the 90-day prepaid plan)
+- `STRIPE_PRICE_ID_PREPAID_365` (Stripe price ID for the 365-day prepaid plan)
+- `STRIPE_PRICE_ID_TOPUP_30` (Stripe price ID for the 30-day access top-up)
 - `STRIPE_SECRET_KEY` (your Stripe secret key)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - `SITE_URL` (optional; falls back to request origin)
@@ -83,8 +88,9 @@ Configure these in your Supabase project secrets for Stripe checkout behavior:
 
 Behavior:
 
-- New users (no existing subscription id) get a free trial for `STRIPE_TRIAL_DAYS`.
+- New users (no existing subscription id) get a free trial on eligible subscription offers for `STRIPE_TRIAL_DAYS`.
 - Users whose account creation date falls within 3 months of `APP_LAUNCH_DATE_ISO` automatically receive the early adopter coupon at checkout.
+- Subscription offers renew automatically; prepaid and top-up offers use one-time checkout and extend the access date shown in the account page.
 
 ### Demo case
 
@@ -126,6 +132,11 @@ SITE_URL=http://localhost:5173
 STRIPE_TRIAL_DAYS=7
 APP_LAUNCH_DATE_ISO=2026-06-01T00:00:00Z
 STRIPE_COUPON_ID_EARLY_ADOPTER_50=coupon_...
+STRIPE_PRICE_ID_PREMIUM_MONTHLY=price_...
+STRIPE_PRICE_ID_PREMIUM_ANNUAL=price_...
+STRIPE_PRICE_ID_PREPAID_90=price_...
+STRIPE_PRICE_ID_PREPAID_365=price_...
+STRIPE_PRICE_ID_TOPUP_30=price_...
 ```
 
 Run validation with:
@@ -216,9 +227,7 @@ To update in-app "What’s New" release notes, edit `src/content/whatsNew.ts` (n
 
 I removed tracked `android/key.properties` and any upload keystore files from the repository to avoid leaking signing material. Follow these steps to rotate and store your keystore securely:
 
-
-1. Rotate the key (preferred): use the Google Play App Signing flow to rotate signing keys if the old key was exposed.
-  - See the Play Console docs: [Rotate your app signing key](https://support.google.com/googleplay/android-developer/answer/9842756)
+1. Rotate the key (preferred): use the Google Play App Signing flow to rotate signing keys if the old key was exposed. See [Rotate your app signing key](https://support.google.com/googleplay/android-developer/answer/9842756).
 
 2. Locally: keep a private `android/key.properties` file (not checked in). Use `android/key.properties.example` as a template.
 
@@ -244,6 +253,32 @@ In CI you can decode the keystore at runtime and use it for signing (example in 
     -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
     -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
 ```
+
+### Upload preflight (before Play upload)
+
+Quick fingerprint gate to avoid wrong-key uploads:
+
+1. Build the bundle:
+
+```bash
+npm run android:bundle
+```
+
+1. Verify signer SHA1 on the built `.aab`:
+
+```bash
+keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | grep "SHA1"
+```
+
+1. Ensure SHA1 matches your Play Console expected upload key fingerprint.
+
+For this app, current expected fingerprint is:
+
+```text
+DC:94:30:62:0F:31:05:AC:18:27:5E:4F:67:51:79:BC:9B:E6:08:0F
+```
+
+If mismatch: stop upload, fix `android/key.properties` / CI keystore source, rebuild, and re-verify.
 
 ### Remove leaked secrets from git history
 

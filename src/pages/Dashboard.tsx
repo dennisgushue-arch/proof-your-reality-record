@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { WhatsNewCard } from "@/components/WhatsNewCard";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
+import { hasBillingAccess, type BillingSubscription } from "../lib/billing.ts";
 import { toast } from "sonner";
 
 type CaseRow = {
@@ -63,6 +64,7 @@ type ReminderRow = {
 type SubscriptionRow = {
   plan: string;
   status: string;
+  current_period_end: string | null;
 };
 
 type PatternInsight = {
@@ -546,80 +548,6 @@ function buildPatternInsight(caseRow: CaseRow, incidents: IncidentIntelRow[]): P
   };
 }
 
-function buildHeatmap(incidents: IncidentIntelRow[]) {
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-
-  const days = Array.from({ length: 35 }, (_, index) => {
-    const date = new Date(dayStart);
-    date.setDate(dayStart.getDate() - (34 - index));
-    const key = date.toISOString().slice(0, 10);
-    return {
-      key,
-      label: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      intensity: 0,
-    };
-  });
-
-  if (!incidents.length) {
-    return days.map((day, index) => ({
-      key: `empty-${day.key}-${index}`,
-      label: day.label,
-      intensity: 0,
-    }));
-  }
-
-  const indexByDay = new Map(days.map((day, index) => [day.key, index]));
-  const weightedByDay = new Array(days.length).fill(0);
-
-  incidents.forEach((incident) => {
-    const dayKey = new Date(incident.occurred_at).toISOString().slice(0, 10);
-    const dayIndex = indexByDay.get(dayKey);
-    if (dayIndex === undefined) return;
-
-    const contradictionWeight = incidentContradictionCount(incident) * 0.6;
-    const missingWeight = incidentMissingEvidenceCount(incident) * 0.4;
-    const qualityPenalty =
-      typeof incident.evidence_quality_score === "number" && incident.evidence_quality_score < 50 ? 0.8 : 0;
-
-    weightedByDay[dayIndex] += 1 + contradictionWeight + missingWeight + qualityPenalty;
-  });
-
-  const maxWeight = Math.max(...weightedByDay, 0);
-
-  return Array.from({ length: 35 }, (_, index) => {
-    const day = days[index];
-    const weight = weightedByDay[index];
-    const intensity =
-      weight <= 0
-        ? 0
-        : maxWeight <= 1
-          ? Math.min(4, Math.round(weight))
-          : Math.max(1, Math.min(4, Math.ceil((weight / maxWeight) * 4)));
-
-    return {
-      key: `${day.key}-${index}`,
-      label: day.label,
-      intensity,
-    };
-  });
-}
-
-function heatmapColor(intensity: number) {
-  switch (intensity) {
-    case 4:
-      return "rgba(231, 76, 60, 0.55)";
-    case 3:
-      return "rgba(242, 201, 76, 0.48)";
-    case 2:
-      return "rgba(79, 140, 255, 0.38)";
-    case 1:
-      return "rgba(79, 140, 255, 0.22)";
-    default:
-      return "rgba(36, 48, 69, 0.55)";
-  }
-}
-
 const ONBOARDING_STEPS = [
   {
     title: "Conflict happens fast.",
@@ -693,7 +621,7 @@ const Dashboard = () => {
         .maybeSingle(),
       supabase
         .from("subscriptions")
-        .select("plan, status")
+        .select("plan, status, current_period_end")
         .eq("user_id", user.id)
         .maybeSingle(),
     ]);
@@ -943,12 +871,8 @@ const Dashboard = () => {
 
   const selectedCaseFeed = selectedCase ? buildThreatFeed(selectedCaseIncidentRows) : [];
   const selectedCasePattern = selectedCase ? buildPatternInsight(selectedCase, selectedCaseIncidentRows) : null;
-  const heatmap = useMemo(
-    () => buildHeatmap(selectedCaseIncidentRows),
-    [selectedCaseIncidentRows],
-  );
   const liveSessionId = liveIncidentState?.sessionId ?? null;
-  const hasPrepareAccess = subscription?.plan === "pro" || subscription?.plan === "premium";
+  const hasPrepareAccess = hasBillingAccess(subscription as BillingSubscription | null);
   const nextInteractionCase = upcomingReminder
     ? displayCases.find((c) => c.id === upcomingReminder.case_id) ?? selectedCase
     : selectedCase;
@@ -1470,7 +1394,7 @@ const Dashboard = () => {
           <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#4F8CFF]">TIMELINE RECONSTRUCTION</p>
             <p className="intel-title-body">Playback sequencing and reconstructed incident flow.</p>
-            <div className="mt-3 text-xs text-[#AAB4C8]">35-day sequence heatmap online</div>
+            <div className="mt-3 text-xs text-[#AAB4C8]">Playback timeline and incident sequence online</div>
           </div>
           <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#2ECC71]">EVIDENCE SECURITY</p>
@@ -1759,36 +1683,7 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr] xl:items-start mb-8">
-          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="intel-section-head">
-              <Clock3 className="h-4 w-4 text-[#4F8CFF]" />
-              <h3 className="intel-section-title text-foreground">Timeline Heatmap</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">See incident-heavy days, conflict spikes, and documentation frequency over the last five weeks.</p>
-            <div className="grid grid-cols-7 gap-2">
-              {heatmap.map((day, idx) => (
-                <div
-                  key={day.key}
-                  className="aspect-square rounded-md border timeline-fade-in"
-                  style={{
-                    background: heatmapColor(day.intensity),
-                    borderColor: "rgba(255,255,255,0.06)",
-                    animationDelay: `${Math.min(idx * 15, 420)}ms`,
-                  }}
-                  title={day.label}
-                />
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>Low</span>
-              {[0, 1, 2, 3, 4].map((intensity) => (
-                <span key={intensity} className="inline-flex h-3 w-3 rounded-sm border" style={{ background: heatmapColor(intensity), borderColor: "rgba(255,255,255,0.06)" }} />
-              ))}
-              <span>High</span>
-            </div>
-          </div>
-
+        <section className="grid gap-4 mb-8">
           <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
             <div className="intel-section-head">
               <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />

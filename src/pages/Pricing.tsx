@@ -1,61 +1,47 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { AppHeader } from "@/components/AppHeader";
-import { Disclaimer } from "@/components/Disclaimer";
+import { Button } from "../components/ui/button.tsx";
+import { AppHeader } from "../components/AppHeader.tsx";
+import { Disclaimer } from "../components/Disclaimer.tsx";
 import { toast } from "sonner";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "../contexts/AuthContext.tsx";
+import { supabase } from "../integrations/supabase/client.ts";
+import { BILLING_OFFERS, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
 
-type Tier = {
-  name: "Free" | "Pro" | "Premium";
-  price: string;
-  cadence: string;
-  features: string[];
-  cta: string;
-  highlight: boolean;
-};
-
-const tiers: Tier[] = [
-  {
-    name: "Free",
-    price: "$0",
-    cadence: "forever",
-    features: ["1 incident per month", "Basic timeline view", "Text & photo uploads", "Private, encrypted storage"],
-    cta: "Get started",
-    highlight: false,
-  },
-  {
-    name: "Pro",
-    price: "$14.99",
-    cadence: "/month",
-    features: ["Unlimited cases & incidents", "AI structuring & summaries", "PDF evidence export", "Smart search & filters", "Follow-up reminders", "7-day free trial for new users"],
-    cta: "Start 7-day trial",
-    highlight: true,
-  },
-  {
-    name: "Premium",
-    price: "$39",
-    cadence: "/month",
-    features: ["Everything in Pro", "Contradiction engine across cases", "Collaborative case access", "Advanced export templates", "7-day free trial for new users"],
-    cta: "Start 7-day trial",
-    highlight: false,
-  },
+const freePlanFeatures = [
+  "1 incident per month",
+  "Basic timeline view",
+  "Text & photo uploads",
+  "Private, encrypted storage",
 ];
 
+const subscriptionOffers = BILLING_OFFERS.filter((offer) => offer.billingMode === "subscription");
+const prepaidOffers = BILLING_OFFERS.filter((offer) => offer.billingMode !== "subscription");
+
+const buildTraceId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `checkout-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const logCheckoutTrace = (traceId: string, step: string, payload?: Record<string, unknown>) => {
+  console.info("[checkout-trace]", { traceId, step, ...(payload ?? {}) });
+};
+
 const Pricing = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [loadingPlan, setLoadingPlan] = useState<"pro" | "premium" | null>(null);
+  const [loadingOfferId, setLoadingOfferId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkout = searchParams.get("checkout");
     if (!checkout) return;
 
     if (checkout === "success") {
-      toast.success("Subscription started", { description: "Your 7-day trial or discounted plan is now active." });
+      toast.success("Purchase complete", { description: "Your access is being updated. Refresh the account page if it does not appear immediately." });
     }
 
     if (checkout === "canceled") {
@@ -68,33 +54,104 @@ const Pricing = () => {
     }, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const startCheckout = async (plan: "pro" | "premium") => {
-    if (!user) {
+  const startCheckout = async (offerId: string) => {
+    const traceId = buildTraceId();
+    const offer = getBillingOffer(offerId);
+    logCheckoutTrace(traceId, "start", { offerId, authLoading: loading, hasCachedUser: Boolean(user) });
+
+    if (!offer) {
+      logCheckoutTrace(traceId, "invalid-offer", { offerId });
+      toast.error("Could not start checkout", { description: "That billing option is unavailable." });
+      return;
+    }
+
+    if (loading) {
+      logCheckoutTrace(traceId, "auth-loading-blocked");
+      toast.message("Checking sign-in…", { description: "Please try again in a moment." });
+      return;
+    }
+
+    let activeUser = user;
+    let authSession = (await supabase.auth.getSession()).data.session;
+
+    if (!authSession) {
+      logCheckoutTrace(traceId, "refresh-session-attempt");
+      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+      authSession = refreshed.session;
+      if (refreshError) {
+        logCheckoutTrace(traceId, "refresh-session-failed", { message: refreshError.message });
+      }
+    }
+
+    if (authSession?.user) {
+      activeUser = authSession.user;
+    }
+
+    if (!activeUser) {
+      logCheckoutTrace(traceId, "refresh-user");
+      const {
+        data: { user: refreshedUser },
+      } = await supabase.auth.getUser();
+      activeUser = refreshedUser;
+    }
+
+    if (!activeUser) {
+      logCheckoutTrace(traceId, "unauthenticated-after-refresh");
       toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
       navigate("/auth?mode=signup");
       return;
     }
 
     try {
-      setLoadingPlan(plan);
+      setLoadingOfferId(offerId);
+
+      logCheckoutTrace(traceId, "invoke-create-checkout-session", {
+        userId: activeUser.id,
+        hasSession: Boolean(authSession),
+        hasAccessToken: Boolean(authSession?.access_token),
+        tokenExpiresAt: authSession?.expires_at ? new Date(authSession.expires_at * 1000).toISOString() : null,
+      });
+
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
-        body: { plan },
+        body: { offerId, siteUrl: globalThis.location.origin },
+        headers: {
+          "x-client-trace-id": traceId,
+          ...(authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {}),
+        },
       });
 
       if (error || !data?.url) {
+        const status = (error as { context?: Response } | null)?.context?.status ?? null;
+        const responseTraceId = (data as { traceId?: string } | null | undefined)?.traceId ?? null;
+        console.error("[checkout-trace]", {
+          traceId,
+          step: "invoke-failed",
+          status,
+          responseTraceId,
+          errorMessage: error?.message,
+          payloadError: (data as { error?: string } | null | undefined)?.error,
+        });
         toast.error("Could not start checkout", {
-          description: error?.message ?? "Please verify Stripe env vars and try again.",
+          description: `${error?.message ?? "Please verify Stripe env vars and try again."} (Trace: ${responseTraceId ?? traceId})`,
         });
         return;
       }
 
-      window.location.href = data.url as string;
+      logCheckoutTrace(traceId, "invoke-success", {
+        responseTraceId: (data as { traceId?: string } | null | undefined)?.traceId ?? null,
+      });
+      globalThis.location.assign(data.url as string);
     } catch (err) {
+      console.error("[checkout-trace]", {
+        traceId,
+        step: "invoke-exception",
+        message: err instanceof Error ? err.message : "Unexpected network error.",
+      });
       toast.error("Could not start checkout", {
-        description: err instanceof Error ? err.message : "Unexpected network error.",
+        description: `${err instanceof Error ? err.message : "Unexpected network error."} (Trace: ${traceId})`,
       });
     } finally {
-      setLoadingPlan(null);
+      setLoadingOfferId(null);
     }
   };
 
@@ -104,40 +161,103 @@ const Pricing = () => {
       <main className="container py-12 sm:py-16">
         <div className="text-center max-w-2xl mx-auto">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-balance">Private, straightforward pricing</h1>
-          <p className="mt-4 text-muted-foreground">Start free, then choose the plan that fits your case load. New users get a 7-day trial, and early users receive 50% off. Your records stay encrypted and account-scoped.</p>
+          <p className="mt-4 text-muted-foreground">
+            Choose the billing style that fits your workflow: auto-renewing subscriptions, prepaid plans with top-ups, or upgrade offers for users who want a bigger commitment later.
+          </p>
         </div>
         <p className="mt-4 text-center text-xs text-muted-foreground">Private by default. No public sharing, and no hidden fees.</p>
         <p className="mt-4 text-center text-xs text-muted-foreground">Early user discount applies to accounts created during the first 3 months after launch.</p>
-        <div className="mt-10 sm:mt-12 grid gap-5 sm:gap-6 md:grid-cols-3 max-w-5xl mx-auto">
-          {tiers.map((t) => (
-            <div key={t.name} className={`rounded-2xl border p-5 sm:p-8 ${t.highlight ? "border-accent bg-card shadow-elevated ring-1 ring-accent/30" : "border-border bg-card shadow-card"}`}>
-              {t.highlight && <div className="text-xs font-semibold uppercase tracking-wider text-accent mb-3">Most popular</div>}
-              <h2 className="text-xl font-semibold">{t.name}</h2>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-4xl font-semibold">{t.price}</span>
-                <span className="text-muted-foreground text-sm">{t.cadence}</span>
-              </div>
-              <ul className="mt-6 space-y-2.5 text-sm">
-                {t.features.map((f) => (
-                  <li key={f} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{f}</span></li>
-                ))}
-              </ul>
-              {t.name === "Free" ? (
-                <Button asChild className="w-full mt-7 sm:mt-8 h-11">
-                  <Link to="/auth?mode=signup">{t.cta}</Link>
-                </Button>
-              ) : (
-                <Button
-                  className="w-full mt-7 sm:mt-8 h-11"
-                  variant={t.highlight ? "default" : "outline"}
-                  onClick={() => startCheckout(t.name.toLowerCase() as "pro" | "premium")}
-                  disabled={loadingPlan !== null}
-                >
-                  {loadingPlan === t.name.toLowerCase() ? "Redirecting…" : t.cta}
-                </Button>
-              )}
+        <div className="mt-10 sm:mt-12 grid gap-5 sm:gap-6 md:grid-cols-3 max-w-6xl mx-auto">
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-8 shadow-card">
+            <h2 className="text-xl font-semibold">Free</h2>
+            <div className="mt-3 flex items-baseline gap-1">
+              <span className="text-4xl font-semibold">$0</span>
+              <span className="text-muted-foreground text-sm">forever</span>
             </div>
-          ))}
+            <ul className="mt-6 space-y-2.5 text-sm">
+              {freePlanFeatures.map((feature) => (
+                <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
+              ))}
+            </ul>
+            <Button asChild className="w-full mt-7 sm:mt-8 h-11">
+              <Link to="/auth?mode=signup">Get started free</Link>
+            </Button>
+          </div>
+
+          <div className="rounded-2xl border border-accent bg-card p-5 sm:p-8 shadow-elevated ring-1 ring-accent/30">
+            <div className="text-xs font-semibold uppercase tracking-wider text-accent mb-3">Recommended</div>
+            <h2 className="text-xl font-semibold">Auto-renewing subscriptions</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Best for subscribers who want uninterrupted access, trials for new users, and an easy upgrade path later.</p>
+            <div className="mt-5 space-y-4">
+              {subscriptionOffers.map((offer) => (
+                <div key={offer.id} className="rounded-xl border border-border bg-background/70 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wider text-accent">{offer.badge}</div>
+                      <h3 className="mt-1 text-lg font-semibold">{offer.title}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{offer.shortCopy}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-semibold">{offer.priceText}</div>
+                      <div className="text-sm text-muted-foreground">{offer.cadenceText}</div>
+                    </div>
+                  </div>
+                  <ul className="mt-4 space-y-2 text-sm">
+                    {offer.features.map((feature) => (
+                      <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
+                    ))}
+                  </ul>
+                  <Button className="w-full mt-5 h-11" onClick={() => startCheckout(offer.id)} disabled={loading || loadingOfferId !== null}>
+                    {loadingOfferId === offer.id ? "Redirecting…" : offer.cta}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-5 sm:p-8 shadow-card">
+            <h2 className="text-xl font-semibold">Prepaid plans & top-ups</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Good for users who want fixed periods of access without auto-renewal, plus small top-ups when a case runs long.</p>
+            <div className="mt-5 space-y-4">
+              {prepaidOffers.map((offer) => (
+                <div key={offer.id} className="rounded-xl border border-border bg-background/70 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{offer.badge}</div>
+                      <h3 className="mt-1 text-lg font-semibold">{offer.title}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{offer.shortCopy}</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-semibold">{offer.priceText}</div>
+                      <div className="text-sm text-muted-foreground">{offer.cadenceText}</div>
+                    </div>
+                  </div>
+                  <ul className="mt-4 space-y-2 text-sm">
+                    {offer.features.map((feature) => (
+                      <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
+                    ))}
+                  </ul>
+                  <Button className="w-full mt-5 h-11" variant={offer.billingMode === "topup" ? "outline" : "default"} onClick={() => startCheckout(offer.id)} disabled={loading || loadingOfferId !== null}>
+                    {loadingOfferId === offer.id ? "Redirecting…" : offer.cta}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-8 max-w-5xl mx-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-card">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">What your account will show</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Recurring plans renew automatically, while prepaid plans and top-ups extend the date shown in your account.
+              </p>
+            </div>
+            <div className="text-sm text-muted-foreground sm:text-right">
+              <div>{describeBillingAccess({ plan: "free", status: "inactive", current_period_end: null })}</div>
+              <div>Upgrade and renew any time from the account screen.</div>
+            </div>
+          </div>
         </div>
         <div className="mt-12 max-w-3xl mx-auto"><Disclaimer /></div>
       </main>

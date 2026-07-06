@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Mic, FileText, Sparkles, ShieldCheck, Lock, Clock, Users, Home, Hammer, Briefcase, Building, Check, AlertTriangle } from "lucide-react";
+import { Mic, FileText, Sparkles, ShieldCheck, Lock, Clock, Users, Home, Hammer, Briefcase, Building, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
 import { Disclaimer } from "@/components/Disclaimer";

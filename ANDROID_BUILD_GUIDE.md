@@ -14,13 +14,14 @@ I've successfully prepared your Vite React app for Android deployment:
    - `npm run android:open` — Open Android Studio
    - `npm run android:bundle` — One-command build+sync+bundle
 
-## What's Missing (Requires Local Setup)
+## Local Machine Prerequisites
 
-The Android SDK is not available in this container. To generate the `.aab` file locally:
+To generate the `.aab` file on your own machine, make sure Android SDK/tooling is installed and configured:
 
 ### 1. Install Android SDK & Tools
 
 **On macOS/Linux:**
+
 ```bash
 # Using Android Studio (recommended):
 # 1. Download from https://developer.android.com/studio
@@ -43,6 +44,7 @@ export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-
 ```
 
 **On Windows:**
+
 ```bash
 # Download Android Studio or command-line tools from:
 # https://developer.android.com/studio
@@ -72,6 +74,7 @@ keytool -genkey -v -keystore ~/proof-keystore.jks \
 ### 4. Configure Signing in Gradle
 
 Create `android/key.properties`:
+
 ```properties
 storeFile=/path/to/your/proof-keystore.jks
 storePassword=your_keystore_password
@@ -80,6 +83,7 @@ keyPassword=your_key_password
 ```
 
 Then in `android/app/build.gradle`, add:
+
 ```gradle
 signingConfigs {
     release {
@@ -102,7 +106,8 @@ buildTypes {
 }
 ```
 
-> Important: Do not build a release App Bundle without `android/key.properties` configured. The release build must be signed with your real release keystore and will fail fast if signing is not configured.
+> Important: For Google Play uploads, use a real release keystore via `android/key.properties`.
+> The current Gradle config loads signing values from `android/key.properties` when that file exists.
 
 ### 5. Set ANDROID_HOME & Build
 
@@ -119,29 +124,98 @@ npm run android:bundle
 ### 6. Locate the Generated AAB
 
 After a successful build, your app bundle will be at:
-```
+
+```text
 android/app/build/outputs/bundle/release/app-release.aab
 ```
 
 Upload this file to [Google Play Console](https://play.google.com/console).
 
+## Upload Preflight Checklist (2 minutes)
+
+Run this before every Play upload:
+
+1. Build fresh bundle:
+
+```bash
+npm run android:bundle
+```
+
+1. Confirm the artifact exists:
+
+```bash
+ls -lh android/app/build/outputs/bundle/release/app-release.aab
+```
+
+1. Verify signer fingerprint on the actual `.aab`:
+
+```bash
+keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | grep "SHA1"
+```
+
+1. Compare against Play's expected upload key SHA1:
+
+```text
+DC:94:30:62:0F:31:05:AC:18:27:5E:4F:67:51:79:BC:9B:E6:08:0F
+```
+
+1. If mismatch: stop upload, fix `android/key.properties` to point at the correct upload keystore, rebuild, re-check fingerprint.
+
 ## Troubleshooting
 
 ### Gradle Build Fails with Java Version Error
+
 - Ensure Java 21+ is active: `java -version`
 - Use: `source /usr/local/sdkman/bin/sdkman-init.sh`
 
 ### "SDK location not found"
+
 - Set `export ANDROID_HOME=/path/to/your/android/sdk`
 - Or create `android/local.properties`:
-  ```
+
+    ```properties
   sdk.dir=/path/to/your/android/sdk
   ```
 
 ### Keystore Password Issues
+
 - Make sure the `key.properties` file permissions are restricted: `chmod 600 android/key.properties`
 
+### "Your Android App Bundle is signed with the wrong key"
+
+If Google Play reports a fingerprint mismatch, verify your local signing key before uploading.
+
+Expected (from Play Console error):
+
+```text
+SHA1: DC:94:30:62:0F:31:05:AC:18:27:5E:4F:67:51:79:BC:9B:E6:08:0F
+```
+
+In this workspace, the current configured release key resolves to:
+
+```text
+SHA1: 3E:67:E6:41:E3:41:2F:B9:05:DD:D1:86:DE:86:E3:15:03:ED:2D:C4
+```
+
+This mismatch means you are signing with the wrong upload keystore.
+
+Fix path:
+
+1. Update `android/key.properties` to point to the **original upload keystore** whose SHA1 matches Play's expected fingerprint.
+2. Rebuild with `npm run android:bundle`.
+3. Verify the generated bundle signer fingerprint before upload:
+
+```bash
+keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | grep "SHA1"
+```
+
+Important:
+
+- Do **not** generate a brand-new keystore for an existing Play app unless you also perform an upload key reset in Play Console.
+- If the original upload key is lost, request an **Upload key reset** in Play Console and then use the replacement key consistently in local builds/CI.
+
 ### Out of Memory During Build
+
 ```bash
 export ORG_GRADLE_JVM_ARGS="-Xmx4096m"
 ./gradlew bundleRelease
@@ -150,15 +224,28 @@ export ORG_GRADLE_JVM_ARGS="-Xmx4096m"
 ## Quick Reference: One-Command Build
 
 Once Android SDK is configured locally:
+
 ```bash
 export ANDROID_HOME=~/Android/sdk
 npm run android:bundle
 # Output: android/app/build/outputs/bundle/release/app-release.aab
 ```
 
+## Verified in This Repository (2026-06-20)
+
+The following release tasks were executed successfully in this workspace:
+
+- `./gradlew :app:assembleRelease`
+- `./gradlew :app:bundleRelease`
+
+Verified output artifact:
+
+- `android/app/build/outputs/bundle/release/app-release.aab` (present)
+
 ## App Configuration
 
 Your app is configured as:
+
 - **Package ID:** `com.proofyourreality.record`
 - **App Name:** Proof
 - **Web Assets Root:** `dist/`
