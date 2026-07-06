@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
 import { BILLING_OFFERS, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
+import { isJsonParseResponseError } from "../lib/isJsonParseResponseError.ts";
 
 const freePlanFeatures = [
   "1 incident per month",
@@ -71,39 +72,48 @@ const Pricing = () => {
       return;
     }
 
-    let activeUser = user;
-    let authSession = (await supabase.auth.getSession()).data.session;
-
-    if (!authSession) {
-      logCheckoutTrace(traceId, "refresh-session-attempt");
-      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-      authSession = refreshed.session;
-      if (refreshError) {
-        logCheckoutTrace(traceId, "refresh-session-failed", { message: refreshError.message });
-      }
-    }
-
-    if (authSession?.user) {
-      activeUser = authSession.user;
-    }
-
-    if (!activeUser) {
-      logCheckoutTrace(traceId, "refresh-user");
-      const {
-        data: { user: refreshedUser },
-      } = await supabase.auth.getUser();
-      activeUser = refreshedUser;
-    }
-
-    if (!activeUser) {
-      logCheckoutTrace(traceId, "unauthenticated-after-refresh");
-      toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
-      navigate("/auth?mode=signup");
-      return;
-    }
-
     try {
       setLoadingOfferId(offerId);
+      let activeUser = user;
+      let authSession = null;
+
+      try {
+        authSession = (await supabase.auth.getSession()).data.session;
+      } catch (error) {
+        if (isJsonParseResponseError(error)) {
+          logCheckoutTrace(traceId, "get-session-parse-error");
+        } else {
+          throw error;
+        }
+      }
+
+      if (!authSession) {
+        logCheckoutTrace(traceId, "refresh-session-attempt");
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        authSession = refreshed.session;
+        if (refreshError) {
+          logCheckoutTrace(traceId, "refresh-session-failed", { message: refreshError.message });
+        }
+      }
+
+      if (authSession?.user) {
+        activeUser = authSession.user;
+      }
+
+      if (!activeUser) {
+        logCheckoutTrace(traceId, "refresh-user");
+        const {
+          data: { user: refreshedUser },
+        } = await supabase.auth.getUser();
+        activeUser = refreshedUser;
+      }
+
+      if (!activeUser) {
+        logCheckoutTrace(traceId, "unauthenticated-after-refresh");
+        toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
+        navigate("/auth?mode=signup");
+        return;
+      }
 
       logCheckoutTrace(traceId, "invoke-create-checkout-session", {
         userId: activeUser.id,
@@ -142,13 +152,15 @@ const Pricing = () => {
       });
       globalThis.location.assign(data.url as string);
     } catch (err) {
+      const parseError = isJsonParseResponseError(err);
       console.error("[checkout-trace]", {
         traceId,
         step: "invoke-exception",
         message: err instanceof Error ? err.message : "Unexpected network error.",
+        parseError,
       });
       toast.error("Could not start checkout", {
-        description: `${err instanceof Error ? err.message : "Unexpected network error."} (Trace: ${traceId})`,
+        description: `${parseError ? "Temporary session/network response issue. Please try again." : err instanceof Error ? err.message : "Unexpected network error."} (Trace: ${traceId})`,
       });
     } finally {
       setLoadingOfferId(null);

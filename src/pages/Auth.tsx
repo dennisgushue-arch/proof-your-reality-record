@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
 
 const schema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
@@ -46,9 +47,46 @@ const DEBUG_COPY_SUCCESS_LABEL = "Copied!";
 const DEBUG_COPY_SUCCESS_TOAST = "Debug auth URL copied";
 const DEBUG_COPY_RESET_MS = 1500;
 
-const isJsonParseResponseError = (error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return /failed to execute 'json' on 'response'|unexpected end of json input/i.test(message);
+const wait = (ms: number) => new Promise<void>((resolve) => {
+  globalThis.setTimeout(resolve, ms);
+});
+
+const withJsonParseRetry = async <T,>(fn: () => Promise<T>, attempts = 2): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isJsonParseResponseError(error) || attempt >= attempts) {
+        throw error;
+      }
+
+      await wait(150 * attempt);
+    }
+  }
+
+  throw lastError;
+};
+
+const getAuthErrorMessage = (error: unknown, fallback: string) => {
+  if (isJsonParseResponseError(error)) {
+    return "Authentication response was incomplete. Please try again.";
+  }
+
+  if (error instanceof Error) {
+    const message = error.message.trim();
+    if (!message) return fallback;
+
+    if (/failed to execute.*json|unexpected end of json input|unexpected end of input/i.test(message)) {
+      return "Authentication response was incomplete. Please try again.";
+    }
+
+    return message;
+  }
+
+  return fallback;
 };
 
 const Auth = () => {
@@ -85,42 +123,52 @@ const Auth = () => {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await withJsonParseRetry(() => supabase.auth.signUp({
           email: parsed.data.email,
           password: parsed.data.password,
           options: { emailRedirectTo: `${window.location.origin}/dashboard` },
-        });
+        }));
         if (error) throw error;
         toast.success("Account created. Welcome to Proof.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
+        const { error } = await withJsonParseRetry(() => supabase.auth.signInWithPassword({
+          email: parsed.data.email,
+          password: parsed.data.password,
+        }));
         if (error) throw error;
       }
       nav("/dashboard", { replace: true });
     } catch (e: unknown) {
-      if (mode === "signup" && isJsonParseResponseError(e)) {
-        try {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email: parsed.data.email,
-            password: parsed.data.password,
-          });
+      if (isJsonParseResponseError(e)) {
+        if (mode === "signup") {
+          try {
+            const { error: signInError } = await withJsonParseRetry(() => supabase.auth.signInWithPassword({
+              email: parsed.data.email,
+              password: parsed.data.password,
+            }));
 
-          if (!signInError) {
-            toast.success("Account created. Welcome to Proof.");
-            nav("/dashboard", { replace: true });
-            return;
+            if (!signInError) {
+              toast.success("Account created. Welcome to Proof.");
+              nav("/dashboard", { replace: true });
+              return;
+            }
+          } catch {
+            // Fall through to friendly error below.
           }
-        } catch {
-          // Fall through to friendly error below.
+
+          toast.error("Signup response was incomplete", {
+            description: "Please try again. If this continues, check Supabase Auth logs for /auth/v1/signup.",
+          });
+          return;
         }
 
-        toast.error("Signup response was incomplete", {
-          description: "Please try again. If this continues, check Supabase Auth logs for /auth/v1/signup.",
+        toast.error("Authentication response was incomplete", {
+          description: "Please try again. If this continues, check Supabase Auth logs.",
         });
         return;
       }
 
-      toast.error(e instanceof Error ? e.message : "Something went wrong");
+      toast.error(getAuthErrorMessage(e, "Something went wrong"));
     } finally { setLoading(false); }
   };
 
@@ -133,7 +181,7 @@ const Auth = () => {
       });
       if (error) throw error;
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Unable to start social sign-in");
+      toast.error(getAuthErrorMessage(e, "Unable to start social sign-in"));
       setLoading(false);
     }
   };
