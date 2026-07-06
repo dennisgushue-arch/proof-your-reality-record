@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AIAnalysisSchema } from "@/lib/aiAnalysis";
+import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
 import { toast } from "sonner";
 
 type SubscriptionRow = {
@@ -46,15 +47,26 @@ const Account = () => {
 
   const openPortal = async () => {
     setPortalLoading(true);
-    const { data, error } = await supabase.functions.invoke("create-billing-portal-session");
-    setPortalLoading(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-billing-portal-session");
 
-    if (error || !data?.url) {
-      toast.error("Could not open billing portal", { description: error?.message ?? "No Stripe customer found yet." });
-      return;
+      if (error || !data?.url) {
+        toast.error("Could not open billing portal", { description: error?.message ?? "No Stripe customer found yet." });
+        return;
+      }
+
+      globalThis.location.href = data.url as string;
+    } catch (err) {
+      toast.error("Could not open billing portal", {
+        description: isJsonParseResponseError(err)
+          ? "Temporary session/network response issue. Please try again."
+          : err instanceof Error
+            ? err.message
+            : "Unexpected error",
+      });
+    } finally {
+      setPortalLoading(false);
     }
-
-    window.location.href = data.url as string;
   };
 
   const runAISmokeTest = async () => {
@@ -108,7 +120,6 @@ const Account = () => {
   const renewalDate = subscription?.current_period_end
     ? new Date(subscription.current_period_end).toLocaleDateString()
     : null;
-
   return (
     <div className="min-h-screen bg-subtle">
       <AppHeader />

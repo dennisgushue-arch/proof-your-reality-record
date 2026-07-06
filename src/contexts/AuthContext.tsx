@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
 
 type Ctx = {
   user: User | null;
@@ -20,12 +21,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
       setUser(s?.user ?? null);
-    });
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setUser(s?.user ?? null);
       setLoading(false);
     });
+
+    const loadSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        return;
+      } catch (error) {
+        if (isJsonParseResponseError(error)) {
+          try {
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            setSession(refreshed.session);
+            setUser(refreshed.session?.user ?? null);
+            return;
+          } catch {
+            // Fall through to clean unauthenticated state.
+          }
+        }
+
+        console.warn("Failed to initialize auth session", error);
+        setSession(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadSession();
     return () => subscription.unsubscribe();
   }, []);
 

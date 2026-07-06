@@ -7,6 +7,7 @@ import { Disclaimer } from "@/components/Disclaimer";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
 
 type Tier = {
   name: "Free" | "Pro" | "Premium";
@@ -69,7 +70,30 @@ const Pricing = () => {
   }, [searchParams, setSearchParams]);
 
   const startCheckout = async (plan: "pro" | "premium") => {
-    if (!user) {
+    let activeUser = user;
+
+    if (!activeUser) {
+      try {
+        activeUser = (await supabase.auth.getSession()).data.session?.user ?? null;
+      } catch (error) {
+        if (!isJsonParseResponseError(error)) {
+          toast.error("Could not start checkout", {
+            description: error instanceof Error ? error.message : "Unexpected session error.",
+          });
+          return;
+        }
+      }
+    }
+
+    if (!activeUser) {
+      try {
+        activeUser = (await supabase.auth.refreshSession()).data.session?.user ?? null;
+      } catch {
+        // Continue to unauthenticated guard below.
+      }
+    }
+
+    if (!activeUser) {
       toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
       navigate("/auth?mode=signup");
       return;
@@ -88,10 +112,14 @@ const Pricing = () => {
         return;
       }
 
-      window.location.href = data.url as string;
+      globalThis.location.href = data.url as string;
     } catch (err) {
       toast.error("Could not start checkout", {
-        description: err instanceof Error ? err.message : "Unexpected network error.",
+        description: isJsonParseResponseError(err)
+          ? "Temporary session/network response issue. Please try again."
+          : err instanceof Error
+            ? err.message
+            : "Unexpected network error.",
       });
     } finally {
       setLoadingPlan(null);
