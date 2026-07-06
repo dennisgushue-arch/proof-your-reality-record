@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { AppHeader } from "@/components/AppHeader";
+import { WhatsNewCard } from "@/components/WhatsNewCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { AIAnalysisSchema } from "@/lib/aiAnalysis";
+import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
 import { toast } from "sonner";
 
 type SubscriptionRow = {
@@ -22,6 +25,7 @@ const Account = () => {
   const [aiSmokeLoading, setAiSmokeLoading] = useState(false);
   const [aiSmokeResult, setAiSmokeResult] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
+  const [feedbackNote, setFeedbackNote] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -46,15 +50,26 @@ const Account = () => {
 
   const openPortal = async () => {
     setPortalLoading(true);
-    const { data, error } = await supabase.functions.invoke("create-billing-portal-session");
-    setPortalLoading(false);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-billing-portal-session");
 
-    if (error || !data?.url) {
-      toast.error("Could not open billing portal", { description: error?.message ?? "No Stripe customer found yet." });
-      return;
+      if (error || !data?.url) {
+        toast.error("Could not open billing portal", { description: error?.message ?? "No Stripe customer found yet." });
+        return;
+      }
+
+      globalThis.location.href = data.url as string;
+    } catch (err) {
+      toast.error("Could not open billing portal", {
+        description: isJsonParseResponseError(err)
+          ? "Temporary session/network response issue. Please try again."
+          : err instanceof Error
+            ? err.message
+            : "Unexpected error",
+      });
+    } finally {
+      setPortalLoading(false);
     }
-
-    window.location.href = data.url as string;
   };
 
   const runAISmokeTest = async () => {
@@ -109,6 +124,15 @@ const Account = () => {
     ? new Date(subscription.current_period_end).toLocaleDateString()
     : null;
 
+  const sendFeedback = () => {
+    const subject = encodeURIComponent("Proof app feedback");
+    const body = encodeURIComponent(
+      feedbackNote.trim() || "Hi Proof team,\n\nHere is my feedback:\n\n",
+    );
+    globalThis.location.href = `mailto:proofrealityrecord@yahoo.com?subject=${subject}&body=${body}`;
+    toast.success("Opening your email client for feedback");
+  };
+
   return (
     <div className="min-h-screen bg-subtle">
       <AppHeader />
@@ -143,6 +167,48 @@ const Account = () => {
 
         <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card text-sm text-muted-foreground">
           Your data is private and scoped to your account. Only you can access it from within your account.
+        </div>
+
+        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card space-y-3">
+          <h2 className="text-lg font-semibold">Security & Privacy reassurance</h2>
+          <ul className="space-y-2 text-sm text-muted-foreground leading-relaxed">
+            <li>• Account data is scoped per user and protected by authenticated access rules.</li>
+            <li>• Incident records preserve timestamp context to support trustworthy chronology.</li>
+            <li>• You can review privacy and deletion policies any time in the support links below.</li>
+          </ul>
+        </div>
+
+        <div className="mt-6">
+          <WhatsNewCard />
+        </div>
+
+        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card space-y-4">
+          <h2 className="text-lg font-semibold">Help & Support</h2>
+          <p className="text-sm text-muted-foreground">
+            Find quick answers, review privacy details, or send feedback directly to help prioritize product updates.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" className="h-10">
+              <a href="/legal/privacy-policy.html">Privacy policy</a>
+            </Button>
+            <Button asChild variant="outline" className="h-10">
+              <a href="/legal/data-deletion.html">Data deletion guide</a>
+            </Button>
+            <Button asChild variant="outline" className="h-10">
+              <a href="/legal/terms-of-service.html">Terms & troubleshooting</a>
+            </Button>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="feedback-note">Feedback note (optional)</Label>
+            <Textarea
+              id="feedback-note"
+              value={feedbackNote}
+              onChange={(e) => setFeedbackNote(e.target.value)}
+              rows={4}
+              placeholder="Tell us what worked, what confused you, or what feature you want next."
+            />
+          </div>
+          <Button onClick={sendFeedback} className="w-full sm:w-auto h-11">Send feedback</Button>
         </div>
 
         <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card space-y-3">

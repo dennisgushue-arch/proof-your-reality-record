@@ -291,16 +291,22 @@ const IncidentDetail = () => {
 
   return (
     <AppLayout>
-      <main className="px-6 lg:px-10 py-10 max-w-4xl">
+      <main id="page-main-content" tabIndex={-1} className="mx-auto w-full max-w-5xl px-6 py-10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:px-10 lg:py-12">
+        <a
+          href="#incident-actions"
+          className="sr-only mb-4 inline-flex rounded-md px-2.5 py-1.5 text-xs font-semibold text-foreground focus:not-sr-only focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        >
+          Skip to incident actions
+        </a>
         <Link
           to={`/cases/${inc.case_id}`}
-          className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono mb-6"
+          className="mb-6 inline-flex items-center font-mono text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to case
         </Link>
 
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
+        <div className="mb-9 flex flex-wrap items-start justify-between gap-5 rounded-xl border border-border bg-card p-6 shadow-card md:p-7">
           <div className="flex-1 min-w-0">
             <div className="text-xs font-mono text-muted-foreground mb-2">
               {new Date(inc.occurred_at).toLocaleString(undefined, {
@@ -350,7 +356,7 @@ const IncidentDetail = () => {
         </div>
 
         {isLiveSessionFinalized && liveSessionSnippet.length > 0 && (
-          <section className="mb-5 rounded-lg border border-border bg-card p-5 shadow-card">
+          <section className="mb-6 rounded-xl border border-border bg-card p-6 shadow-card">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Live Session Source Timeline</h2>
             <ul className="space-y-2">
               {liveSessionSnippet.map((line, index) => (
@@ -364,36 +370,39 @@ const IncidentDetail = () => {
         )}
 
         {/* Split view: Raw narrative + AI panel */}
-        {showContradictionWow && (
-          <section className="mb-5 rounded-xl border px-5 py-4 contradiction-wow" style={{ borderColor: "rgba(231, 76, 60, 0.5)", background: "rgba(231, 76, 60, 0.1)" }}>
-            <p className="text-xs uppercase tracking-[0.14em] text-[#E74C3C] font-semibold">AI Alert</p>
-            <h2 className="mt-1 text-xl font-semibold">⚠ Contradiction Detected</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Statements conflict across your timeline. Review highlighted claims below.</p>
-          </section>
-        )}
+        <section id="incident-actions" aria-label="Incident actions and evidence" className="scroll-mt-24">
+          <h2 className="sr-only">Incident actions and evidence</h2>
 
-        {ai ? (
-          <div className="grid gap-5 lg:grid-cols-2 mb-5">
+          {showContradictionWow && (
+            <section className="mb-5 rounded-xl border px-5 py-4 contradiction-wow" style={{ borderColor: "rgba(231, 76, 60, 0.5)", background: "rgba(231, 76, 60, 0.1)" }}>
+              <p className="text-xs uppercase tracking-[0.14em] text-[#E74C3C] font-semibold">AI Alert</p>
+              <h2 className="mt-1 text-xl font-semibold">⚠ Contradiction Detected</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Statements conflict across your timeline. Review highlighted claims below.</p>
+            </section>
+          )}
+
+          {ai ? (
+            <div className="mb-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             {/* LEFT: Raw transcript */}
-            <section className="rounded-lg border border-border bg-card p-6 shadow-card">
+            <section className="rounded-xl border border-border bg-card p-6 shadow-card md:p-7">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
                 <Clock className="h-3.5 w-3.5" /> Raw Transcript
               </h2>
-              <p className="text-sm font-mono leading-relaxed text-foreground whitespace-pre-wrap">{inc.raw_narrative}</p>
+              <p className="whitespace-pre-wrap text-sm font-mono leading-relaxed text-foreground">{inc.raw_narrative}</p>
             </section>
 
             {/* RIGHT: Structured facts */}
-            <div className="space-y-4">
-              <section className="rounded-lg border border-border bg-card p-5 shadow-card">
+            <div className="space-y-5">
+              <section className="rounded-xl border border-border bg-card p-5 shadow-card md:p-6">
                 <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Neutral Summary</h2>
-                <p className="text-sm text-foreground" style={{ lineHeight: 1.6 }}>{ai.neutral_summary}</p>
+                <p className="text-sm leading-relaxed text-foreground">{ai.neutral_summary}</p>
               </section>
 
-              <section className="rounded-lg border border-border bg-card p-5 shadow-card">
+              <section className="rounded-xl border border-border bg-card p-5 shadow-card md:p-6">
                 <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
                   <ListChecks className="h-3.5 w-3.5" /> Key Claims &amp; Promises
                 </h2>
-                <ul className="space-y-1.5">
+                <ul className="space-y-2">
                   {ai.key_claims.map((c, i) => (
                     <li key={i} className="text-sm text-foreground flex gap-2">
                       <span className="text-accent font-mono shrink-0">{String(i + 1).padStart(2, "0")}</span>
@@ -403,10 +412,10 @@ const IncidentDetail = () => {
                 </ul>
               </section>
             </div>
-          </div>
-        ) : (
+            </div>
+          ) : (
           /* No AI yet — show raw narrative + analyze button */
-          <section className="rounded-lg border border-border bg-card p-6 shadow-card mb-5">
+            <section className="mb-6 rounded-xl border border-border bg-card p-6 shadow-card md:p-7">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
               <Clock className="h-3.5 w-3.5" /> Raw Narrative
             </h2>
@@ -430,14 +439,14 @@ const IncidentDetail = () => {
                 {ANALYSIS_LOADING_STEPS[analysisStepIndex]}
               </p>
             )}
-          </section>
-        )}
+            </section>
+          )}
 
-        {ai && (
-          <>
+          {ai && (
+            <>
             {/* Contradictions — visually prominent */}
             {ai.contradictions.length > 0 && (
-              <section className="mb-5">
+              <section className="mb-6">
                 <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
                   <span className="text-destructive">Possible Contradictions</span>
@@ -451,7 +460,7 @@ const IncidentDetail = () => {
             )}
 
             {/* Forensic timeline */}
-            <section className="rounded-lg border border-border bg-card p-6 shadow-card mb-5">
+            <section className="mb-6 rounded-xl border border-border bg-card p-6 shadow-card md:p-7">
               <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-1.5">
                 <ListChecks className="h-3.5 w-3.5" /> Evidence Timeline
               </h2>
@@ -468,8 +477,8 @@ const IncidentDetail = () => {
             </section>
 
             {/* 2-col: Missing evidence + Follow-ups */}
-            <div className="grid gap-5 md:grid-cols-2 mb-5">
-              <section className="rounded-lg border border-border bg-card p-5 shadow-card">
+            <div className="mb-6 grid gap-5 md:grid-cols-2">
+              <section className="rounded-xl border border-border bg-card p-5 shadow-card md:p-6">
                 <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
                   <FileWarning className="h-3.5 w-3.5 text-warning" />
                   <span className="text-warning">Missing Evidence</span>
@@ -483,7 +492,7 @@ const IncidentDetail = () => {
                   ))}
                 </ul>
               </section>
-              <section className="rounded-lg border border-border bg-card p-5 shadow-card">
+              <section className="rounded-xl border border-border bg-card p-5 shadow-card md:p-6">
                 <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
                   Follow-up Reminders
                 </h2>
@@ -499,7 +508,7 @@ const IncidentDetail = () => {
             </div>
 
             {/* Emotion-stripped */}
-            <section className="rounded-lg border border-border bg-card p-6 shadow-card mb-5">
+            <section className="mb-6 rounded-xl border border-border bg-card p-6 shadow-card md:p-7">
               <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
                 Emotion-Neutral Version
               </h2>
@@ -507,11 +516,11 @@ const IncidentDetail = () => {
                 {ai.emotional_language_removed}
               </p>
             </section>
-          </>
-        )}
+            </>
+          )}
 
-        {/* Evidence items */}
-        <section className="rounded-lg border border-border bg-card p-6 shadow-card mb-5">
+          {/* Evidence items */}
+          <section className="mb-6 rounded-xl border border-border bg-card p-6 shadow-card md:p-7">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
             <Paperclip className="h-3.5 w-3.5" /> Attached Evidence
           </h2>
@@ -529,7 +538,7 @@ const IncidentDetail = () => {
                         href={signedEvidenceUrls[e.id]}
                         target="_blank"
                         rel="noreferrer"
-                        className="mt-1 inline-block text-xs text-accent hover:underline"
+                        className="mt-1 inline-block text-xs text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       >
                         Open file
                       </a>
@@ -555,6 +564,7 @@ const IncidentDetail = () => {
               ))}
             </ul>
           )}
+          </section>
         </section>
 
         <Disclaimer />

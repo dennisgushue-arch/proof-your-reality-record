@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, Clock3, CircleHelp, Bell, UserCircle2, Sparkles, Lock, Cloud, Fingerprint } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
@@ -15,8 +15,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { WhatsNewCard } from "@/components/WhatsNewCard";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
+import { hasBillingAccess, type BillingSubscription } from "../lib/billing.ts";
 import { toast } from "sonner";
 
 type CaseRow = {
@@ -62,6 +64,7 @@ type ReminderRow = {
 type SubscriptionRow = {
   plan: string;
   status: string;
+  current_period_end: string | null;
 };
 
 type PatternInsight = {
@@ -449,6 +452,25 @@ function buildThreatFeed(incidents: IncidentIntelRow[]): ThreatFeedItem[] {
   return items.slice(0, 4);
 }
 
+function contradictionStoryLines(incidents: IncidentIntelRow[]) {
+  const contradictionIncidents = incidents.filter((incident) => incidentContradictionCount(incident) > 0);
+  if (!contradictionIncidents.length) return null;
+
+  const ordered = [...contradictionIncidents].sort(
+    (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
+  );
+
+  const first = ordered[0];
+  const last = ordered[ordered.length - 1];
+  const firstDate = new Date(first.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const lastDate = new Date(last.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+  return [
+    `${firstDate}: “${first.title}”`,
+    `${lastDate}: “${last.title}”`,
+  ];
+}
+
 function buildPatternInsight(caseRow: CaseRow, incidents: IncidentIntelRow[]): PatternInsight {
   if (!incidents.length) {
     return {
@@ -526,80 +548,6 @@ function buildPatternInsight(caseRow: CaseRow, incidents: IncidentIntelRow[]): P
   };
 }
 
-function buildHeatmap(incidents: IncidentIntelRow[]) {
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-
-  const days = Array.from({ length: 35 }, (_, index) => {
-    const date = new Date(dayStart);
-    date.setDate(dayStart.getDate() - (34 - index));
-    const key = date.toISOString().slice(0, 10);
-    return {
-      key,
-      label: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      intensity: 0,
-    };
-  });
-
-  if (!incidents.length) {
-    return days.map((day, index) => ({
-      key: `empty-${day.key}-${index}`,
-      label: day.label,
-      intensity: 0,
-    }));
-  }
-
-  const indexByDay = new Map(days.map((day, index) => [day.key, index]));
-  const weightedByDay = new Array(days.length).fill(0);
-
-  incidents.forEach((incident) => {
-    const dayKey = new Date(incident.occurred_at).toISOString().slice(0, 10);
-    const dayIndex = indexByDay.get(dayKey);
-    if (dayIndex === undefined) return;
-
-    const contradictionWeight = incidentContradictionCount(incident) * 0.6;
-    const missingWeight = incidentMissingEvidenceCount(incident) * 0.4;
-    const qualityPenalty =
-      typeof incident.evidence_quality_score === "number" && incident.evidence_quality_score < 50 ? 0.8 : 0;
-
-    weightedByDay[dayIndex] += 1 + contradictionWeight + missingWeight + qualityPenalty;
-  });
-
-  const maxWeight = Math.max(...weightedByDay, 0);
-
-  return Array.from({ length: 35 }, (_, index) => {
-    const day = days[index];
-    const weight = weightedByDay[index];
-    const intensity =
-      weight <= 0
-        ? 0
-        : maxWeight <= 1
-          ? Math.min(4, Math.round(weight))
-          : Math.max(1, Math.min(4, Math.ceil((weight / maxWeight) * 4)));
-
-    return {
-      key: `${day.key}-${index}`,
-      label: day.label,
-      intensity,
-    };
-  });
-}
-
-function heatmapColor(intensity: number) {
-  switch (intensity) {
-    case 4:
-      return "rgba(231, 76, 60, 0.55)";
-    case 3:
-      return "rgba(242, 201, 76, 0.48)";
-    case 2:
-      return "rgba(79, 140, 255, 0.38)";
-    case 1:
-      return "rgba(79, 140, 255, 0.22)";
-    default:
-      return "rgba(36, 48, 69, 0.55)";
-  }
-}
-
 const ONBOARDING_STEPS = [
   {
     title: "Conflict happens fast.",
@@ -623,6 +571,7 @@ const ANALYSIS_LOADING_LINES = [
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [cases, setCases] = useState<CaseRow[]>([]);
@@ -672,7 +621,7 @@ const Dashboard = () => {
         .maybeSingle(),
       supabase
         .from("subscriptions")
-        .select("plan, status")
+        .select("plan, status, current_period_end")
         .eq("user_id", user.id)
         .maybeSingle(),
     ]);
@@ -861,9 +810,10 @@ const Dashboard = () => {
 
   const selectedCase = displayCases.find((c) => c.id === selectedCaseId) ?? null;
   const selectedCaseIncidents = selectedCase?.incident_count ?? 0;
-  const selectedCaseIncidentRows = selectedCase
-    ? (incidentsByCase[selectedCase.id] ?? [])
-    : [];
+  const selectedCaseIncidentRows = useMemo(
+    () => (selectedCase ? (incidentsByCase[selectedCase.id] ?? []) : []),
+    [selectedCase, incidentsByCase],
+  );
   const activeIncidentsDisplay = Math.max(0, selectedCaseIncidentRows.length || selectedCaseIncidents || 0);
   const selectedCaseContradictions = selectedCaseIncidentRows.length
     ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
@@ -877,6 +827,20 @@ const Dashboard = () => {
   const selectedCaseConfidence = evidenceConfidenceFromIncidents(selectedCaseIncidentRows);
   const selectedCaseBackendUsed = aggregateBackendUsed(selectedCaseIncidentRows);
   const selectedCaseBackendDisplay = backendUsedDisplay(selectedCaseBackendUsed);
+  const storyShiftLines = contradictionStoryLines(selectedCaseIncidentRows);
+
+  const allIncidentRows = useMemo(
+    () => Object.values(incidentsByCase).flat(),
+    [incidentsByCase],
+  );
+  const latestIncident = useMemo(
+    () => [...allIncidentRows].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())[0] ?? null,
+    [allIncidentRows],
+  );
+  const mostActiveCase = useMemo(() => {
+    if (!displayCases.length) return null;
+    return [...displayCases].sort((a, b) => (b.incident_count ?? 0) - (a.incident_count ?? 0))[0] ?? null;
+  }, [displayCases]);
 
   const selectedCaseAlerts = selectedCase ? [
     {
@@ -885,28 +849,30 @@ const Dashboard = () => {
         ? `${selectedCase.title} is missing a core supporting file, like a payment receipt or photo.`
         : `${selectedCase.title} has the essential evidence packet in place.`,
       tone: selectedCaseMissingWarnings > 0 ? "danger" as const : "success" as const,
+      details: [] as string[],
     },
     selectedCaseContradictions > 0
       ? {
-          title: "⚠ Contradiction Found",
-          body: `${selectedCase.title} shows ${selectedCaseContradictions} timeline conflict${selectedCaseContradictions === 1 ? "" : "s"} needing review.`,
+          title: "⚠ STORY CHANGED",
+          body: `${selectedCaseContradictions} contradiction alert${selectedCaseContradictions === 1 ? "" : "s"} in ${selectedCase.title}.`,
           tone: "danger" as const,
+          details: storyShiftLines ?? [
+            "Earlier: commitment was made.",
+            "Later: commitment was denied.",
+          ],
         }
       : {
           title: "✓ No Contradictions Yet",
           body: `${selectedCase.title} is currently consistent across the recorded timeline.`,
           tone: "success" as const,
+          details: [] as string[],
         },
   ] : [];
 
   const selectedCaseFeed = selectedCase ? buildThreatFeed(selectedCaseIncidentRows) : [];
   const selectedCasePattern = selectedCase ? buildPatternInsight(selectedCase, selectedCaseIncidentRows) : null;
-  const heatmap = useMemo(
-    () => buildHeatmap(selectedCaseIncidentRows),
-    [selectedCaseIncidentRows],
-  );
   const liveSessionId = liveIncidentState?.sessionId ?? null;
-  const hasPrepareAccess = subscription?.plan === "pro" || subscription?.plan === "premium";
+  const hasPrepareAccess = hasBillingAccess(subscription as BillingSubscription | null);
   const nextInteractionCase = upcomingReminder
     ? displayCases.find((c) => c.id === upcomingReminder.case_id) ?? selectedCase
     : selectedCase;
@@ -977,19 +943,40 @@ const Dashboard = () => {
     setSeedingDemo(true);
     playUiTone("intelligence");
 
-    await seedDemoIfEmpty(user.id);
+    const demoCaseId = await seedDemoIfEmpty(user.id);
     await load();
 
     setSeedingDemo(false);
     triggerHaptic("success");
-    toast.success("Demo case loaded", {
-      description: "Contractor dispute scenario is now ready to explore.",
-    });
+
+    if (demoCaseId) {
+      toast.success("Demo case ready", {
+        description: "Opening export packet now. Explore contradiction detection and playback next.",
+      });
+      navigate(`/cases/${demoCaseId}/export`);
+      return;
+    }
+
+    toast.error("Unable to load demo case right now.");
   };
 
   return (
     <AppLayout>
-      <main className="px-6 lg:px-10 py-10 pb-28 lg:pb-10" style={{ background: "#050B16" }}>
+      <main className="px-6 max-[420px]:px-3 lg:px-10 py-10 max-[420px]:py-7 pb-28 lg:pb-10 ios-safe-page-pad" style={{ background: "#050B16" }}>
+        <section className="mb-6 rounded-2xl border px-4 py-3 intelligence-glass" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
+          <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm">
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "rgba(46, 204, 113, 0.45)", color: "#2ECC71", background: "rgba(46, 204, 113, 0.12)" }}>
+              ✓ Timestamp Verified
+            </span>
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "rgba(79, 140, 255, 0.45)", color: "#4F8CFF", background: "rgba(79, 140, 255, 0.12)" }}>
+              ✓ Evidence Protected
+            </span>
+            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
+              ✓ Private
+            </span>
+          </div>
+        </section>
+
         {showOnboarding && (
           <section className="mb-6 rounded-2xl border p-5 intelligence-glass case-intelligence-fade" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1012,6 +999,15 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="border-border tactile-button"
+                  onClick={exploreDemoCase}
+                  disabled={seedingDemo}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  {seedingDemo ? "Loading demo…" : "Open Demo Export Packet"}
+                </Button>
                 <Button variant="outline" className="border-border tactile-button" onClick={dismissOnboarding}>
                   Skip
                 </Button>
@@ -1038,7 +1034,7 @@ const Dashboard = () => {
         )}
 
         {liveIncidentState?.active && (
-          <div className="sticky top-[4.5rem] lg:top-4 z-20 mb-6 rounded-2xl border px-4 py-3 intelligence-glass live-banner-glow" style={{ borderColor: "rgba(231, 76, 60, 0.35)" }}>
+          <div className="sticky ios-safe-sticky-top lg:top-4 z-20 mb-6 rounded-2xl border px-4 py-3 intelligence-glass live-banner-glow" style={{ borderColor: "rgba(231, 76, 60, 0.35)" }}>
             <div className="flex flex-wrap items-center gap-3">
               <span className="inline-flex h-3 w-3 rounded-full bg-[#E74C3C] indicator-pulse" />
               <span className="font-semibold tracking-[0.08em] text-[#E74C3C]">LIVE INCIDENT ACTIVE</span>
@@ -1108,7 +1104,7 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.4fr_0.95fr] xl:items-start mb-8">
+        <section className="grid gap-4 max-[420px]:gap-3 xl:grid-cols-[1.4fr_0.95fr] xl:items-start mb-8">
           <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
             <p className="text-xs text-muted-foreground mb-1 font-mono">
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -1117,7 +1113,7 @@ const Dashboard = () => {
               <div>
                 <p className="text-sm font-medium text-[#4F8CFF]">{getGreeting()}{displayName ? `, ${displayName}` : ""}.</p>
                 <h1 className="mt-3 text-4xl md:text-6xl font-semibold tracking-tight text-balance">REALITY INTELLIGENCE CENTER</h1>
-                <p className="mt-2 intel-label text-[#AAB4C8]">Live conflict monitoring and evidence analysis</p>
+                <p className="mt-2 text-lg md:text-xl font-medium text-[#E2E8F6]">Protect the record before it changes.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
@@ -1131,9 +1127,7 @@ const Dashboard = () => {
                 </span>
               </div>
             </div>
-            <p className="mt-4 text-base md:text-lg text-muted-foreground max-w-2xl">
-              Capture incidents, organize evidence, and build clear timelines when it matters.
-            </p>
+            <p className="mt-4 text-base md:text-lg text-muted-foreground max-w-2xl">Capture the moment. Lock the facts. Keep contradictions visible.</p>
 
             <div className="mt-6 rounded-2xl border p-5" style={{ background: "rgba(5, 11, 22, 0.82)", borderColor: "#243045" }}>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1157,28 +1151,28 @@ const Dashboard = () => {
                 <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
                   <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#E74C3C] indicator-pulse" />
-                    Contradictions Detected
+                    Contradiction Detected
                   </div>
                   <p className="mt-2 text-3xl font-bold text-[#E74C3C] counter-rise">{animatedContradictionCount}</p>
                 </div>
                 <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
                   <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#F2C94C] indicator-pulse" />
-                    Missing Evidence Warnings
+                    Missing Evidence Requests
                   </div>
                   <p className="mt-2 text-3xl font-bold text-[#F2C94C] counter-rise">{animatedMissingWarnings}</p>
                 </div>
                 <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
                   <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
                     <span className="inline-flex h-2 w-2 rounded-full bg-[#2ECC71] indicator-pulse" />
-                    Average Evidence Strength
+                    Protection Score
                   </div>
                   <p className="mt-2 text-3xl font-bold text-[#2ECC71] counter-rise">{animatedAverageStrength}%</p>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 max-[420px]:mt-7 flex flex-wrap gap-3 max-[420px]:gap-2.5">
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button size="lg" className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white font-semibold tactile-button">
@@ -1287,8 +1281,10 @@ const Dashboard = () => {
                 onClick={exploreDemoCase}
                 disabled={seedingDemo}
               >
-                {seedingDemo ? "Loading demo…" : "Explore Demo Case"}
+                {seedingDemo ? "Loading demo…" : "EXPLORE DEMO CASE"}
               </Button>
+
+              <span className="ml-3 inline-flex items-center rounded-full bg-indigo-700 text-xs px-2 py-1 text-white">Multi-evidence demo</span>
 
               <Link to="/demo/playback" className="inline-flex">
                 <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground tactile-button">
@@ -1298,23 +1294,40 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid gap-4 max-[420px]:gap-3">
+            <div
+              className="rounded-[28px] border p-6 max-[420px]:p-4 md:p-7 intelligence-glass live-banner-glow"
+              style={{ borderColor: "rgba(79, 140, 255, 0.55)", boxShadow: "0 16px 42px rgba(79, 140, 255, 0.18)" }}
+            >
+              <p className="intel-label text-[#4F8CFF] max-[420px]:text-[10px]">EMERGENCY DOCUMENTATION</p>
+              <h3 className="mt-2 text-2xl max-[420px]:text-[1.4rem] md:text-3xl font-extrabold tracking-[0.02em] leading-tight">START LIVE INCIDENT</h3>
+              <p className="mt-2 intel-title-body text-base max-[420px]:text-sm md:text-lg">
+                Capture voice, photos, screenshots, witness details, and timeline events right now.
+              </p>
+              <Link to="/stress-mode" className="mt-5 block">
+                <Button className="w-full h-28 max-[420px]:h-24 md:h-32 text-xl max-[420px]:text-lg md:text-3xl font-extrabold tracking-[0.1em] max-[420px]:tracking-[0.06em] bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated tactile-button whitespace-normal leading-tight px-3 max-[420px]:px-2">
+                  <Siren className="mr-3 max-[420px]:mr-2 h-6 w-6 md:h-7 md:w-7" />
+                  START LIVE INCIDENT
+                </Button>
+              </Link>
+            </div>
+
             <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
               <p className="intel-label text-muted-foreground">Evidence Strength</p>
-              <div className="mt-4 flex flex-col items-center justify-center gap-4 lg:flex-row lg:items-center">
+              <div className="mt-4 flex flex-col items-center justify-center gap-5">
                 <div
-                  className="h-40 w-40 rounded-full p-[12px] transition-transform duration-300 hover:scale-[1.02]"
+                  className="h-56 w-56 md:h-64 md:w-64 rounded-full p-[14px] transition-transform duration-300 hover:scale-[1.03] evidence-ring-orbit"
                   style={{
                     background: `conic-gradient(${selectedCaseStrengthTone.color} ${Math.round((selectedCaseScore / 100) * 360)}deg, rgba(255,255,255,0.08) 0deg)`,
                   }}
                 >
-                  <div className="flex h-full w-full flex-col items-center justify-center rounded-full border intelligence-glass" style={{ borderColor: "#243045" }}>
+                  <div className="flex h-full w-full flex-col items-center justify-center rounded-full border intelligence-glass evidence-ring-core" style={{ borderColor: "#243045" }}>
                     <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Strength</span>
-                    <span className="mt-1 text-4xl font-bold counter-rise">{animatedSelectedScore}</span>
+                    <span className="mt-1 text-5xl md:text-6xl font-bold counter-rise">{animatedSelectedScore}</span>
                     <span className="text-sm text-muted-foreground">/ 100</span>
                   </div>
                 </div>
-                <div className="text-center lg:text-left">
+                <div className="text-center">
                   <h3 className="text-xl font-semibold">Evidence Strength Ring</h3>
                   <p className="intel-title-body">
                     Color shifts as the case gets stronger, incomplete, or weak.
@@ -1343,37 +1356,45 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-              <p className="intel-label text-muted-foreground">Live evidence capture</p>
-              <h3 className="mt-2 text-xl font-semibold">START LIVE INCIDENT</h3>
-              <p className="intel-title-body">
-                Jump into fast capture mode for screenshots, witness notes, voice, and timeline logging.
-              </p>
-              <Link to="/stress-mode" className="mt-5 block">
-                <Button className="w-full h-20 text-lg md:text-xl font-extrabold tracking-[0.08em] bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated tactile-button">
-                  <Siren className="mr-3 h-5 w-5" />
-                  START LIVE INCIDENT
-                </Button>
-              </Link>
+            <div className="rounded-[28px] border intel-panel-inset max-[420px]:p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
+              <p className="intel-label text-[#4F8CFF]">Reality Snapshot</p>
+              <div className="mt-3 space-y-2.5 text-sm max-[420px]:text-xs">
+                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
+                  <p className="intel-metric-label text-muted-foreground">Last Incident</p>
+                  <p className="mt-1 font-semibold text-foreground leading-snug break-words">{latestIncident ? timeAgoLabel(latestIncident.occurred_at) : "No incidents yet"}</p>
+                </div>
+                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
+                  <p className="intel-metric-label text-muted-foreground">Most Active Case</p>
+                  <p className="mt-1 font-semibold text-foreground leading-snug break-words">{mostActiveCase?.title ?? "No active case"}</p>
+                </div>
+                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
+                  <p className="intel-metric-label text-muted-foreground">Next Interaction</p>
+                  <p className="mt-1 font-semibold text-foreground leading-snug break-words">{nextInteractionTime}</p>
+                </div>
+                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
+                  <p className="intel-metric-label text-muted-foreground">Protection Score</p>
+                  <p className="mt-1 font-semibold text-[#2ECC71]">{animatedAverageStrength}%</p>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="mb-8 grid gap-4 lg:grid-cols-5">
+        <section className="mb-8 grid gap-4 max-[420px]:gap-3 lg:grid-cols-5">
           <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#4F8CFF]">INCIDENT CAPTURE</p>
             <p className="intel-title-body">Live sessions, screenshots, voice notes, and raw event intake.</p>
             <div className="mt-3 text-xs text-[#AAB4C8]">{activeIncidentsDisplay} active capture streams</div>
           </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "rgba(231, 76, 60, 0.45)" }}>
+          <div className="rounded-2xl border p-5 max-[420px]:p-4 intelligence-glass lg:col-span-1 max-[420px]:order-first contradiction-wow" style={{ borderColor: "rgba(231, 76, 60, 0.75)", background: "linear-gradient(180deg, rgba(44, 12, 16, 0.95) 0%, rgba(17, 8, 11, 0.95) 100%)" }}>
             <p className="intel-module-title text-[#E74C3C]">THREAT / CONTRADICTION ENGINE</p>
-            <p className="intel-title-body">Changed stories, timeline conflicts, and claim mismatches.</p>
-            <div className="mt-3 text-xs text-[#E74C3C]">{vaultContradictionCount} contradiction alerts</div>
+            <p className="intel-title-body text-[#F6C2BE] max-[420px]:text-xs">Changed stories, timeline conflicts, and claim mismatches.</p>
+            <div className="mt-3 text-xs max-[420px]:text-[11px] font-semibold text-[#FF6E63]">{vaultContradictionCount} contradiction alerts</div>
           </div>
           <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#4F8CFF]">TIMELINE RECONSTRUCTION</p>
             <p className="intel-title-body">Playback sequencing and reconstructed incident flow.</p>
-            <div className="mt-3 text-xs text-[#AAB4C8]">35-day sequence heatmap online</div>
+            <div className="mt-3 text-xs text-[#AAB4C8]">Playback timeline and incident sequence online</div>
           </div>
           <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#2ECC71]">EVIDENCE SECURITY</p>
@@ -1411,6 +1432,10 @@ const Dashboard = () => {
           </div>
         </section>
 
+        <section className="mb-8">
+          <WhatsNewCard className="intelligence-glass" maxItems={3} />
+        </section>
+
         <section className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr] xl:items-start mb-8">
           <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
             <div className="intel-section-head">
@@ -1432,9 +1457,10 @@ const Dashboard = () => {
                     <Plus className="mr-2 h-4 w-4" /> Start first case
                   </Button>
                   <Button variant="outline" className="border-border tactile-button" onClick={exploreDemoCase} disabled={seedingDemo}>
-                    {seedingDemo ? "Loading demo…" : "Explore Demo Case"}
+                    {seedingDemo ? "Loading demo…" : "EXPLORE DEMO CASE"}
                   </Button>
                 </div>
+                <p className="mt-3 text-xs text-[#AAB4C8]">Advanced multi-evidence demo now includes photo, video, voice, GPS, witness, contradiction, and export-ready incident examples.</p>
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
@@ -1520,7 +1546,7 @@ const Dashboard = () => {
           </div>
 
           <div ref={intelligencePanelRef} className="grid gap-4 scroll-mt-20">
-            <div key={`feed-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
+            <div key={`feed-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border intel-panel-inset max-[420px]:p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
               <div className="intel-section-head">
                 <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
                 <h3 className="intel-section-title text-foreground">Live Intelligence Feed</h3>
@@ -1563,7 +1589,16 @@ const Dashboard = () => {
               )}
               <div className="space-y-3">
                 {selectedCaseFeed.map((item) => (
-                  <div key={`${item.title}-${item.timeAgo}`} className="rounded-lg border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <div
+                    key={`${item.title}-${item.timeAgo}`}
+                    className={`rounded-lg border p-4 max-[420px]:p-3 ${item.tone === "danger" ? "contradiction-wow" : ""}`}
+                    style={{
+                      background: item.tone === "danger" ? "rgba(231, 76, 60, 0.16)" : "#050B16",
+                      borderColor: item.tone === "danger" ? "rgba(231, 76, 60, 0.55)" : "#243045",
+                      borderLeftColor: item.tone === "danger" ? "#E74C3C" : undefined,
+                      borderLeftWidth: item.tone === "danger" ? 4 : undefined,
+                    }}
+                  >
                     <div className="flex items-start gap-3">
                       <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full indicator-pulse" style={{ background: item.tone === "danger" ? "#E74C3C" : item.tone === "warning" ? "#F2C94C" : "#2ECC71" }} />
                       <div>
@@ -1590,9 +1625,31 @@ const Dashboard = () => {
                   </div>
                 ))}
                 {selectedCaseAlerts.map((alert) => (
-                  <div key={`${alert.title}-${alert.body}`} className={`rounded-lg border p-4 ${alert.title.includes("Contradiction") ? "contradiction-subtle" : ""}`} style={{ background: "#050B16", borderColor: "#243045" }}>
-                    <p className="text-sm font-semibold" style={{ color: alert.tone === "success" ? "#2ECC71" : "#E74C3C" }}>{alert.title}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{alert.body}</p>
+                  <div
+                    key={`${alert.title}-${alert.body}`}
+                    className={`rounded-lg border p-4 max-[420px]:p-3 ${alert.title.includes("STORY CHANGED") ? "contradiction-subtle contradiction-wow" : ""}`}
+                    style={{
+                      background: alert.title.includes("STORY CHANGED") ? "rgba(231, 76, 60, 0.14)" : "#050B16",
+                      borderColor: alert.title.includes("STORY CHANGED") ? "rgba(231, 76, 60, 0.65)" : "#243045",
+                      borderLeftColor: alert.title.includes("STORY CHANGED") ? "#E74C3C" : undefined,
+                      borderLeftWidth: alert.title.includes("STORY CHANGED") ? 4 : undefined,
+                    }}
+                  >
+                    <p className="text-sm max-[420px]:text-xs font-semibold" style={{ color: alert.tone === "success" ? "#2ECC71" : "#FF6E63" }}>{alert.title}</p>
+                    <p className="text-sm max-[420px]:text-xs text-muted-foreground mt-1">{alert.body}</p>
+                    {alert.details.length > 0 && (
+                      <div className="mt-3 space-y-2 text-sm max-[420px]:text-xs">
+                        {alert.details.map((detail, idx) => (
+                          <div
+                            key={`${alert.title}-detail-${idx}`}
+                            className="rounded-md border px-3 py-2"
+                            style={{ borderColor: "rgba(231, 76, 60, 0.55)", background: "rgba(38, 11, 14, 0.76)", color: "#FFD4D0" }}
+                          >
+                            {detail}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-2">
                       <span
                         className="intel-chip-sm text-[10px] font-semibold"
@@ -1626,36 +1683,7 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr] xl:items-start mb-8">
-          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="intel-section-head">
-              <Clock3 className="h-4 w-4 text-[#4F8CFF]" />
-              <h3 className="intel-section-title text-foreground">Timeline Heatmap</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">See incident-heavy days, conflict spikes, and documentation frequency over the last five weeks.</p>
-            <div className="grid grid-cols-7 gap-2">
-              {heatmap.map((day, idx) => (
-                <div
-                  key={day.key}
-                  className="aspect-square rounded-md border timeline-fade-in"
-                  style={{
-                    background: heatmapColor(day.intensity),
-                    borderColor: "rgba(255,255,255,0.06)",
-                    animationDelay: `${Math.min(idx * 15, 420)}ms`,
-                  }}
-                  title={day.label}
-                />
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>Low</span>
-              {[0, 1, 2, 3, 4].map((intensity) => (
-                <span key={intensity} className="inline-flex h-3 w-3 rounded-sm border" style={{ background: heatmapColor(intensity), borderColor: "rgba(255,255,255,0.06)" }} />
-              ))}
-              <span>High</span>
-            </div>
-          </div>
-
+        <section className="grid gap-4 mb-8">
           <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
             <div className="intel-section-head">
               <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
@@ -1726,10 +1754,10 @@ const Dashboard = () => {
           </div>
         )}
 
-        <Link to="/stress-mode" className="lg:hidden fixed bottom-4 right-4 z-50" aria-label="Start live incident">
-          <Button className="h-14 w-14 min-[360px]:w-auto rounded-full px-0 min-[360px]:px-4 text-sm font-semibold shadow-elevated justify-center min-[360px]:justify-start bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white">
-            <Siren className="h-4 w-4 min-[360px]:mr-2" />
-            <span className="hidden min-[360px]:inline">Live</span>
+        <Link to="/stress-mode" className="lg:hidden fixed bottom-4 right-4 z-50 ios-safe-fab" aria-label="Start live incident">
+          <Button className="h-16 max-[420px]:h-14 w-auto rounded-full px-4 max-[420px]:px-3 text-sm max-[420px]:text-xs font-semibold shadow-elevated justify-center bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white">
+            <Siren className="h-4 w-4 mr-2 max-[420px]:mr-1.5" />
+            <span>Live Now</span>
           </Button>
         </Link>
       </main>

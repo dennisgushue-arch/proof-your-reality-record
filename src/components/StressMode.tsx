@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
+
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+
 import {
   Drawer,
   DrawerContent,
@@ -12,12 +14,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { AppLayout } from "@/components/AppLayout";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
 import { useDictation } from "@/hooks/useDictation";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents, persistLiveIncidentEvent, type LiveIncidentEventType } from "@/lib/liveIncidentEvents";
-import { clearLiveIncidentState, readLiveIncidentState, writeLiveIncidentState } from "@/lib/liveIncident";
+import {
+  buildIncidentDraftFromLiveEvents,
+  loadLiveIncidentEvents,
+  persistLiveIncidentEvent,
+  type LiveIncidentEventType,
+} from "@/lib/liveIncidentEvents";
+import {
+  clearLiveIncidentState,
+  readLiveIncidentState,
+  writeLiveIncidentState,
+} from "@/lib/liveIncident";
 
 type TimelineEvent = {
   occurredAt: string;
@@ -346,406 +358,188 @@ export default function StressMode() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.topBar}>
-        <div style={styles.liveRow}>
-          <div style={styles.redDot} />
-          <span style={styles.liveText}>STRESS MODE ACTIVE</span>
-        </div>
+    <AppLayout>
+      <main className="mx-auto w-full max-w-5xl px-6 py-10 lg:px-10 lg:py-12 space-y-6 md:space-y-7">
+        <section className="rounded-2xl border border-border bg-card p-5 md:p-6 shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#E74C3C] shadow-[0_0_10px_rgba(231,76,60,0.7)]" />
+              <span className="text-[11px] md:text-xs font-semibold tracking-[0.12em] text-[#E74C3C]">STRESS MODE ACTIVE</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <p>{getElapsedLabel(sessionStartedAt)}</p>
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center rounded-md border border-border bg-muted/20 px-3 py-1.5 text-foreground hover:bg-muted/30"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
+          </div>
+        </section>
 
-        <div style={styles.topBarActions}>
-          <p style={styles.elapsed}>{getElapsedLabel(sessionStartedAt)}</p>
-          <Link to="/dashboard" style={styles.backButton}>
-            Back to Dashboard
-          </Link>
-        </div>
-      </div>
-
-      <div style={styles.center}>
-        <h1 style={styles.title}>Capture what is happening right now.</h1>
-
-        <p style={styles.subtitle}>
-          Proof will timestamp and organize everything automatically.
-        </p>
-
-        <button
-          style={{
-            ...styles.recordButton,
-            ...(recording ? styles.recording : {}),
-          }}
-          onClick={onToggleRecording}
-          aria-pressed={recording}
-        >
-          {recording ? "STOP RECORDING" : "START VOICE CAPTURE"}
-        </button>
-
-        {(recording || lastTranscriptPreview) && (
-          <p style={styles.transcriptPreview}>
-            {lastTranscriptPreview
-              ? `Live transcript: “${lastTranscriptPreview}”`
-              : "Listening… speak now to capture transcript."}
+        <section className="rounded-2xl border border-border bg-card p-6 md:p-8 shadow-card text-center">
+          <h1 className="text-3xl md:text-4xl lg:text-[2.6rem] leading-tight font-semibold text-balance">Capture what is happening right now.</h1>
+          <p className="mt-3 md:mt-4 text-sm md:text-base leading-relaxed text-muted-foreground max-w-2xl mx-auto">
+            Proof will timestamp and organize everything automatically.
           </p>
-        )}
 
-        <div style={styles.dictationRow}>
-          <span style={styles.dictationLabel}>
-            {isDictationSupported
-              ? (isDictating ? "Live transcript listening…" : "Transcript ready")
-              : "Transcript unavailable in this browser"}
-          </span>
-          <label style={styles.languageWrap}>
-            <span style={styles.languageLabel}>Language</span>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              style={styles.languageSelect}
-              disabled={recording}
+          <button
+            className={`mt-6 inline-flex items-center justify-center rounded-xl px-8 py-4 text-base md:text-lg font-bold tracking-wide transition ${recording ? "bg-[#E74C3C] hover:bg-[#E74C3C]/90 text-white scale-[1.02]" : "bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white"}`}
+            onClick={onToggleRecording}
+            aria-pressed={recording}
+          >
+            {recording ? "Stop Recording" : "Start Voice Capture"}
+          </button>
+
+          {(recording || lastTranscriptPreview) && (
+            <p className="mt-4 text-xs md:text-sm italic leading-relaxed text-muted-foreground max-w-2xl mx-auto">
+              {lastTranscriptPreview
+                ? `Live transcript: “${lastTranscriptPreview}”`
+                : "Listening… speak now to capture transcript."}
+            </p>
+          )}
+
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-xs">
+            <span className="text-muted-foreground">
+              {isDictationSupported
+                ? (isDictating ? "Live transcript listening…" : "Transcript ready")
+                : "Transcript unavailable in this browser"}
+            </span>
+            <label className="inline-flex items-center gap-2">
+              <span className="uppercase tracking-[0.08em] text-muted-foreground font-semibold">Language</span>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="rounded-md border border-border bg-background px-2.5 py-1.5 text-foreground"
+                disabled={recording}
+              >
+                <option value="en-US">English (US)</option>
+                <option value="en-GB">English (UK)</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="it-IT">Italian</option>
+                <option value="pt-BR">Portuguese (BR)</option>
+                <option value="hi-IN">Hindi</option>
+              </select>
+            </label>
+          </div>
+
+          <input
+            ref={screenshotInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              onScreenshotSelected(e.target.files);
+              e.currentTarget.value = "";
+            }}
+          />
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              onPhotoSelected(e.target.files);
+              e.currentTarget.value = "";
+            }}
+          />
+
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl mx-auto">
+            <Button variant="outline" className="border-border" onClick={() => screenshotInputRef.current?.click()}>
+              Upload Screenshot
+            </Button>
+            <Button variant="outline" className="border-border" onClick={() => photoInputRef.current?.click()}>
+              Take Photo
+            </Button>
+            <Button variant="outline" className="border-border" onClick={onAddWitness}>
+              Add Witness
+            </Button>
+            <Button variant="outline" className="border-border" onClick={onQuickNote}>
+              Quick Note
+            </Button>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-5 md:p-6 shadow-card">
+          <h2 className="text-xl md:text-2xl leading-tight font-semibold">Live Timeline</h2>
+
+          <div className="mt-4 space-y-0">
+            {events.map((event, idx) => (
+              <div
+                key={`${event.occurredAt}-${event.text}-${idx}`}
+                className={`flex flex-wrap gap-4 md:gap-5 py-3 text-sm leading-relaxed ${idx === events.length - 1 ? "" : "border-b border-border"}`}
+              >
+                <span className="text-accent font-semibold min-w-[84px]">{formatTime(new Date(event.occurredAt))}</span>
+                <span className="text-foreground">{event.text}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 border-t border-border pt-4 flex flex-col gap-2">
+            <Button
+              onClick={finalizeSession}
+              disabled={finalizing || events.length === 0}
+              className="bg-[#2ECC71] hover:bg-[#2ECC71]/90 text-[#041008] font-semibold self-start"
             >
-              <option value="en-US">English (US)</option>
-              <option value="en-GB">English (UK)</option>
-              <option value="es-ES">Spanish</option>
-              <option value="fr-FR">French</option>
-              <option value="de-DE">German</option>
-              <option value="it-IT">Italian</option>
-              <option value="pt-BR">Portuguese (BR)</option>
-              <option value="hi-IN">Hindi</option>
-            </select>
-          </label>
-        </div>
-
-        <input
-          ref={screenshotInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={styles.hiddenInput}
-          onChange={(e) => {
-            onScreenshotSelected(e.target.files);
-            e.currentTarget.value = "";
-          }}
-        />
-        <input
-          ref={photoInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={styles.hiddenInput}
-          onChange={(e) => {
-            onPhotoSelected(e.target.files);
-            e.currentTarget.value = "";
-          }}
-        />
-
-        <div style={styles.quickActions}>
-          <button style={styles.actionButton} onClick={() => screenshotInputRef.current?.click()}>
-            Upload Screenshot
-          </button>
-
-          <button style={styles.actionButton} onClick={() => photoInputRef.current?.click()}>
-            Take Photo
-          </button>
-
-          <button style={styles.actionButton} onClick={onAddWitness}>Add Witness</button>
-
-          <button style={styles.actionButton} onClick={onQuickNote}>Quick Note</button>
-        </div>
-      </div>
-
-      <div style={styles.timelineCard}>
-        <h2 style={styles.timelineTitle}>Live Timeline</h2>
-
-        {events.map((event, idx) => (
-          <div
-            key={`${event.occurredAt}-${event.text}-${idx}`}
-            style={idx === events.length - 1 ? { ...styles.timelineEvent, borderBottom: "none" } : styles.timelineEvent}
-          >
-            <span style={styles.time}>{formatTime(new Date(event.occurredAt))}</span>
-            <span>{event.text}</span>
-          </div>
-        ))}
-
-        <div style={styles.finalizeRow}>
-          <Button
-            onClick={finalizeSession}
-            disabled={finalizing || events.length === 0}
-            className="bg-[#2ECC71] hover:bg-[#2ECC71]/90 text-[#041008] font-semibold"
-          >
-            {finalizing ? "Finalizing session…" : "Finalize Session"}
-          </Button>
-          <p style={styles.finalizeHint}>Creates a new incident and opens incident detail automatically.</p>
-        </div>
-      </div>
-
-      <Drawer
-        open={activeSheet !== null}
-        onOpenChange={(open) => {
-          if (!open) closeSheet();
-        }}
-      >
-        <DrawerContent className="bg-card border-border text-foreground">
-          <DrawerHeader>
-            <DrawerTitle>{activeSheet === "witness" ? "Add Witness" : "Quick Note"}</DrawerTitle>
-            <DrawerDescription>
-              {activeSheet === "witness"
-                ? "Add witness details now and keep your timeline complete."
-                : "Capture a short note while details are fresh."}
-            </DrawerDescription>
-          </DrawerHeader>
-
-          <div className="px-4">
-            {activeSheet === "witness" ? (
-              <Input
-                autoFocus
-                value={witnessInput}
-                onChange={(e) => setWitnessInput(e.target.value)}
-                placeholder="Witness name and details"
-                className="bg-background border-border"
-              />
-            ) : (
-              <Textarea
-                autoFocus
-                value={noteInput}
-                onChange={(e) => setNoteInput(e.target.value)}
-                placeholder="What happened?"
-                rows={4}
-                className="bg-background border-border"
-              />
-            )}
-          </div>
-
-          <DrawerFooter className="sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={closeSheet} className="border-border">
-              Cancel
+              {finalizing ? "Finalizing session…" : "Finalize Session"}
             </Button>
-            <Button onClick={activeSheet === "witness" ? submitWitness : submitNote}>
-              Save
-            </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-    </div>
+            <p className="text-xs text-muted-foreground">Creates a new incident and opens incident detail automatically.</p>
+          </div>
+        </section>
+
+        <Drawer
+          open={activeSheet !== null}
+          onOpenChange={(open) => {
+            if (!open) closeSheet();
+          }}
+        >
+          <DrawerContent className="bg-card border-border text-foreground">
+            <DrawerHeader>
+              <DrawerTitle>{activeSheet === "witness" ? "Add Witness" : "Quick Note"}</DrawerTitle>
+              <DrawerDescription>
+                {activeSheet === "witness"
+                  ? "Add witness details now and keep your timeline complete."
+                  : "Capture a short note while details are fresh."}
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div className="px-4">
+              {activeSheet === "witness" ? (
+                <Input
+                  autoFocus
+                  value={witnessInput}
+                  onChange={(e) => setWitnessInput(e.target.value)}
+                  placeholder="Witness name and details"
+                  className="bg-background border-border"
+                />
+              ) : (
+                <Textarea
+                  autoFocus
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="What happened?"
+                  rows={4}
+                  className="bg-background border-border"
+                />
+              )}
+            </div>
+
+            <DrawerFooter className="sm:flex-row sm:justify-end">
+              <Button variant="outline" onClick={closeSheet} className="border-border">
+                Cancel
+              </Button>
+              <Button onClick={activeSheet === "witness" ? submitWitness : submitNote}>
+                Save
+              </Button>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
+      </main>
+    </AppLayout>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#050B16",
-    color: "white",
-    fontFamily: "Inter, sans-serif",
-    padding: "24px",
-  },
-
-  topBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "40px",
-    gap: "12px",
-    flexWrap: "wrap",
-  },
-
-  liveRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-  },
-
-  redDot: {
-    width: "12px",
-    height: "12px",
-    borderRadius: "50%",
-    background: "#E74C3C",
-    boxShadow: "0 0 10px #E74C3C",
-  },
-
-  liveText: {
-    fontWeight: "700",
-    letterSpacing: "0.08em",
-    color: "#E74C3C",
-  },
-
-  elapsed: {
-    color: "#8B96A8",
-    margin: 0,
-  },
-
-  topBarActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-
-  backButton: {
-    color: "white",
-    textDecoration: "none",
-    background: "#131C2E",
-    border: "1px solid #243045",
-    padding: "10px 14px",
-    borderRadius: "12px",
-    fontWeight: 600,
-    fontSize: "14px",
-    lineHeight: 1,
-  },
-
-  center: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    textAlign: "center",
-    marginTop: "60px",
-  },
-
-  title: {
-    fontSize: "clamp(2rem, 6vw, 42px)",
-    maxWidth: "700px",
-    lineHeight: "1.2",
-    marginBottom: "16px",
-  },
-
-  subtitle: {
-    color: "#AAB4C8",
-    maxWidth: "550px",
-    lineHeight: "1.6",
-    marginBottom: "40px",
-    fontSize: "18px",
-  },
-
-  transcriptPreview: {
-    color: "#C9D3E6",
-    maxWidth: "680px",
-    marginTop: "-16px",
-    marginBottom: "20px",
-    fontSize: "13px",
-    lineHeight: 1.5,
-    fontStyle: "italic",
-    opacity: 0.95,
-  },
-
-  dictationRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    marginTop: "-20px",
-    marginBottom: "30px",
-    flexWrap: "wrap",
-    justifyContent: "center",
-  },
-
-  dictationLabel: {
-    color: "#AAB4C8",
-    fontSize: "13px",
-  },
-
-  languageWrap: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-
-  languageLabel: {
-    color: "#8B96A8",
-    fontSize: "12px",
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
-    fontWeight: 600,
-  },
-
-  languageSelect: {
-    background: "#131C2E",
-    color: "white",
-    border: "1px solid #243045",
-    borderRadius: "10px",
-    padding: "6px 10px",
-    fontSize: "13px",
-  },
-
-  recordButton: {
-    background: "#4F8CFF",
-    border: "none",
-    color: "white",
-    padding: "24px 42px",
-    borderRadius: "18px",
-    fontSize: "20px",
-    fontWeight: "700",
-    cursor: "pointer",
-    transition: "0.3s",
-    marginBottom: "40px",
-  },
-
-  recording: {
-    background: "#E74C3C",
-    transform: "scale(1.03)",
-  },
-
-  quickActions: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-    gap: "16px",
-    width: "100%",
-    maxWidth: "600px",
-  },
-
-  actionButton: {
-    background: "#131C2E",
-    border: "1px solid #243045",
-    color: "white",
-    padding: "20px",
-    borderRadius: "14px",
-    fontWeight: "600",
-    cursor: "pointer",
-    fontSize: "16px",
-  },
-
-  hiddenInput: {
-    display: "none",
-  },
-
-  timelineCard: {
-    marginTop: "60px",
-    background: "#101826",
-    border: "1px solid #243045",
-    borderRadius: "18px",
-    padding: "24px",
-    maxWidth: "900px",
-    marginLeft: "auto",
-    marginRight: "auto",
-  },
-
-  timelineTitle: {
-    marginBottom: "24px",
-    fontSize: "22px",
-  },
-
-  timelineEvent: {
-    display: "flex",
-    gap: "24px",
-    padding: "14px 0",
-    borderBottom: "1px solid #1C2637",
-    flexWrap: "wrap",
-  },
-
-  finalizeRow: {
-    marginTop: "18px",
-    borderTop: "1px solid #1C2637",
-    paddingTop: "16px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-    alignItems: "flex-start",
-  },
-
-  finalizeHint: {
-    color: "#8B96A8",
-    fontSize: "12px",
-    margin: 0,
-  },
-
-  time: {
-    color: "#4F8CFF",
-    minWidth: "80px",
-    fontWeight: "700",
-  },
-};

@@ -4,8 +4,16 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 
 const AppHeaderAuthControls = () => {
-  const { user, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const nav = useNavigate();
+
+  if (loading) {
+    return (
+      <Button variant="ghost" size="sm" disabled className="text-muted-foreground">
+        Checking session…
+      </Button>
+    );
+  }
 
   if (!user) {
     return (

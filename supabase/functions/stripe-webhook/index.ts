@@ -13,24 +13,78 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-function planFromPriceId(priceId?: string) {
+function planFromPriceId(priceId?: string, metadataPlan?: string | null) {
+  if (metadataPlan === "pro" || metadataPlan === "premium") return metadataPlan;
   if (!priceId) return "free";
-  if (priceId === Deno.env.get("STRIPE_PRICE_ID_PRO")) return "pro";
-  if (priceId === Deno.env.get("STRIPE_PRICE_ID_PREMIUM")) return "premium";
+
+  const proPriceIds = new Set([
+    Deno.env.get("STRIPE_PRICE_ID_PRO") ?? "",
+  ]);
+
+  const premiumPriceIds = new Set([
+    Deno.env.get("STRIPE_PRICE_ID_PREMIUM") ?? "",
+    Deno.env.get("STRIPE_PRICE_ID_PREMIUM_MONTHLY") ?? "",
+    Deno.env.get("STRIPE_PRICE_ID_PREMIUM_ANNUAL") ?? "",
+    Deno.env.get("STRIPE_PRICE_ID_PREPAID_90") ?? "",
+    Deno.env.get("STRIPE_PRICE_ID_PREPAID_365") ?? "",
+    Deno.env.get("STRIPE_PRICE_ID_TOPUP_30") ?? "",
+  ]);
+
+  if (proPriceIds.has(priceId)) return "pro";
+  if (premiumPriceIds.has(priceId)) return "premium";
+
   return "free";
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
 }
 
 async function upsertFromSubscription(sub: Stripe.Subscription, userId: string) {
   const priceId = sub.items.data[0]?.price?.id;
+  const metadataPlan = typeof sub.metadata?.plan === "string" ? sub.metadata.plan : null;
 
   await adminClient.from("subscriptions").upsert({
     user_id: userId,
     stripe_customer_id: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
     stripe_subscription_id: sub.id,
-    plan: planFromPriceId(priceId),
+    plan: planFromPriceId(priceId, metadataPlan),
     status: sub.status,
     current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
     cancel_at_period_end: sub.cancel_at_period_end,
+  });
+}
+
+async function upsertFromOneTimePurchase(session: Stripe.Checkout.Session, userId: string) {
+  const accessDays = Number.parseInt(session.metadata?.access_days ?? "0", 10);
+  if (!Number.isFinite(accessDays) || accessDays <= 0) {
+    throw new Error("Missing access days for prepaid purchase");
+  }
+
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const { data: existingRow } = await adminClient
+    .from("subscriptions")
+    .select("stripe_subscription_id,current_period_end")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const baseDate = existingRow?.current_period_end
+    ? new Date(existingRow.current_period_end)
+    : new Date();
+  const hasFutureAccess = !Number.isNaN(baseDate.getTime()) && baseDate.getTime() > Date.now();
+  const nextStart = hasFutureAccess ? baseDate : new Date();
+  const currentPeriodEnd = addDays(nextStart, accessDays);
+
+  await adminClient.from("subscriptions").upsert({
+    user_id: userId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: existingRow?.stripe_subscription_id ?? null,
+    plan: (session.metadata?.plan as "pro" | "premium" | undefined) ?? "premium",
+    status: "active",
+    current_period_end: currentPeriodEnd.toISOString(),
+    cancel_at_period_end: false,
   });
 }
 
@@ -53,8 +107,6 @@ serve(async (req) => {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        if (session.mode !== "subscription" || !session.subscription) break;
-
         let userId = (session.metadata?.user_id ?? session.client_reference_id ?? "").trim();
 
         if (!userId && session.customer) {
@@ -68,6 +120,13 @@ serve(async (req) => {
         }
 
         if (!userId) break;
+
+        if (session.mode === "payment") {
+          await upsertFromOneTimePurchase(session, userId);
+          break;
+        }
+
+        if (session.mode !== "subscription" || !session.subscription) break;
 
         const subscriptionId =
           typeof session.subscription === "string"

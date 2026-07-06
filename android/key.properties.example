@@ -1,0 +1,9 @@
+storeFile=/path/to/keystore/upload-keystore.jks
+storePassword=REPLACE_ME
+keyAlias=upload
+keyPassword=REPLACE_ME
+
+# NOTES:
+# - Copy this file to `android/key.properties` locally (do NOT commit the real file).
+# - The real `android/key.properties` should never be checked into source control.
+# - For CI signing, prefer using encrypted secrets and configure signing in your CI pipeline.

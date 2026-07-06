@@ -2,28 +2,43 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useDictation } from "@/hooks/useDictation";
 
+type SpeechRecognitionResultEventLike = {
+  resultIndex: number;
+  results: Array<Array<{ transcript: string }>>;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
+type WindowWithSpeechRecognition = Window & {
+  SpeechRecognition?: unknown;
+  webkitSpeechRecognition?: unknown;
+};
+
 type MockRecognition = {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
 };
 
-const originalSpeechRecognition = (window as any).SpeechRecognition;
-const originalWebkitSpeechRecognition = (window as any).webkitSpeechRecognition;
+const windowWithSpeechRecognition = window as WindowWithSpeechRecognition;
+const originalSpeechRecognition = windowWithSpeechRecognition.SpeechRecognition;
+const originalWebkitSpeechRecognition = windowWithSpeechRecognition.webkitSpeechRecognition;
 
 function clearRecognitionConstructors() {
-  (window as any).SpeechRecognition = undefined;
-  (window as any).webkitSpeechRecognition = undefined;
+  windowWithSpeechRecognition.SpeechRecognition = undefined;
+  windowWithSpeechRecognition.webkitSpeechRecognition = undefined;
 }
 
 afterEach(() => {
-  (window as any).SpeechRecognition = originalSpeechRecognition;
-  (window as any).webkitSpeechRecognition = originalWebkitSpeechRecognition;
+  windowWithSpeechRecognition.SpeechRecognition = originalSpeechRecognition;
+  windowWithSpeechRecognition.webkitSpeechRecognition = originalWebkitSpeechRecognition;
   vi.restoreAllMocks();
 });
 
@@ -65,7 +80,7 @@ describe("useDictation", () => {
       }
     }
 
-    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+    windowWithSpeechRecognition.webkitSpeechRecognition = MockSpeechRecognition;
 
     const onTranscript = vi.fn();
     const onError = vi.fn();
@@ -118,7 +133,7 @@ describe("useDictation", () => {
       }
     }
 
-    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+    windowWithSpeechRecognition.webkitSpeechRecognition = MockSpeechRecognition;
 
     const onTranscript = vi.fn();
 
@@ -164,7 +179,7 @@ describe("useDictation", () => {
       }
     }
 
-    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+    windowWithSpeechRecognition.webkitSpeechRecognition = MockSpeechRecognition;
 
     const { result } = renderHook(() =>
       useDictation({

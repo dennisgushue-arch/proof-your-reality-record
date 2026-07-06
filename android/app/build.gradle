@@ -1,11 +1,72 @@
 apply plugin: 'com.android.application'
 
-def keystorePropertiesFile = rootProject.file('key.properties')
-def keystoreProperties = new Properties()
-def hasReleaseSigning = keystorePropertiesFile.exists()
+def expectedUploadSha1 = (project.findProperty('EXPECTED_UPLOAD_SHA1') ?: '02:10:65:18:1B:E1:73:37:37:F7:B0:7A:91:B8:4B:7C:7E:E9:96:54').toString()
 
-if (hasReleaseSigning) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+def normalizeFingerprint = { String fp ->
+    fp?.replace(':', '')?.trim()?.toUpperCase()
+}
+
+tasks.register('verifyReleaseUploadKeyFingerprint') {
+    group = 'verification'
+    description = 'Verifies release upload key SHA1 matches the expected Play Console fingerprint.'
+
+    doLast {
+        def keyPropsFile = rootProject.file('key.properties')
+        if (!keyPropsFile.exists()) {
+            throw new RuntimeException("Missing android/key.properties. Cannot verify release signing key fingerprint.")
+        }
+
+        def props = new Properties()
+        keyPropsFile.withInputStream { props.load(it) }
+
+        def storeFilePath = props['storeFile']?.toString()
+        def storePassword = props['storePassword']?.toString()
+        def keyAlias = props['keyAlias']?.toString()
+
+        if (!storeFilePath || !storePassword || !keyAlias) {
+            throw new RuntimeException("android/key.properties must define storeFile, storePassword, and keyAlias.")
+        }
+
+        def keystoreFile = file(storeFilePath)
+        if (!keystoreFile.exists()) {
+            throw new RuntimeException("Configured keystore not found: ${keystoreFile}")
+        }
+
+        def keystore = null
+        def lastError = null
+        ['PKCS12', 'JKS'].each { type ->
+            if (keystore != null) return
+            try {
+                def ks = java.security.KeyStore.getInstance(type)
+                keystoreFile.withInputStream { ks.load(it, storePassword.toCharArray()) }
+                keystore = ks
+            } catch (Exception e) {
+                lastError = e
+            }
+        }
+
+        if (keystore == null) {
+            throw new RuntimeException("Unable to open keystore '${keystoreFile}' with provided password.", lastError)
+        }
+
+        def cert = keystore.getCertificate(keyAlias)
+        if (cert == null) {
+            throw new RuntimeException("Alias '${keyAlias}' not found in keystore '${keystoreFile}'.")
+        }
+
+        def digest = java.security.MessageDigest.getInstance('SHA-1').digest(cert.getEncoded())
+        def actualSha1 = digest.collect { String.format('%02X', it) }.join(':')
+
+        if (normalizeFingerprint(actualSha1) != normalizeFingerprint(expectedUploadSha1)) {
+            throw new RuntimeException("Release signing key SHA1 mismatch. Expected ${expectedUploadSha1} but found ${actualSha1}. Update android/key.properties to the correct Play upload keystore.")
+        }
+
+        println("Release upload key SHA1 verified: ${actualSha1}")
+    }
+}
+
+tasks.matching { it.name in ['bundleRelease', 'assembleRelease', 'packageRelease'] }.configureEach {
+    dependsOn 'verifyReleaseUploadKeyFingerprint'
 }
 
 android {
@@ -15,8 +76,8 @@ android {
         applicationId "com.proofyourreality.record"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4
-        versionName "1.0.3"
+        versionCode 17
+        versionName "1.0.9"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -26,19 +87,24 @@ android {
     }
     signingConfigs {
         release {
-            if (hasReleaseSigning) {
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
+            def keyFile = rootProject.file('key.properties')
+            if (keyFile.exists()) {
+                def props = new Properties()
+                props.load(new FileInputStream(keyFile))
+                storeFile file(props['storeFile'])
+                storePassword props['storePassword']
+                keyAlias props['keyAlias']
+                keyPassword props['keyPassword']
             }
         }
     }
     buildTypes {
         release {
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
-            minifyEnabled true
-            shrinkResources true
+            signingConfig signingConfigs.release
+            // R8 minification temporarily disabled — low-memory Codespace build.
+            // Re-enable before the next production release to restore code shrinking.
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }

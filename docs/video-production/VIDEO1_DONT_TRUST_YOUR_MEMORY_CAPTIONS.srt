@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:03,000
+The biggest mistake people make during a dispute is trusting their memory.
+
+2
+00:00:03,000 --> 00:00:08,000
+Days later, screenshots are buried and details start to fade.
+
+3
+00:00:08,000 --> 00:00:14,000
+Instead of trying to remember later, document it immediately.
+
+4
+00:00:14,000 --> 00:00:22,000
+Proof organizes everything into one timeline with timestamps.
+
+5
+00:00:22,000 --> 00:00:30,000
+Lock the facts before memory changes.

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Mic, FileText, Sparkles, ShieldCheck, Lock, Clock, Users, Home, Hammer, Briefcase, Building, Check, AlertTriangle } from "lucide-react";
+import { Mic, FileText, Sparkles, ShieldCheck, Lock, Clock, Users, Home, Hammer, Briefcase, Building, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/AppHeader";
 import { Disclaimer } from "@/components/Disclaimer";
@@ -169,6 +169,29 @@ const Index = () => (
               </li>
             ))}
           </ul>
+        </div>
+      </div>
+    </section>
+
+    <section className="border-t border-border">
+      <div className="container py-16 md:py-20 max-w-5xl">
+        <div className="rounded-xl border border-border bg-card p-6 md:p-8 shadow-card">
+          <p className="text-xs font-semibold text-accent uppercase tracking-widest">Security & Privacy</p>
+          <h2 className="mt-3 text-2xl md:text-3xl">Built to protect your records and your control.</h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-border bg-background/50 p-4">
+              <h3 className="text-sm font-semibold">Private by default</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Your records are scoped to your account and not publicly accessible.</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background/50 p-4">
+              <h3 className="text-sm font-semibold">Traceable chronology</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Time context is preserved to keep incident timelines clear and auditable.</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background/50 p-4">
+              <h3 className="text-sm font-semibold">Policy transparency</h3>
+              <p className="mt-1 text-sm text-muted-foreground">Privacy, terms, and deletion options are always available from any screen.</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>

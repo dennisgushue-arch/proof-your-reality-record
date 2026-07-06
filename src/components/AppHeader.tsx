@@ -1,26 +1,7 @@
-import { Suspense, lazy } from "react";
 import { Link } from "react-router-dom";
-import { Shield, Mic } from "lucide-react";
+import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const AppHeaderAuthControls = lazy(() => import("@/components/AppHeaderAuthControls"));
-
-const GuestHeaderControls = () => (
-  <>
-    <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-      <Link to="/pricing">Pricing</Link>
-    </Button>
-    <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-      <Link to="/auth">Sign in</Link>
-    </Button>
-    <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-white font-semibold">
-      <Link to="/auth?mode=signup">
-        <Mic className="mr-1.5 h-3.5 w-3.5" />
-        Start Recording
-      </Link>
-    </Button>
-  </>
-);
+import AppHeaderAuthControls from "@/components/AppHeaderAuthControls";
 
 export const AppHeader = () => {
   const legalLinks = (
@@ -46,9 +27,7 @@ export const AppHeader = () => {
         <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
           <a href="/legal/privacy-policy.html" className="legal-link lg:hidden text-xs text-muted-foreground px-2 py-1 whitespace-nowrap">Privacy</a>
           {legalLinks}
-          <Suspense fallback={<GuestHeaderControls />}>
-            <AppHeaderAuthControls />
-          </Suspense>
+          <AppHeaderAuthControls />
         </nav>
       </div>
     </header>

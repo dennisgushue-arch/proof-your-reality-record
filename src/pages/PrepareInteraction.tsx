@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CalendarClock, CheckCircle2, CircleAlert, Clock3, FileWarning, ListChecks, Lock, MessageSquareQuote, Siren, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { AppLayout } from "@/components/AppLayout";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { buildInteractionChecklist, buildPrepareBriefing, type PrepareIncident, type PrepareInteractionType } from "@/lib/prepareInteraction";
+import { AppLayout } from "../components/AppLayout.tsx";
+import { Button } from "../components/ui/button.tsx";
+import { Input } from "../components/ui/input.tsx";
+import { Label } from "../components/ui/label.tsx";
+import { supabase } from "../integrations/supabase/client.ts";
+import { useAuth } from "../contexts/AuthContext.tsx";
+import { buildInteractionChecklist, buildPrepareBriefing, type PrepareIncident, type PrepareInteractionType } from "../lib/prepareInteraction.ts";
+import { hasBillingAccess, type BillingSubscription } from "../lib/billing.ts";
 
 type CaseRow = {
   id: string;
@@ -28,6 +29,7 @@ type ReminderRow = {
 type SubscriptionRow = {
   plan: string;
   status: string;
+  current_period_end: string | null;
 };
 
 const INTERACTION_OPTIONS: Array<{ value: PrepareInteractionType; label: string }> = [
@@ -136,7 +138,7 @@ const PrepareInteraction = () => {
           .maybeSingle(),
         supabase
           .from("subscriptions")
-          .select("plan, status")
+          .select("plan, status, current_period_end")
           .eq("user_id", user.id)
           .maybeSingle(),
       ]);
@@ -172,7 +174,7 @@ const PrepareInteraction = () => {
     };
   }, [id, user]);
 
-  const hasPrepareAccess = subscription?.plan === "pro" || subscription?.plan === "premium";
+  const hasPrepareAccess = hasBillingAccess(subscription as BillingSubscription | null);
   const briefing = useMemo(
     () => buildPrepareBriefing({ incidents, interactionType, scheduledAt }),
     [incidents, interactionType, scheduledAt],

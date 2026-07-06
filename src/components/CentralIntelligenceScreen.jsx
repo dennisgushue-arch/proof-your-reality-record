@@ -1,462 +1,112 @@
+import { AppLayout } from "@/components/AppLayout";
 import { Link } from "react-router-dom";
 
 export default function CentralIntelligenceScreen() {
-return (
-<div style={styles.page}>
-{/* TOP NAV */}
-<div style={styles.topBar}>
-<div>
-<h1 style={styles.logo}>PROOF</h1>
-<p style={styles.subLogo}>
-REALITY INTELLIGENCE PLATFORM
-</p>
-</div>
+	return (
+		<AppLayout>
+			<main className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-10 lg:py-12 space-y-8">
+				<section className="rounded-2xl border border-border bg-card p-6 md:p-8 shadow-card">
+					<div className="flex flex-wrap items-start justify-between gap-4 md:gap-6">
+						<div>
+							<p className="text-[11px] md:text-xs uppercase tracking-[0.16em] text-accent font-semibold">Reality Intelligence Platform</p>
+							<h1 className="mt-2 text-3xl md:text-4xl lg:text-[2.6rem] leading-tight font-semibold">Central Intelligence Core</h1>
+							<p className="mt-3 md:mt-4 text-sm md:text-base leading-relaxed text-muted-foreground max-w-2xl">
+								Live conflict monitoring, evidence analysis, contradiction detection, and timeline reconstruction.
+							</p>
+						</div>
+						<div className="flex items-center gap-2">
+							<span className="inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold text-[#E74C3C] border-[#E74C3C]/50 bg-[#E74C3C]/10">
+								● 2 Active Incidents
+							</span>
+							<Link
+								to="/stress-mode"
+								className="inline-flex items-center rounded-md px-4 py-2.5 text-sm font-semibold bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white transition-colors"
+							>
+								Start Live Incident
+							</Link>
+						</div>
+					</div>
+				</section>
 
-<div style={styles.statusRow}>
-<div style={styles.liveBadge}>
-● 2 ACTIVE INCIDENTS
-</div>
+				<section className="grid gap-4 md:gap-5 xl:grid-cols-[1fr_1.2fr_1fr]">
+					<div className="rounded-2xl border border-border bg-card p-5 md:p-6 shadow-card space-y-3">
+						<p className="text-xs uppercase tracking-[0.12em] text-accent font-semibold">Reality Input Stream</p>
+						{[
+							["Voice Notes", "6 new recordings"],
+							["Screenshots", "14 evidence uploads"],
+							["Witness Statements", "3 corroborations"],
+							["Live Incidents", "2 active sessions"],
+						].map(([title, value]) => (
+							<div key={title} className="rounded-lg border border-border bg-muted/20 p-4 md:p-5">
+								<p className="text-sm font-semibold">{title}</p>
+								<p className="text-xs text-muted-foreground mt-1">{value}</p>
+							</div>
+						))}
+					</div>
 
-<div style={styles.userCard}>
-Dennis
-</div>
-</div>
-</div>
+					<div className="rounded-2xl border border-border bg-card p-6 md:p-7 shadow-card">
+						<p className="text-xs uppercase tracking-[0.14em] text-accent font-semibold">AI Reality Engine</p>
+						<h2 className="mt-2 text-2xl md:text-[1.7rem] leading-tight font-semibold">Processing Intelligence</h2>
+						<div className="mt-4 space-y-2">
+							{[
+								"Timeline Reconstruction",
+								"Contradiction Detection",
+								"Behavioral Pattern Analysis",
+								"Emotional Language Filtering",
+								"Evidence Strength Scoring",
+							].map((item) => (
+								<div key={item} className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm">
+									{item}
+								</div>
+							))}
+						</div>
+						<p className="mt-5 inline-flex items-center gap-2 text-xs font-semibold text-[#2ECC71]">
+							<span className="inline-flex h-2 w-2 rounded-full bg-[#2ECC71]" />
+							Reality engine active
+						</p>
+					</div>
 
-{/* HERO */}
-<div style={styles.hero}>
-<div>
-<h2 style={styles.heroTitle}>
-Central Intelligence Core
-</h2>
+					<div className="rounded-2xl border border-border bg-card p-5 md:p-6 shadow-card space-y-3">
+						<p className="text-xs uppercase tracking-[0.12em] text-accent font-semibold">Intelligence Outputs</p>
+						{[
+							["Contradictions", "3 detected today", true],
+							["Timeline Playback", "12 reconstructed incidents", false],
+							["Evidence Packets", "4 export-ready reports", false],
+							["Reality Score", "82% overall integrity", false],
+						].map(([title, value, warning]) => (
+							<div
+								key={String(title)}
+								className={`rounded-lg border p-4 ${warning ? "border-[#E74C3C]/40 bg-[#E74C3C]/5" : "border-border bg-muted/20"}`}
+							>
+								<p className="text-sm font-semibold">{title}</p>
+								<p className={`text-xs mt-1 ${warning ? "text-[#E74C3C]" : "text-muted-foreground"}`}>{value}</p>
+							</div>
+						))}
+					</div>
+				</section>
 
-<p style={styles.heroSubtitle}>
-Live conflict monitoring, evidence analysis,
-contradiction detection, and timeline reconstruction.
-</p>
-</div>
+				<section className="rounded-2xl border border-border bg-card p-5 md:p-6 shadow-card">
+					<p className="text-xs uppercase tracking-[0.12em] text-accent font-semibold mb-3">Intelligence Flow</p>
+					<div className="flex flex-wrap items-center gap-2 text-xs">
+						{["Capture", "Analyze", "Detect", "Reconstruct", "Export"].map((step, index, arr) => (
+							<div key={step} className="inline-flex items-center gap-2">
+								<span className="rounded-full border border-border bg-muted/20 px-3 py-1.5 font-semibold tracking-[0.08em]">{step}</span>
+								{index < arr.length - 1 && <span className="text-muted-foreground">→</span>}
+							</div>
+						))}
+					</div>
+				</section>
 
-<Link to="/stress-mode" style={styles.actionButton}>
-START LIVE INCIDENT
-</Link>
-</div>
-
-{/* MAIN ARCHITECTURE */}
-<div style={styles.architectureGrid}>
-
-{/* INPUT LAYER */}
-<div style={styles.column}>
-<h3 style={styles.columnTitle}>
-REALITY INPUT STREAM
-</h3>
-
-<div style={styles.moduleBlue}>
-<h4>Voice Notes</h4>
-<p>6 new recordings</p>
-</div>
-
-<div style={styles.moduleBlue}>
-<h4>Screenshots</h4>
-<p>14 evidence uploads</p>
-</div>
-
-<div style={styles.moduleBlue}>
-<h4>Witness Statements</h4>
-<p>3 corroborations</p>
-</div>
-
-<div style={styles.moduleBlue}>
-<h4>Live Incidents</h4>
-<p>2 active sessions</p>
-</div>
-</div>
-
-{/* AI CORE */}
-<div style={styles.centerCore}>
-<div style={styles.coreGlow}></div>
-
-<div style={styles.coreCard}>
-<p style={styles.coreLabel}>
-AI REALITY ENGINE
-</p>
-
-<h2 style={styles.coreTitle}>
-Processing Intelligence
-</h2>
-
-<div style={styles.processingList}>
-<div style={styles.processItem}>
-Timeline Reconstruction
-</div>
-
-<div style={styles.processItem}>
-Contradiction Detection
-</div>
-
-<div style={styles.processItem}>
-Behavioral Pattern Analysis
-</div>
-
-<div style={styles.processItem}>
-Emotional Language Filtering
-</div>
-
-<div style={styles.processItem}>
-Evidence Strength Scoring
-</div>
-</div>
-
-<div style={styles.processingStatus}>
-<div style={styles.greenDot}></div>
-REALITY ENGINE ACTIVE
-</div>
-</div>
-</div>
-
-{/* OUTPUT LAYER */}
-<div style={styles.column}>
-<h3 style={styles.columnTitle}>
-INTELLIGENCE OUTPUTS
-</h3>
-
-<div style={styles.moduleRed}>
-<h4>Contradictions</h4>
-<p>3 detected today</p>
-</div>
-
-<div style={styles.moduleDark}>
-<h4>Timeline Playback</h4>
-<p>12 reconstructed incidents</p>
-</div>
-
-<div style={styles.moduleDark}>
-<h4>Evidence Packets</h4>
-<p>4 export-ready reports</p>
-</div>
-
-<div style={styles.moduleDark}>
-<h4>Reality Score</h4>
-<p>82% overall integrity</p>
-</div>
-</div>
-</div>
-
-{/* CONNECTION FLOW */}
-<div style={styles.flowContainer}>
-<div style={styles.flowLine}></div>
-
-<div style={styles.flowRow}>
-<div style={styles.flowNode}>
-CAPTURE
-</div>
-
-<div style={styles.arrow}>→</div>
-
-<div style={styles.flowNode}>
-ANALYZE
-</div>
-
-<div style={styles.arrow}>→</div>
-
-<div style={styles.flowNode}>
-DETECT
-</div>
-
-<div style={styles.arrow}>→</div>
-
-<div style={styles.flowNode}>
-RECONSTRUCT
-</div>
-
-<div style={styles.arrow}>→</div>
-
-<div style={styles.flowNode}>
-EXPORT
-</div>
-</div>
-</div>
-
-{/* LIVE INTELLIGENCE FEED */}
-<div style={styles.feedCard}>
-<div style={styles.feedHeader}>
-LIVE INTELLIGENCE FEED
-</div>
-
-<div style={styles.feedItemRed}>
-⚠ Contradiction detected in contractor dispute
-</div>
-
-<div style={styles.feedItem}>
-Screenshot evidence uploaded
-</div>
-
-<div style={styles.feedItem}>
-Timeline reconstruction completed
-</div>
-
-<div style={styles.feedItem}>
-Reality score increased to 82%
-</div>
-</div>
-</div>
-);
+				<section className="rounded-2xl border border-border bg-card p-5 md:p-6 shadow-card">
+					<p className="text-xs uppercase tracking-[0.12em] text-accent font-semibold mb-3">Live Intelligence Feed</p>
+					<div className="space-y-2.5 text-sm leading-relaxed">
+						<div className="rounded-lg border border-[#E74C3C]/40 bg-[#E74C3C]/5 px-4 py-3 text-[#E74C3C] font-semibold">⚠ Contradiction detected in contractor dispute</div>
+						<div className="rounded-lg border border-border bg-muted/20 px-4 py-3">Screenshot evidence uploaded</div>
+						<div className="rounded-lg border border-border bg-muted/20 px-4 py-3">Timeline reconstruction completed</div>
+						<div className="rounded-lg border border-border bg-muted/20 px-4 py-3">Reality score increased to 82%</div>
+					</div>
+				</section>
+			</main>
+		</AppLayout>
+	);
 }
-
-const styles = {
-page: {
-minHeight: "100vh",
-background: "#050B16",
-color: "white",
-padding: "32px",
-fontFamily: "Inter, sans-serif",
-},
-
-topBar: {
-display: "flex",
-justifyContent: "space-between",
-alignItems: "center",
-marginBottom: "40px",
-},
-
-logo: {
-margin: 0,
-fontSize: "36px",
-letterSpacing: "0.08em",
-},
-
-subLogo: {
-color: "#4F8CFF",
-marginTop: "4px",
-fontSize: "13px",
-letterSpacing: "0.12em",
-},
-
-statusRow: {
-display: "flex",
-gap: "16px",
-alignItems: "center",
-},
-
-liveBadge: {
-background: "#2A1216",
-border: "1px solid #E74C3C",
-color: "#E74C3C",
-padding: "10px 16px",
-borderRadius: "999px",
-fontWeight: "700",
-},
-
-userCard: {
-background: "#101826",
-border: "1px solid #243045",
-padding: "10px 18px",
-borderRadius: "999px",
-},
-
-hero: {
-display: "flex",
-justifyContent: "space-between",
-alignItems: "center",
-marginBottom: "50px",
-},
-
-heroTitle: {
-fontSize: "48px",
-marginBottom: "12px",
-},
-
-heroSubtitle: {
-color: "#AAB4C8",
-maxWidth: "700px",
-lineHeight: "1.7",
-fontSize: "18px",
-},
-
-actionButton: {
-background: "#4F8CFF",
-color: "white",
-border: "none",
-padding: "18px 28px",
-borderRadius: "16px",
-fontWeight: "700",
-fontSize: "16px",
-cursor: "pointer",
-textDecoration: "none",
-display: "inline-flex",
-alignItems: "center",
-},
-
-architectureGrid: {
-display: "grid",
-gridTemplateColumns: "1fr 1.2fr 1fr",
-gap: "30px",
-alignItems: "center",
-},
-
-column: {
-display: "flex",
-flexDirection: "column",
-gap: "18px",
-},
-
-columnTitle: {
-color: "#4F8CFF",
-fontSize: "14px",
-letterSpacing: "0.1em",
-marginBottom: "10px",
-},
-
-moduleBlue: {
-background: "#101826",
-border: "1px solid #243045",
-borderLeft: "4px solid #4F8CFF",
-padding: "22px",
-borderRadius: "16px",
-},
-
-moduleDark: {
-background: "#101826",
-border: "1px solid #243045",
-padding: "22px",
-borderRadius: "16px",
-},
-
-moduleRed: {
-background: "#1B1014",
-border: "1px solid #E74C3C",
-borderLeft: "4px solid #E74C3C",
-padding: "22px",
-borderRadius: "16px",
-},
-
-centerCore: {
-position: "relative",
-display: "flex",
-justifyContent: "center",
-alignItems: "center",
-},
-
-coreGlow: {
-position: "absolute",
-width: "420px",
-height: "420px",
-background: "rgba(79,140,255,0.12)",
-borderRadius: "50%",
-filter: "blur(80px)",
-},
-
-coreCard: {
-position: "relative",
-zIndex: 2,
-width: "100%",
-background: "#0F1728",
-border: "1px solid #243045",
-borderRadius: "24px",
-padding: "36px",
-boxShadow: "0 0 40px rgba(79,140,255,0.15)",
-},
-
-coreLabel: {
-color: "#4F8CFF",
-letterSpacing: "0.12em",
-fontSize: "13px",
-},
-
-coreTitle: {
-fontSize: "36px",
-marginBottom: "28px",
-},
-
-processingList: {
-display: "flex",
-flexDirection: "column",
-gap: "14px",
-},
-
-processItem: {
-background: "#131F34",
-border: "1px solid #243045",
-padding: "16px",
-borderRadius: "14px",
-},
-
-processingStatus: {
-marginTop: "28px",
-display: "flex",
-alignItems: "center",
-gap: "12px",
-color: "#2ECC71",
-fontWeight: "700",
-},
-
-greenDot: {
-width: "10px",
-height: "10px",
-background: "#2ECC71",
-borderRadius: "50%",
-boxShadow: "0 0 10px #2ECC71",
-},
-
-flowContainer: {
-marginTop: "60px",
-position: "relative",
-},
-
-flowLine: {
-height: "1px",
-background: "#243045",
-position: "absolute",
-width: "100%",
-top: "50%",
-},
-
-flowRow: {
-position: "relative",
-zIndex: 2,
-display: "flex",
-justifyContent: "center",
-alignItems: "center",
-gap: "18px",
-},
-
-flowNode: {
-background: "#101826",
-border: "1px solid #243045",
-padding: "16px 22px",
-borderRadius: "999px",
-fontWeight: "700",
-letterSpacing: "0.08em",
-},
-
-arrow: {
-color: "#4F8CFF",
-fontSize: "24px",
-},
-
-feedCard: {
-marginTop: "60px",
-background: "#101826",
-border: "1px solid #243045",
-borderRadius: "20px",
-padding: "28px",
-},
-
-feedHeader: {
-color: "#4F8CFF",
-marginBottom: "20px",
-letterSpacing: "0.1em",
-fontWeight: "700",
-},
-
-feedItem: {
-padding: "18px",
-borderBottom: "1px solid #1B273A",
-},
-
-feedItemRed: {
-padding: "18px",
-borderBottom: "1px solid #1B273A",
-color: "#E74C3C",
-fontWeight: "700",
-},
-};
