@@ -45,6 +45,29 @@ describe("supabaseSafeFetch", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("returns helpful auth JSON for empty non-2xx auth responses", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response("", {
+          status: 401,
+          statusText: "Unauthorized",
+        }),
+      );
+
+    const response = await supabaseSafeFetch("https://example.supabase.co/auth/v1/token", {
+      method: "POST",
+    });
+
+    const json = await response.json();
+    expect(json).toMatchObject({
+      error: "incomplete_auth_response",
+      status: 401,
+    });
+    expect(String(json.message)).toMatch(/incomplete server response/i);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves non-empty auth JSON responses", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")

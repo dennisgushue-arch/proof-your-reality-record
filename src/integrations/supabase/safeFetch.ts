@@ -9,11 +9,27 @@ const resolveUrl = (input: RequestInfo | URL) => {
 
 const isAuthResponse = (url: string) => AUTH_ENDPOINT_PATTERN.test(url);
 
+const buildFallbackAuthJson = (response: Response) => {
+  if (response.ok) {
+    return "{}";
+  }
+
+  const message = response.status === 401 || response.status === 400
+    ? "Authentication failed due to an incomplete server response. Please try again."
+    : "Authentication service returned an incomplete response. Please try again.";
+
+  return JSON.stringify({
+    error: "incomplete_auth_response",
+    message,
+    status: response.status,
+  });
+};
+
 const toJsonObjectResponse = (response: Response) => {
   const headers = new Headers(response.headers);
   headers.set("content-type", "application/json; charset=utf-8");
 
-  return new Response("{}", {
+  return new Response(buildFallbackAuthJson(response), {
     status: response.status,
     statusText: response.statusText,
     headers,
