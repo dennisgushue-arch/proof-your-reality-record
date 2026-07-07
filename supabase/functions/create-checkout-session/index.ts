@@ -14,6 +14,7 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const trialDays = Number.parseInt(Deno.env.get("STRIPE_TRIAL_DAYS") ?? "7", 10);
 const earlyAdopterCouponId = Deno.env.get("STRIPE_COUPON_ID_EARLY_ADOPTER_50") ?? "";
 const appLaunchDateIso = Deno.env.get("APP_LAUNCH_DATE_ISO") ?? "";
+const STRIPE_PRICE_ID_PATTERN = /^price_[A-Za-z0-9]+$/;
 
 const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(payload), {
@@ -42,6 +43,17 @@ function isEarlyAdopterEligible(userCreatedAt?: string | null) {
   if (!windowEnd) return false;
 
   return userCreated <= windowEnd;
+}
+
+function firstValidPriceId(secretNames: string[]) {
+  for (const secretName of secretNames) {
+    const candidate = Deno.env.get(secretName)?.trim();
+    if (candidate && STRIPE_PRICE_ID_PATTERN.test(candidate)) {
+      return { priceId: candidate, source: secretName };
+    }
+  }
+
+  return { priceId: null, source: null };
 }
 
 serve(async (req) => {
@@ -83,14 +95,20 @@ serve(async (req) => {
       return jsonResponse({ error: "Plan must be pro or premium", traceId }, 400);
     }
 
-    const priceMap: Record<string, string | undefined> = {
-      pro: Deno.env.get("STRIPE_PRICE_ID_PRO"),
-      premium: Deno.env.get("STRIPE_PRICE_ID_PREMIUM"),
-    };
+    const priceConfig = plan === "pro"
+      ? firstValidPriceId(["STRIPE_PRICE_ID_PRO_MONTHLY", "STRIPE_PRICE_ID_PRO"])
+      : firstValidPriceId(["STRIPE_PRICE_ID_PREMIUM_MONTHLY", "STRIPE_PRICE_ID_PREMIUM"]);
 
-    const priceId = priceMap[plan];
+    const priceId = priceConfig.priceId;
     if (!priceId) {
-      return jsonResponse({ error: `Missing Stripe price ID for ${plan}`, traceId }, 500);
+      const expectedSecrets = plan === "pro"
+        ? ["STRIPE_PRICE_ID_PRO_MONTHLY", "STRIPE_PRICE_ID_PRO"]
+        : ["STRIPE_PRICE_ID_PREMIUM_MONTHLY", "STRIPE_PRICE_ID_PREMIUM"];
+
+      return jsonResponse({
+        error: `Missing or invalid Stripe price ID for ${plan}. Expected one of: ${expectedSecrets.join(", ")}`,
+        traceId,
+      }, 500);
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -145,6 +163,7 @@ serve(async (req) => {
       metadata: {
         user_id: user.id,
         plan,
+        price_secret_source: priceConfig.source ?? "unknown",
         trial_days: shouldApplyTrial ? String(trialDays) : "0",
         early_adopter_discount_applied: discounts ? "true" : "false",
       },
