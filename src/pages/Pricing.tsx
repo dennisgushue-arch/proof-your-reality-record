@@ -45,6 +45,42 @@ const tiers: Tier[] = [
   },
 ];
 
+const getCheckoutErrorDescription = async (error: unknown, fallback: string) => {
+  if (isJsonParseResponseError(error)) {
+    return "Temporary session/network response issue. Please try again.";
+  }
+
+  if (error && typeof error === "object" && "context" in error) {
+    const response = (error as { context?: unknown }).context;
+    if (response instanceof Response) {
+      try {
+        const payload = await response.clone().json() as {
+          error?: string;
+          message?: string;
+          traceId?: string;
+        };
+        const message = payload.message ?? payload.error;
+        if (message?.trim()) {
+          return payload.traceId ? `${message} (Trace: ${payload.traceId})` : message;
+        }
+      } catch {
+        try {
+          const text = await response.clone().text();
+          if (text.trim()) return text.trim();
+        } catch {
+          // Fall through to generic handling.
+        }
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
 const Pricing = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -71,10 +107,13 @@ const Pricing = () => {
 
   const startCheckout = async (plan: "pro" | "premium") => {
     let activeUser = user;
+    let accessToken: string | null = null;
 
     if (!activeUser) {
       try {
-        activeUser = (await supabase.auth.getSession()).data.session?.user ?? null;
+        const session = (await supabase.auth.getSession()).data.session ?? null;
+        activeUser = session?.user ?? null;
+        accessToken = session?.access_token ?? null;
       } catch (error) {
         if (!isJsonParseResponseError(error)) {
           toast.error("Could not start checkout", {
@@ -87,13 +126,23 @@ const Pricing = () => {
 
     if (!activeUser) {
       try {
-        activeUser = (await supabase.auth.refreshSession()).data.session?.user ?? null;
+        const session = (await supabase.auth.refreshSession()).data.session ?? null;
+        activeUser = session?.user ?? null;
+        accessToken = session?.access_token ?? null;
       } catch {
         // Continue to unauthenticated guard below.
       }
     }
 
-    if (!activeUser) {
+    if (!accessToken) {
+      try {
+        accessToken = (await supabase.auth.getSession()).data.session?.access_token ?? null;
+      } catch {
+        // Fallback to auth guard below.
+      }
+    }
+
+    if (!activeUser || !accessToken) {
       toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
       navigate("/auth?mode=signup");
       return;
@@ -103,11 +152,18 @@ const Pricing = () => {
       setLoadingPlan(plan);
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
         body: { plan },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       if (error || !data?.url) {
+        const description = await getCheckoutErrorDescription(
+          error,
+          "Please verify Stripe env vars and try again.",
+        );
         toast.error("Could not start checkout", {
-          description: error?.message ?? "Please verify Stripe env vars and try again.",
+          description,
         });
         return;
       }

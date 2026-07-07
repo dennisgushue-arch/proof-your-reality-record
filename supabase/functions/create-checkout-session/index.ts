@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@15.12.0?target=denonext";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
@@ -14,6 +14,14 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const trialDays = Number.parseInt(Deno.env.get("STRIPE_TRIAL_DAYS") ?? "7", 10);
 const earlyAdopterCouponId = Deno.env.get("STRIPE_COUPON_ID_EARLY_ADOPTER_50") ?? "";
 const appLaunchDateIso = Deno.env.get("APP_LAUNCH_DATE_ISO") ?? "";
+
+const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const getTraceId = (req: Request) => req.headers.get("x-client-trace-id") ?? crypto.randomUUID();
 
 function getEarlyAdopterWindowEnd(launchIso: string) {
   if (!launchIso) return null;
@@ -41,15 +49,20 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const traceId = getTraceId(req);
+
   try {
-    if (!stripe) throw new Error("Stripe not configured");
+    if (!Deno.env.get("STRIPE_SECRET_KEY")) {
+      return jsonResponse({ error: "Missing STRIPE_SECRET_KEY", traceId }, 500);
+    }
+
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+      return jsonResponse({ error: "Supabase environment variables are incomplete", traceId }, 500);
+    }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing Authorization header", traceId }, 401);
     }
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -62,18 +75,12 @@ serve(async (req) => {
     } = await userClient.auth.getUser();
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Unauthorized", traceId }, 401);
     }
 
     const { plan } = await req.json();
     if (!["pro", "premium"].includes(plan)) {
-      return new Response(JSON.stringify({ error: "Plan must be pro or premium" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Plan must be pro or premium", traceId }, 400);
     }
 
     const priceMap: Record<string, string | undefined> = {
@@ -83,10 +90,7 @@ serve(async (req) => {
 
     const priceId = priceMap[plan];
     if (!priceId) {
-      return new Response(JSON.stringify({ error: `Missing Stripe price ID for ${plan}` }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: `Missing Stripe price ID for ${plan}`, traceId }, 500);
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
@@ -146,15 +150,9 @@ serve(async (req) => {
       },
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return jsonResponse({ url: session.url, traceId }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    return jsonResponse({ error: message, traceId }, 500);
   }
 });
