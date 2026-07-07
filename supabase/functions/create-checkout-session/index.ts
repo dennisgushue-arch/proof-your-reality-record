@@ -140,7 +140,7 @@ serve(async (req) => {
       discounts,
       success_url: `${siteUrl}/pricing?checkout=success`,
       cancel_url: `${siteUrl}/pricing?checkout=canceled`,
-      allow_promotion_codes: true,
+      allow_promotion_codes: discounts ? undefined : true,
       client_reference_id: user.id,
       metadata: {
         user_id: user.id,
