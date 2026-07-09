@@ -43,15 +43,38 @@ const getAuthErrorMessage = (error: unknown, fallback: string) => {
     return "Authentication response was incomplete. Please try again.";
   }
 
-  if (error instanceof Error) {
-    const message = error.message.trim();
-    if (!message) return fallback;
+  const normalizeMessage = (message: string) => {
+    const trimmed = message.trim();
+    if (!trimmed) return fallback;
 
-    if (/failed to execute.*json|unexpected end of json input|unexpected end of input/i.test(message)) {
+    if (
+      trimmed === "{}"
+      || trimmed.toLowerCase() === "[object object]"
+      || /^\{\s*\}$/.test(trimmed)
+    ) {
+      return "Authentication failed due to an incomplete server response. Please try again.";
+    }
+
+    if (/failed to execute.*json|unexpected end of json input|unexpected end of input/i.test(trimmed)) {
       return "Authentication response was incomplete. Please try again.";
     }
 
-    return message;
+    return trimmed;
+  };
+
+  if (error instanceof Error) {
+    return normalizeMessage(error.message);
+  }
+
+  if (typeof error === "string") {
+    return normalizeMessage(error);
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const candidateMessage = (error as Record<string, unknown>).message;
+    if (typeof candidateMessage === "string") {
+      return normalizeMessage(candidateMessage);
+    }
   }
 
   return fallback;

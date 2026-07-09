@@ -29,7 +29,7 @@ const tiers: Tier[] = [
   },
   {
     name: "Pro",
-    price: "$14.99",
+    price: "$7.99",
     cadence: "/month",
     features: ["Unlimited cases & incidents", "AI structuring & summaries", "PDF evidence export", "Smart search & filters", "Follow-up reminders", "7-day free trial for new users"],
     cta: "Start 7-day trial",
@@ -37,7 +37,7 @@ const tiers: Tier[] = [
   },
   {
     name: "Premium",
-    price: "$39",
+    price: "$13.99",
     cadence: "/month",
     features: ["Everything in Pro", "Contradiction engine across cases", "Collaborative case access", "Advanced export templates", "7-day free trial for new users"],
     cta: "Start 7-day trial",
