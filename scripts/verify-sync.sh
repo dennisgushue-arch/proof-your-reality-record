@@ -69,7 +69,7 @@ fi
 # 5) Microphone compatibility check
 manifest="android/app/src/main/AndroidManifest.xml"
 if grep -q 'android.hardware.microphone' "$manifest"; then
-  if grep -q 'android.hardware.microphone" android:required="false"' "$manifest"; then
+  if grep -q 'android:required="false"' "$manifest" && grep -A2 'android.hardware.microphone' "$manifest" | grep -q 'required="false"'; then
     ok "Manifest keeps microphone optional (required=false)"
   else
     bad "Manifest references microphone but not optional"
