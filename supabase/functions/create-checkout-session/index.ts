@@ -15,6 +15,7 @@ const trialDays = Number.parseInt(Deno.env.get("STRIPE_TRIAL_DAYS") ?? "7", 10);
 const earlyAdopterCouponId = Deno.env.get("STRIPE_COUPON_ID_EARLY_ADOPTER_50") ?? "";
 const appLaunchDateIso = Deno.env.get("APP_LAUNCH_DATE_ISO") ?? "";
 const STRIPE_PRICE_ID_PATTERN = /^price_[A-Za-z0-9]+$/;
+const STRIPE_SECRET_KEY_PATTERN = /^sk_(live|test)_[A-Za-z0-9]+$/;
 
 const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(payload), {
@@ -45,6 +46,18 @@ function isEarlyAdopterEligible(userCreatedAt?: string | null) {
   return userCreated <= windowEnd;
 }
 
+function isValidStripeSecretKey(secret?: string | null) {
+  if (!secret) return false;
+  const candidate = secret.trim();
+  if (!candidate) return false;
+
+  if (candidate.includes("__REDACTED__") || candidate.toLowerCase().includes("redacted")) {
+    return false;
+  }
+
+  return STRIPE_SECRET_KEY_PATTERN.test(candidate);
+}
+
 function firstValidPriceId(secretNames: string[]) {
   for (const secretName of secretNames) {
     const candidate = Deno.env.get(secretName)?.trim();
@@ -64,8 +77,12 @@ serve(async (req) => {
   const traceId = getTraceId(req);
 
   try {
-    if (!Deno.env.get("STRIPE_SECRET_KEY")) {
-      return jsonResponse({ error: "Missing STRIPE_SECRET_KEY", traceId }, 500);
+    const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    if (!isValidStripeSecretKey(stripeSecretKey)) {
+      return jsonResponse({
+        error: "Missing or invalid STRIPE_SECRET_KEY. Set a real sk_live_... or sk_test_... value in Supabase secrets.",
+        traceId,
+      }, 500);
     }
 
     if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
