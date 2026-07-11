@@ -58,6 +58,25 @@ function isValidStripeSecretKey(secret?: string | null) {
   return STRIPE_SECRET_KEY_PATTERN.test(candidate);
 }
 
+function isUsableStripeDiscountId(value?: string | null) {
+  if (!value) return false;
+
+  const candidate = value.trim();
+  if (!candidate) return false;
+
+  if (candidate.includes("__REDACTED__") || candidate.toLowerCase().includes("redacted")) {
+    return false;
+  }
+
+  return true;
+}
+
+function shouldRetryWithoutCoupon(error: unknown) {
+  if (!(error instanceof Error)) return false;
+
+  return /No such coupon/i.test(error.message);
+}
+
 function firstValidPriceId(secretNames: string[]) {
   for (const secretName of secretNames) {
     const candidate = Deno.env.get(secretName)?.trim();
@@ -159,32 +178,48 @@ serve(async (req) => {
     const shouldApplyTrial = !hasExistingSubscription && Number.isFinite(trialDays) && trialDays > 0;
 
     const earlyAdopterEligible = isEarlyAdopterEligible(user.created_at ?? null);
-    const discounts = earlyAdopterEligible && earlyAdopterCouponId
-      ? [{ coupon: earlyAdopterCouponId }]
+    const appliedCouponId = earlyAdopterEligible && isUsableStripeDiscountId(earlyAdopterCouponId)
+      ? earlyAdopterCouponId.trim()
+      : null;
+    const discounts = appliedCouponId
+      ? [{ coupon: appliedCouponId }]
       : undefined;
 
     const subscriptionData = shouldApplyTrial
       ? { trial_period_days: trialDays }
       : undefined;
 
-    const session = await stripe.checkout.sessions.create({
+    const buildSessionParams = (activeDiscounts?: { coupon: string }[]) => ({
       customer: stripeCustomerId,
-      mode: "subscription",
+      mode: "subscription" as const,
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: subscriptionData,
-      discounts,
+      discounts: activeDiscounts,
       success_url: `${siteUrl}/pricing?checkout=success`,
       cancel_url: `${siteUrl}/pricing?checkout=canceled`,
-      allow_promotion_codes: discounts ? undefined : true,
+      allow_promotion_codes: activeDiscounts ? undefined : true,
       client_reference_id: user.id,
       metadata: {
         user_id: user.id,
         plan,
         price_secret_source: priceConfig.source ?? "unknown",
         trial_days: shouldApplyTrial ? String(trialDays) : "0",
-        early_adopter_discount_applied: discounts ? "true" : "false",
+        early_adopter_discount_applied: activeDiscounts ? "true" : "false",
       },
     });
+
+    let session;
+
+    try {
+      session = await stripe.checkout.sessions.create(buildSessionParams(discounts));
+    } catch (error) {
+      if (!discounts || !shouldRetryWithoutCoupon(error)) {
+        throw error;
+      }
+
+      console.warn(`Retrying checkout without early adopter coupon. Trace: ${traceId}`);
+      session = await stripe.checkout.sessions.create(buildSessionParams(undefined));
+    }
 
     return jsonResponse({ url: session.url, traceId }, 200);
   } catch (error) {
