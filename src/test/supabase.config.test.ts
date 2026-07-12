@@ -37,4 +37,24 @@ describe("resolveSupabaseConfig", () => {
     expect(result.usedFallbackUrl).toBe(false);
     expect(result.usedFallbackPublishableKey).toBe(true);
   });
+
+  it("falls back when url uses template placeholder", () => {
+    const result = resolveSupabaseConfig(
+      "https://your-project-ref.supabase.co",
+      "sb_publishable_valid",
+    );
+
+    expect(result.url).toBe("https://ltyhrjiqrslpgblbzbfg.supabase.co");
+    expect(result.usedFallbackUrl).toBe(true);
+  });
+
+  it("falls back when publishable key uses template placeholder", () => {
+    const result = resolveSupabaseConfig(
+      "https://example-project.supabase.co",
+      "your-supabase-publishable-key",
+    );
+
+    expect(result.publishableKey).toContain("sb_publishable_");
+    expect(result.usedFallbackPublishableKey).toBe(true);
+  });
 });
