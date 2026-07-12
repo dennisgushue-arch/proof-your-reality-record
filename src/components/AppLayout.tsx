@@ -1,6 +1,6 @@
 import { Link, NavLink } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { Shield, LayoutDashboard, CreditCard, Settings, LogOut, Siren } from "lucide-react";
+import { Shield, LayoutDashboard, CreditCard, Settings, LogOut, Siren, Settings2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +84,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </div>
           )}
           <button
+            type="button"
             onClick={async () => {
               await signOut();
               nav("/");
@@ -111,6 +112,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <span className="font-semibold text-sm tracking-tight">Proof</span>
             </Link>
             <button
+              type="button"
               onClick={async () => {
                 await signOut();
                 nav("/");
@@ -147,7 +149,12 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 to="/account"
                 className={({ isActive }) => mobileNavChipClass(isActive)}
               >
-                Settings
+                <span className="inline-flex items-center gap-1.5">
+                  Settings
+                  <span aria-label="Dictation tone setting" title="Dictation tone setting" className="inline-flex">
+                    <Settings2 className="h-2.5 w-2.5 text-muted-foreground/50" />
+                  </span>
+                </span>
               </NavLink>
             </div>
           </div>

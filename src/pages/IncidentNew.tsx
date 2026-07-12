@@ -11,6 +11,7 @@ import { Disclaimer } from "@/components/Disclaimer";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
+import { DICTATION_HINT_COPY, getDictationHintTone } from "@/lib/dictationHintCopy";
 import { relabelCapturedPhotos } from "@/lib/capturedPhotoNaming";
 import { buildEvidenceStoragePath, uploadEvidenceFile } from "@/lib/evidenceStorage";
 import { readLiveIncidentState } from "@/lib/liveIncident";
@@ -262,6 +263,9 @@ const IncidentNew = () => {
               </SelectContent>
             </Select>
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {DICTATION_HINT_COPY[getDictationHintTone()].incident}
+          </p>
         </div>
 
         {/* Form */}

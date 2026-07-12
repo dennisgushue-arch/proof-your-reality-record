@@ -100,7 +100,7 @@ describe("useDictation", () => {
     expect(onTranscript).not.toHaveBeenCalled();
   });
 
-  it("forwards transcript chunks from recognition results", () => {
+  it("forwards only final transcript chunks from recognition results", () => {
     const instances: MockRecognition[] = [];
 
     class MockSpeechRecognition {
@@ -136,14 +136,79 @@ describe("useDictation", () => {
       instances[0].onresult?.({
         resultIndex: 0,
         results: [
-          [{ transcript: "first chunk" }],
-          [{ transcript: "second chunk" }],
+          Object.assign([{ transcript: "first chunk (interim)" }], { isFinal: false }),
+          Object.assign([{ transcript: "first chunk" }], { isFinal: true }),
+          Object.assign([{ transcript: "second chunk" }], { isFinal: true }),
         ],
       });
     });
 
     expect(onTranscript).toHaveBeenNthCalledWith(1, "first chunk");
     expect(onTranscript).toHaveBeenNthCalledWith(2, "second chunk");
+  });
+
+  it("suppresses duplicate final transcript chunks", () => {
+    const instances: MockRecognition[] = [];
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onresult = null;
+      onerror = null;
+      onend = null;
+      start = vi.fn();
+      stop = vi.fn();
+
+      constructor() {
+        instances.push(this as unknown as MockRecognition);
+      }
+    }
+
+    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+
+    const onTranscript = vi.fn();
+
+    const { result } = renderHook(() =>
+      useDictation({
+        onTranscript,
+      })
+    );
+
+    act(() => {
+      result.current.toggle();
+    });
+
+    act(() => {
+      instances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: "same final text" }], { isFinal: true }),
+        ],
+      });
+    });
+
+    act(() => {
+      instances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: "same final text" }], { isFinal: true }),
+        ],
+      });
+    });
+
+    act(() => {
+      instances[0].onresult?.({
+        resultIndex: 0,
+        results: [
+          Object.assign([{ transcript: "different final text" }], { isFinal: true }),
+        ],
+      });
+    });
+
+    expect(onTranscript).toHaveBeenCalledTimes(2);
+    expect(onTranscript).toHaveBeenNthCalledWith(1, "same final text");
+    expect(onTranscript).toHaveBeenNthCalledWith(2, "different final text");
   });
 
   it("restarts recognition on end while dictation should continue", () => {

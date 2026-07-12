@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
+import { DICTATION_HINT_COPY, getDictationHintTone } from "@/lib/dictationHintCopy";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
 import { buildPatternInsight, type PatternInsight } from "@/lib/patternInsight";
 import { toast } from "sonner";
@@ -1174,6 +1175,9 @@ const Dashboard = () => {
                         className="bg-background border-border"
                         rows={3}
                       />
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        {DICTATION_HINT_COPY[getDictationHintTone()].dashboard}
+                      </p>
                       {capturedPhotos.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                           {capturedPhotos.map((f, i) => (

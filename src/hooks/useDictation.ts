@@ -47,11 +47,13 @@ export function useDictation(options: DictationOptions) {
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const shouldContinueRef = useRef(false);
+  const lastFinalTranscriptRef = useRef("");
 
   const isSupported = Boolean(getSpeechRecognitionCtor());
 
   const stop = () => {
     shouldContinueRef.current = false;
+    lastFinalTranscriptRef.current = "";
     recognitionRef.current?.stop();
     setIsDictating(false);
   };
@@ -69,11 +71,19 @@ export function useDictation(options: DictationOptions) {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = language;
+    lastFinalTranscriptRef.current = "";
 
     recognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
-        const transcript = event.results[i]?.[0]?.transcript?.trim?.() ?? "";
+        const result = event.results[i];
+        if (!result?.isFinal) continue;
+        const transcript = result?.[0]?.transcript?.trim?.() ?? "";
         if (!transcript) continue;
+
+        const normalizedTranscript = transcript.toLowerCase();
+        if (normalizedTranscript === lastFinalTranscriptRef.current) continue;
+
+        lastFinalTranscriptRef.current = normalizedTranscript;
         onTranscript(transcript);
       }
     };
