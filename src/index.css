@@ -140,8 +140,9 @@
   }
 
   .intelligence-glass {
-    background: linear-gradient(180deg, rgba(16, 24, 38, 0.96) 0%, rgba(10, 17, 29, 0.92) 100%);
-    backdrop-filter: blur(14px);
+    background: linear-gradient(180deg, rgba(12, 18, 30, 0.98) 0%, rgba(8, 13, 22, 0.97) 100%);
+    backdrop-filter: blur(8px);
+    border-color: rgba(255, 255, 255, 0.08);
   }
 
   .indicator-pulse {
@@ -164,17 +165,19 @@
   }
 
   .intel-section-title {
-    @apply uppercase font-semibold;
-    letter-spacing: 0.08em;
-    font-size: 0.78rem;
-    line-height: 1.1;
+    @apply uppercase font-bold;
+    letter-spacing: 0.1em;
+    font-size: 0.8rem;
+    line-height: 1.12;
+    color: hsl(210 40% 98%);
   }
 
   .intel-module-title {
-    @apply uppercase font-semibold;
-    letter-spacing: 0.1em;
+    @apply uppercase font-bold;
+    letter-spacing: 0.12em;
     font-size: 0.72rem;
-    line-height: 1.1;
+    line-height: 1.12;
+    color: hsl(210 40% 96%);
   }
 
   .intel-metric-label {
@@ -185,23 +188,27 @@
   }
 
   .intel-section-head {
-    @apply flex items-center gap-2 mb-4;
+    @apply flex items-center gap-2 mb-3 pb-2 border-b border-white/10;
   }
 
   .intel-title-body {
-    @apply mt-2 text-sm text-muted-foreground leading-relaxed;
+    @apply mt-2 text-[0.92rem] leading-relaxed;
+    color: hsl(215 18% 82%);
   }
 
   .intel-chip-sm {
     @apply inline-flex items-center rounded-full border px-2 py-0.5;
+    background: rgba(16, 24, 38, 0.78);
   }
 
   .intel-chip-md {
     @apply inline-flex items-center rounded-full border px-2.5 py-1;
+    background: rgba(16, 24, 38, 0.82);
   }
 
   .intel-chip-lg {
     @apply inline-flex items-center rounded-full border px-3 py-1;
+    background: rgba(16, 24, 38, 0.86);
   }
 
   .intel-chip-icon {
@@ -217,7 +224,7 @@
   }
 
   .intel-panel-inset {
-    @apply p-6 md:p-7 xl:p-6;
+    @apply p-5 md:p-6 xl:p-5;
   }
 
   .micro-lift {
@@ -226,8 +233,8 @@
   }
 
   .micro-lift:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 26px rgba(5, 11, 22, 0.38);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 18px rgba(5, 11, 22, 0.34);
   }
 
   .tactile-button {

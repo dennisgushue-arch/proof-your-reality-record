@@ -263,6 +263,8 @@ marginBottom: "50px",
 heroTitle: {
 fontSize: "48px",
 marginBottom: "12px",
+color: "#F8FAFC",
+letterSpacing: "-0.04em",
 },
 
 heroSubtitle: {
@@ -300,33 +302,38 @@ gap: "18px",
 },
 
 columnTitle: {
-color: "#4F8CFF",
-fontSize: "14px",
-letterSpacing: "0.1em",
+color: "#EAF0FF",
+fontSize: "12px",
+letterSpacing: "0.14em",
+fontWeight: "800",
 marginBottom: "10px",
+textTransform: "uppercase",
 },
 
 moduleBlue: {
 background: "#101826",
-border: "1px solid #243045",
+border: "1px solid rgba(255,255,255,0.08)",
 borderLeft: "4px solid #4F8CFF",
-padding: "22px",
+padding: "18px",
 borderRadius: "16px",
+boxShadow: "0 10px 20px rgba(5, 11, 22, 0.18)",
 },
 
 moduleDark: {
 background: "#101826",
-border: "1px solid #243045",
-padding: "22px",
+border: "1px solid rgba(255,255,255,0.08)",
+padding: "18px",
 borderRadius: "16px",
+boxShadow: "0 10px 20px rgba(5, 11, 22, 0.18)",
 },
 
 moduleRed: {
 background: "#1B1014",
-border: "1px solid #E74C3C",
+border: "1px solid rgba(231, 76, 60, 0.55)",
 borderLeft: "4px solid #E74C3C",
-padding: "22px",
+padding: "18px",
 borderRadius: "16px",
+boxShadow: "0 10px 20px rgba(5, 11, 22, 0.18)",
 },
 
 centerCore: {
@@ -350,21 +357,25 @@ position: "relative",
 zIndex: 2,
 width: "100%",
 background: "#0F1728",
-border: "1px solid #243045",
+border: "1px solid rgba(255,255,255,0.08)",
 borderRadius: "24px",
-padding: "36px",
-boxShadow: "0 0 40px rgba(79,140,255,0.15)",
+padding: "30px",
+boxShadow: "0 20px 40px rgba(5, 11, 22, 0.28)",
 },
 
 coreLabel: {
-color: "#4F8CFF",
-letterSpacing: "0.12em",
-fontSize: "13px",
+color: "#EAF0FF",
+letterSpacing: "0.14em",
+fontSize: "11px",
+fontWeight: "800",
+textTransform: "uppercase",
 },
 
 coreTitle: {
 fontSize: "36px",
 marginBottom: "28px",
+color: "#F8FAFC",
+letterSpacing: "-0.04em",
 },
 
 processingList: {
@@ -375,9 +386,10 @@ gap: "14px",
 
 processItem: {
 background: "#131F34",
-border: "1px solid #243045",
+border: "1px solid rgba(255,255,255,0.08)",
 padding: "16px",
 borderRadius: "14px",
+boxShadow: "0 8px 16px rgba(5, 11, 22, 0.14)",
 },
 
 processingStatus: {
@@ -420,12 +432,14 @@ gap: "18px",
 },
 
 flowNode: {
-background: "#101826",
-border: "1px solid #243045",
-padding: "16px 22px",
+background: "#0F1728",
+border: "1px solid rgba(255,255,255,0.1)",
+padding: "14px 18px",
 borderRadius: "999px",
 fontWeight: "700",
-letterSpacing: "0.08em",
+letterSpacing: "0.09em",
+fontSize: "13px",
+boxShadow: "0 8px 14px rgba(5, 11, 22, 0.2)",
 },
 
 arrow: {
@@ -436,26 +450,30 @@ fontSize: "24px",
 feedCard: {
 marginTop: "60px",
 background: "#101826",
-border: "1px solid #243045",
+border: "1px solid rgba(255,255,255,0.08)",
 borderRadius: "20px",
-padding: "28px",
+padding: "22px",
+boxShadow: "0 14px 28px rgba(5, 11, 22, 0.2)",
 },
 
 feedHeader: {
-color: "#4F8CFF",
+color: "#F8FAFC",
 marginBottom: "20px",
-letterSpacing: "0.1em",
-fontWeight: "700",
+letterSpacing: "0.14em",
+fontWeight: "800",
+textTransform: "uppercase",
+paddingBottom: "10px",
+borderBottom: "1px solid #243045",
 },
 
 feedItem: {
 padding: "18px",
-borderBottom: "1px solid #1B273A",
+borderBottom: "1px solid rgba(255,255,255,0.06)",
 },
 
 feedItemRed: {
 padding: "18px",
-borderBottom: "1px solid #1B273A",
+borderBottom: "1px solid rgba(255,255,255,0.06)",
 color: "#E74C3C",
 fontWeight: "700",
 },

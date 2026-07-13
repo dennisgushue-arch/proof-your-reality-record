@@ -445,80 +445,6 @@ function buildThreatFeed(incidents: IncidentIntelRow[]): ThreatFeedItem[] {
   return items.slice(0, 4);
 }
 
-function buildHeatmap(incidents: IncidentIntelRow[]) {
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-
-  const days = Array.from({ length: 35 }, (_, index) => {
-    const date = new Date(dayStart);
-    date.setDate(dayStart.getDate() - (34 - index));
-    const key = date.toISOString().slice(0, 10);
-    return {
-      key,
-      label: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      intensity: 0,
-    };
-  });
-
-  if (!incidents.length) {
-    return days.map((day, index) => ({
-      key: `empty-${day.key}-${index}`,
-      label: day.label,
-      intensity: 0,
-    }));
-  }
-
-  const indexByDay = new Map(days.map((day, index) => [day.key, index]));
-  const weightedByDay = new Array(days.length).fill(0);
-
-  incidents.forEach((incident) => {
-    const dayKey = new Date(incident.occurred_at).toISOString().slice(0, 10);
-    const dayIndex = indexByDay.get(dayKey);
-    if (dayIndex === undefined) return;
-
-    const contradictionWeight = incidentContradictionCount(incident) * 0.6;
-    const missingWeight = incidentMissingEvidenceCount(incident) * 0.4;
-    const qualityPenalty =
-      typeof incident.evidence_quality_score === "number" && incident.evidence_quality_score < 50 ? 0.8 : 0;
-
-    weightedByDay[dayIndex] += 1 + contradictionWeight + missingWeight + qualityPenalty;
-  });
-
-  const maxWeight = Math.max(...weightedByDay, 0);
-
-  return Array.from({ length: 35 }, (_, index) => {
-    const day = days[index];
-    const weight = weightedByDay[index];
-    const intensity =
-      weight <= 0
-        ? 0
-        : maxWeight <= 1
-          ? Math.min(4, Math.round(weight))
-          : Math.max(1, Math.min(4, Math.ceil((weight / maxWeight) * 4)));
-
-    return {
-      key: `${day.key}-${index}`,
-      label: day.label,
-      intensity,
-    };
-  });
-}
-
-function heatmapColor(intensity: number) {
-  switch (intensity) {
-    case 4:
-      return "rgba(231, 76, 60, 0.55)";
-    case 3:
-      return "rgba(242, 201, 76, 0.48)";
-    case 2:
-      return "rgba(79, 140, 255, 0.38)";
-    case 1:
-      return "rgba(79, 140, 255, 0.22)";
-    default:
-      return "rgba(36, 48, 69, 0.55)";
-  }
-}
-
 const ONBOARDING_STEPS = [
   {
     title: "Conflict happens fast.",
@@ -820,10 +746,6 @@ const Dashboard = () => {
 
   const selectedCaseFeed = selectedCase ? buildThreatFeed(selectedCaseIncidentRows) : [];
   const selectedCasePattern = selectedCase ? buildPatternInsight(selectedCase, selectedCaseIncidentRows) : null;
-  const heatmap = useMemo(
-    () => buildHeatmap(selectedCaseIncidentRows),
-    [selectedCaseIncidentRows],
-  );
   const liveSessionId = liveIncidentState?.sessionId ?? null;
   const hasPrepareAccess = subscription?.plan === "pro" || subscription?.plan === "premium";
   const nextInteractionCase = upcomingReminder
@@ -1282,34 +1204,34 @@ const Dashboard = () => {
         </section>
 
         <section className="mb-8 grid gap-4 lg:grid-cols-5">
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+          <div className="rounded-2xl border p-4 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#4F8CFF]">INCIDENT CAPTURE</p>
             <p className="intel-title-body">Live sessions, screenshots, voice notes, and raw event intake.</p>
             <div className="mt-3 text-xs text-[#AAB4C8]">{activeIncidentsDisplay} active capture streams</div>
           </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "rgba(231, 76, 60, 0.45)" }}>
+          <div className="rounded-2xl border p-4 intelligence-glass lg:col-span-1" style={{ borderColor: "rgba(231, 76, 60, 0.45)" }}>
             <p className="intel-module-title text-[#E74C3C]">THREAT / CONTRADICTION ENGINE</p>
             <p className="intel-title-body">Changed stories, timeline conflicts, and claim mismatches.</p>
             <div className="mt-3 text-xs text-[#E74C3C]">{vaultContradictionCount} contradiction alerts</div>
           </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+          <div className="rounded-2xl border p-4 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#4F8CFF]">TIMELINE RECONSTRUCTION</p>
             <p className="intel-title-body">Playback sequencing and reconstructed incident flow.</p>
-            <div className="mt-3 text-xs text-[#AAB4C8]">35-day sequence heatmap online</div>
+              <div className="mt-3 text-xs text-[#AAB4C8]">35-day sequence tracking online</div>
           </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+          <div className="rounded-2xl border p-4 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#2ECC71]">EVIDENCE SECURITY</p>
             <p className="intel-title-body">Encrypted intake, integrity checks, and export-ready packets.</p>
             <div className="mt-3 text-xs text-[#2ECC71] intel-chip-icon"><Lock className="intel-inline-icon" /> Integrity monitoring active</div>
           </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
+          <div className="rounded-2xl border p-4 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
             <p className="intel-module-title text-[#4F8CFF]">AI INTELLIGENCE</p>
             <p className="intel-title-body">Behavior patterns, repeated phrases, and dynamic risk scoring.</p>
             <div className="mt-3 text-xs text-[#AAB4C8] intel-chip-icon"><Sparkles className="intel-inline-icon" /> {selectedCaseBackendDisplay.label}</div>
           </div>
         </section>
 
-        <section className="mb-8 rounded-2xl border p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
+        <section className="mb-8 rounded-2xl border p-3 intelligence-glass" style={{ borderColor: "#243045" }}>
           <p className="intel-module-title text-[#AAB4C8] mb-3">INTELLIGENCE FLOW</p>
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="intel-chip-lg" style={{ borderColor: "#243045", color: "#4F8CFF" }}>Capture</span>
@@ -1322,7 +1244,7 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <section className="mb-8 rounded-2xl border p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
+        <section className="mb-8 rounded-2xl border p-3 intelligence-glass" style={{ borderColor: "#243045" }}>
           <p className="intel-module-title text-[#AAB4C8] mb-3">TRUST SIGNALS</p>
           <div className="flex flex-wrap gap-2">
             <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#2ECC71" }}><Lock className="intel-inline-icon" /> Encrypted</span>
@@ -1359,7 +1281,7 @@ const Dashboard = () => {
                 </div>
               </div>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-2.5 md:grid-cols-2">
                 {displayCases.map((c) => {
                   const incidents = c.incident_count ?? 0;
                   const contradictions = caseContradictions(incidents);
@@ -1375,7 +1297,7 @@ const Dashboard = () => {
                   return (
                     <div
                       key={c.id}
-                      className={`rounded-xl border p-5 transition-all duration-200 hover:border-[#4F8CFF]/50 hover:shadow-card cursor-pointer micro-lift ${isSelected ? "case-focus-glow" : ""}`}
+                      className={`rounded-xl border p-4 transition-all duration-200 hover:border-[#4F8CFF]/50 hover:shadow-card cursor-pointer micro-lift ${isSelected ? "case-focus-glow" : ""}`}
                       style={{
                         background: "#050B16",
                         borderColor: isSelected ? "#4F8CFF" : "#243045",
@@ -1398,7 +1320,7 @@ const Dashboard = () => {
                         </div>
                       </div>
 
-                      <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+                      <div className="mt-4 grid grid-cols-2 gap-2.5 text-sm">
                         <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
                           <p className="intel-metric-label text-muted-foreground">Incidents</p>
                           <p className="mt-1 font-semibold">{incidents}</p>
@@ -1409,13 +1331,13 @@ const Dashboard = () => {
                         </div>
                       </div>
 
-                      <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                      <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
                         <p>Evidence Score: <span className="text-[#2ECC71] font-semibold">{score}/100</span></p>
                         <p>Missing evidence: <span className="font-semibold text-[#F2C94C]">{missingWarnings}</span></p>
                         <p>Last updated: <span className="text-foreground">{lastUpdatedLabel(c.updated_at)}</span></p>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between gap-3">
+                      <div className="mt-3 flex items-center justify-between gap-3">
                         <span className="text-xs text-muted-foreground">{isSelected ? "Focused for intelligence" : "Tap to focus intelligence"}</span>
                         <div className="flex items-center gap-3">
                           <Link
@@ -1447,7 +1369,7 @@ const Dashboard = () => {
                 <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
                 <h3 className="intel-section-title text-foreground">Live Intelligence Feed</h3>
               </div>
-              <div className="mb-4 flex flex-wrap items-center gap-2 text-muted-foreground">
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-muted-foreground">
                 <span className="inline-flex items-center gap-1 intel-label">
                   Source legend
                   <Tooltip>
@@ -1485,7 +1407,7 @@ const Dashboard = () => {
               )}
               <div className="space-y-3">
                 {selectedCaseFeed.map((item) => (
-                  <div key={`${item.title}-${item.timeAgo}`} className="rounded-lg border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <div key={`${item.title}-${item.timeAgo}`} className="rounded-lg border p-3.5" style={{ background: "#050B16", borderColor: "#243045" }}>
                     <div className="flex items-start gap-3">
                       <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full indicator-pulse" style={{ background: item.tone === "danger" ? "#E74C3C" : item.tone === "warning" ? "#F2C94C" : "#2ECC71" }} />
                       <div>
@@ -1512,7 +1434,7 @@ const Dashboard = () => {
                   </div>
                 ))}
                 {selectedCaseAlerts.map((alert) => (
-                  <div key={`${alert.title}-${alert.body}`} className={`rounded-lg border p-4 ${alert.title.includes("Contradiction") ? "contradiction-subtle" : ""}`} style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <div key={`${alert.title}-${alert.body}`} className={`rounded-lg border p-3.5 ${alert.title.includes("Contradiction") ? "contradiction-subtle" : ""}`} style={{ background: "#050B16", borderColor: "#243045" }}>
                     <p className="text-sm font-semibold" style={{ color: alert.tone === "success" ? "#2ECC71" : "#E74C3C" }}>{alert.title}</p>
                     <p className="text-sm text-muted-foreground mt-1">{alert.body}</p>
                     <div className="mt-2">
@@ -1538,7 +1460,7 @@ const Dashboard = () => {
                 <h3 className="intel-section-title text-foreground">AI Pattern Detection</h3>
               </div>
               {selectedCasePattern && (
-                <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
+                <div className="rounded-xl border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
                   <p className="intel-section-title text-[#4F8CFF]">{selectedCasePattern.title}</p>
                   <h4 className="mt-3 text-2xl font-semibold text-balance">{selectedCasePattern.headline}</h4>
                   <p className="intel-title-body">{selectedCasePattern.body}</p>
@@ -1548,36 +1470,7 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.95fr] xl:items-start mb-8">
-          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="intel-section-head">
-              <Clock3 className="h-4 w-4 text-[#4F8CFF]" />
-              <h3 className="intel-section-title text-foreground">Timeline Heatmap</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">See incident-heavy days, conflict spikes, and documentation frequency over the last five weeks.</p>
-            <div className="grid grid-cols-7 gap-2">
-              {heatmap.map((day, idx) => (
-                <div
-                  key={day.key}
-                  className="aspect-square rounded-md border timeline-fade-in"
-                  style={{
-                    background: heatmapColor(day.intensity),
-                    borderColor: "rgba(255,255,255,0.06)",
-                    animationDelay: `${Math.min(idx * 15, 420)}ms`,
-                  }}
-                  title={day.label}
-                />
-              ))}
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>Low</span>
-              {[0, 1, 2, 3, 4].map((intensity) => (
-                <span key={intensity} className="inline-flex h-3 w-3 rounded-sm border" style={{ background: heatmapColor(intensity), borderColor: "rgba(255,255,255,0.06)" }} />
-              ))}
-              <span>High</span>
-            </div>
-          </div>
-
+        <section className="grid gap-4 xl:grid-cols-[1fr] xl:items-start mb-8">
           <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
             <div className="intel-section-head">
               <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
