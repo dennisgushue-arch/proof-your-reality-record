@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, Clock3, CircleHelp, Bell, UserCircle2, Sparkles, Lock, Cloud, Fingerprint } from "lucide-react";
+import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, CircleHelp, Bell, UserCircle2, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -821,7 +821,6 @@ const Dashboard = () => {
   const selectedCaseMissingWarnings = selectedCaseIncidentRows.length
     ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentMissingEvidenceCount(incident), 0)
     : caseMissingEvidenceWarnings(selectedCaseIncidents);
-  const selectedCaseRisk = caseRiskFromIncidents(selectedCaseIncidentRows, selectedCaseIncidents);
   const selectedCaseScore = evidenceScoreFromIncidents(selectedCaseIncidentRows, selectedCaseIncidents);
   const selectedCaseStrengthTone = evidenceStrengthTone(selectedCaseScore);
   const selectedCaseConfidence = evidenceConfidenceFromIncidents(selectedCaseIncidentRows);
@@ -1408,30 +1407,6 @@ const Dashboard = () => {
           </div>
         </section>
 
-        <section className="mb-8 rounded-2xl border p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
-          <p className="intel-module-title text-[#AAB4C8] mb-3">INTELLIGENCE FLOW</p>
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="intel-chip-lg" style={{ borderColor: "#243045", color: "#4F8CFF" }}>Capture</span>
-            <span className="text-[#AAB4C8]">→</span>
-            <span className="intel-chip-lg" style={{ borderColor: "#243045", color: "#4F8CFF" }}>Analysis</span>
-            <span className="text-[#AAB4C8]">→</span>
-            <span className="intel-chip-lg" style={{ borderColor: "rgba(231, 76, 60, 0.45)", color: "#E74C3C" }}>Contradictions</span>
-            <span className="text-[#AAB4C8]">→</span>
-            <span className="intel-chip-lg" style={{ borderColor: "#243045", color: "#2ECC71" }}>Evidence Packet</span>
-          </div>
-        </section>
-
-        <section className="mb-8 rounded-2xl border p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
-          <p className="intel-module-title text-[#AAB4C8] mb-3">TRUST SIGNALS</p>
-          <div className="flex flex-wrap gap-2">
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#2ECC71" }}><Lock className="intel-inline-icon" /> Encrypted</span>
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#4F8CFF" }}><Clock3 className="intel-inline-icon" /> Timestamp verified</span>
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8" }}><ShieldCheck className="intel-inline-icon" /> Evidence secured</span>
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8" }}><Fingerprint className="intel-inline-icon" /> Private storage</span>
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8" }}><Cloud className="intel-inline-icon" /> Cloud backup</span>
-          </div>
-        </section>
-
         <section className="mb-8">
           <WhatsNewCard className="intelligence-glass" maxItems={3} />
         </section>
@@ -1680,70 +1655,6 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[1fr] xl:items-start mb-8">
-          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="intel-section-head">
-              <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
-              <h3 className="intel-section-title text-foreground">Case Risk Scoring</h3>
-            </div>
-            <div className="space-y-3">
-              {displayCases.slice(0, 4).map((c) => {
-                const incidentRows = c.id !== "sample-case" ? (incidentsByCase[c.id] ?? []) : [];
-                const risk = caseRiskFromIncidents(incidentRows, c.incident_count ?? 0);
-                return (
-                  <div key={`risk-${c.id}`} className="rounded-lg border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">{c.title}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{caseCategoryLabel(c.category)}</p>
-                      </div>
-                      <span className="intel-chip-lg intel-metric-label" style={{ color: risk.color, borderColor: risk.color, background: risk.background }}>
-                        {risk.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {selectedCase && (
-                <div className="rounded-lg border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <p className="text-xs text-muted-foreground">Focused case risk</p>
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <span className="font-semibold">{selectedCase.title}</span>
-                    <span className="intel-chip-lg intel-metric-label" style={{ color: selectedCaseRisk.color, borderColor: selectedCaseRisk.color, background: selectedCaseRisk.background }}>
-                      {selectedCaseRisk.label}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-8 rounded-[28px] border p-6 intelligence-glass" style={{ borderColor: "#243045" }}>
-          <div className="intel-section-head">
-            <Sparkles className="h-4 w-4 text-[#4F8CFF]" />
-            <h3 className="intel-section-title text-foreground">Reality Graph</h3>
-          </div>
-          <p className="text-sm text-muted-foreground mb-5">Entity relationship map for conflict intelligence: people, artifacts, financial events, contradictions, and incidents.</p>
-          <div className="grid gap-3 md:grid-cols-5">
-            {[
-              { label: "Person A", tone: "#4F8CFF" },
-              { label: "Text Message", tone: "#4F8CFF" },
-              { label: "Payment", tone: "#2ECC71" },
-              { label: "Contradiction", tone: "#E74C3C" },
-              { label: "Incident", tone: "#F2C94C" },
-            ].map((node, index, arr) => (
-              <div key={node.label} className="flex items-center gap-2">
-                <div className="rounded-lg border px-3 py-2 intel-metric-label w-full text-center" style={{ borderColor: node.tone, color: node.tone, background: `${node.tone}1A` }}>
-                  {node.label}
-                </div>
-                {index < arr.length - 1 && <span className="hidden md:inline text-[#AAB4C8]">→</span>}
-              </div>
-            ))}
           </div>
         </section>
 
