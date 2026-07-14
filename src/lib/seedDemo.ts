@@ -1,9 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeNarrative } from "./mockAI";
 
-export async function seedDemoIfEmpty(userId: string) {
+export async function seedDemoIfEmpty(userId: string): Promise<string | null> {
   const { count } = await supabase.from("cases").select("id", { count: "exact", head: true }).eq("user_id", userId);
-  if ((count ?? 0) > 0) return;
+  if ((count ?? 0) > 0) return null;
 
   const { data: caseRow, error } = await supabase
     .from("cases")
@@ -15,7 +15,7 @@ export async function seedDemoIfEmpty(userId: string) {
     })
     .select()
     .single();
-  if (error || !caseRow) return;
+  if (error || !caseRow) return null;
 
   const incidents = [
     {
@@ -79,4 +79,6 @@ export async function seedDemoIfEmpty(userId: string) {
       tags: inc.tags,
     });
   }
+
+  return caseRow.id;
 }

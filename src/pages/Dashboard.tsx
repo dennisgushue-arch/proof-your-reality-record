@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, FolderOpen, Siren, AlertTriangle, ShieldCheck, CircleHelp, Bell, UserCircle2, Sparkles, Lock } from "lucide-react";
+import { Plus, FileText, Camera, Mic, Square, X, Siren } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { CATEGORIES, categoryColor } from "@/lib/categories";
+import { CATEGORIES } from "@/lib/categories";
 import { relabelCapturedPhotos } from "@/lib/capturedPhotoNaming";
 import { LIVE_INCIDENT_EVENT, readLiveIncidentState, type LiveIncidentState } from "@/lib/liveIncident";
 import { seedDemoIfEmpty } from "@/lib/seedDemo";
@@ -14,7 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { WhatsNewCard } from "@/components/WhatsNewCard";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
@@ -133,62 +132,9 @@ function clampScore(score: number) {
   return Math.round(Math.max(40, Math.min(98, score)));
 }
 
-function evidenceStrengthTone(score: number) {
-  if (score >= 80) return { color: "#2ECC71", label: "Strong" };
-  if (score >= 65) return { color: "#F2C94C", label: "Incomplete" };
-  return { color: "#E74C3C", label: "Weak" };
-}
-
-function caseRiskFromCount(incidentCount = 0) {
-  const contradictions = caseContradictions(incidentCount);
-  const missingEvidence = caseMissingEvidenceWarnings(incidentCount);
-  const score = evidenceScore(incidentCount);
-  const pressure = contradictions * 24 + missingEvidence * 18 + Math.max(0, 78 - score);
-
-  if (pressure >= 56) return { label: "CRITICAL", color: "#E74C3C", background: "rgba(231, 76, 60, 0.12)" };
-  if (pressure >= 36) return { label: "HIGH", color: "#F2994A", background: "rgba(242, 153, 74, 0.12)" };
-  if (pressure >= 18) return { label: "MEDIUM", color: "#F2C94C", background: "rgba(242, 201, 76, 0.12)" };
-  return { label: "LOW", color: "#2ECC71", background: "rgba(46, 204, 113, 0.12)" };
-}
-
-function caseRiskFromIncidents(incidents: IncidentIntelRow[], fallbackIncidentCount = 0) {
-  if (!incidents.length) return caseRiskFromCount(fallbackIncidentCount);
-
-  const contradictions = incidents.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0);
-  const missingEvidence = incidents.reduce((sum, incident) => sum + incidentMissingEvidenceCount(incident), 0);
-  const scored = incidents.filter((incident) => typeof incident.evidence_quality_score === "number");
-  const averageScore = scored.length
-    ? Math.round(scored.reduce((sum, incident) => sum + (incident.evidence_quality_score ?? 0), 0) / scored.length)
-    : evidenceScore(incidents.length);
-  const lowQualityCount = scored.filter((incident) => (incident.evidence_quality_score ?? 100) < 50).length;
-  const recentIncidents = incidents.filter(
-    (incident) => Date.now() - new Date(incident.occurred_at).getTime() <= 7 * 24 * 60 * 60 * 1000,
-  ).length;
-
-  const pressure =
-    contradictions * 14 +
-    missingEvidence * 8 +
-    lowQualityCount * 10 +
-    Math.max(0, 74 - averageScore) +
-    Math.max(0, recentIncidents - 2) * 4;
-
-  if (pressure >= 56) return { label: "CRITICAL", color: "#E74C3C", background: "rgba(231, 76, 60, 0.12)" };
-  if (pressure >= 36) return { label: "HIGH", color: "#F2994A", background: "rgba(242, 153, 74, 0.12)" };
-  if (pressure >= 18) return { label: "MEDIUM", color: "#F2C94C", background: "rgba(242, 201, 76, 0.12)" };
-  return { label: "LOW", color: "#2ECC71", background: "rgba(46, 204, 113, 0.12)" };
-}
-
 function caseCategoryLabel(category: string) {
   if (category === "Contractor") return "Contractor Dispute";
   return category;
-}
-
-function lastUpdatedLabel(dateStr: string) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-  if (isToday) return "Today";
-  return date.toLocaleDateString();
 }
 
 function liveIncidentAgeLabel(startedAt?: string) {
@@ -321,54 +267,6 @@ function evidenceScoreFromIncidents(incidents: IncidentIntelRow[], fallbackIncid
   const adjusted = weightedAverage - Math.min(12, contradictions * 2) - Math.min(10, Math.round(missingEvidence * 1.4));
 
   return clampScore(adjusted);
-}
-
-function evidenceConfidenceFromIncidents(incidents: IncidentIntelRow[]) {
-  const total = incidents.length;
-  if (total === 0) {
-    return {
-      label: "LOW CONFIDENCE",
-      color: "#E74C3C",
-      background: "rgba(231, 76, 60, 0.12)",
-      analyzed: 0,
-      fallback: 0,
-    };
-  }
-
-  const analyzed = incidents.filter((incident) => {
-    const analysis = readAnalysis(incident.ai_analysis);
-    return Boolean(analysis) || typeof incident.evidence_quality_score === "number";
-  }).length;
-  const fallback = Math.max(0, total - analyzed);
-  const coverage = analyzed / total;
-
-  if (coverage >= 0.75 && analyzed >= 3) {
-    return {
-      label: "HIGH CONFIDENCE",
-      color: "#2ECC71",
-      background: "rgba(46, 204, 113, 0.12)",
-      analyzed,
-      fallback,
-    };
-  }
-
-  if (coverage >= 0.4 || analyzed >= 2) {
-    return {
-      label: "MEDIUM CONFIDENCE",
-      color: "#F2C94C",
-      background: "rgba(242, 201, 76, 0.12)",
-      analyzed,
-      fallback,
-    };
-  }
-
-  return {
-    label: "LOW CONFIDENCE",
-    color: "#E74C3C",
-    background: "rgba(231, 76, 60, 0.12)",
-    analyzed,
-    fallback,
-  };
 }
 
 function timeAgoLabel(dateStr: string) {
@@ -548,21 +446,6 @@ function buildPatternInsight(caseRow: CaseRow, incidents: IncidentIntelRow[]): P
   };
 }
 
-const ONBOARDING_STEPS = [
-  {
-    title: "Conflict happens fast.",
-    body: "Memory changes. Evidence disappears.",
-  },
-  {
-    title: "Capture incidents in real time.",
-    body: "Use voice notes, screenshots, and timestamps while details are fresh.",
-  },
-  {
-    title: "Proof reconstructs what happened.",
-    body: "Timelines, contradiction detection, and evidence organization happen automatically.",
-  },
-] as const;
-
 const ANALYSIS_LOADING_LINES = [
   "Analyzing timeline…",
   "Detecting contradictions…",
@@ -572,8 +455,6 @@ const ANALYSIS_LOADING_LINES = [
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [incidentsByCase, setIncidentsByCase] = useState<Record<string, IncidentIntelRow[]>>({});
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
@@ -642,14 +523,6 @@ const Dashboard = () => {
   useEffect(() => {
     load();
     // eslint-disable-next-line
-  }, [user]);
-
-  useEffect(() => {
-    if (!user || typeof window === "undefined") return;
-    const onboardingKey = `proof_onboarding_seen_${user.id}`;
-    const seen = window.localStorage.getItem(onboardingKey);
-    setShowOnboarding(!seen);
-    setOnboardingStep(0);
   }, [user]);
 
   useEffect(() => {
@@ -818,55 +691,9 @@ const Dashboard = () => {
   const selectedCaseContradictions = selectedCaseIncidentRows.length
     ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
     : caseContradictions(selectedCaseIncidents);
-  const selectedCaseMissingWarnings = selectedCaseIncidentRows.length
-    ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentMissingEvidenceCount(incident), 0)
-    : caseMissingEvidenceWarnings(selectedCaseIncidents);
-  const selectedCaseScore = evidenceScoreFromIncidents(selectedCaseIncidentRows, selectedCaseIncidents);
-  const selectedCaseStrengthTone = evidenceStrengthTone(selectedCaseScore);
-  const selectedCaseConfidence = evidenceConfidenceFromIncidents(selectedCaseIncidentRows);
   const selectedCaseBackendUsed = aggregateBackendUsed(selectedCaseIncidentRows);
   const selectedCaseBackendDisplay = backendUsedDisplay(selectedCaseBackendUsed);
   const storyShiftLines = contradictionStoryLines(selectedCaseIncidentRows);
-
-  const allIncidentRows = useMemo(
-    () => Object.values(incidentsByCase).flat(),
-    [incidentsByCase],
-  );
-  const latestIncident = useMemo(
-    () => [...allIncidentRows].sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime())[0] ?? null,
-    [allIncidentRows],
-  );
-  const mostActiveCase = useMemo(() => {
-    if (!displayCases.length) return null;
-    return [...displayCases].sort((a, b) => (b.incident_count ?? 0) - (a.incident_count ?? 0))[0] ?? null;
-  }, [displayCases]);
-
-  const selectedCaseAlerts = selectedCase ? [
-    {
-      title: "⚠ Missing Evidence",
-      body: selectedCaseMissingWarnings > 0
-        ? `${selectedCase.title} is missing a core supporting file, like a payment receipt or photo.`
-        : `${selectedCase.title} has the essential evidence packet in place.`,
-      tone: selectedCaseMissingWarnings > 0 ? "danger" as const : "success" as const,
-      details: [] as string[],
-    },
-    selectedCaseContradictions > 0
-      ? {
-          title: "⚠ STORY CHANGED",
-          body: `${selectedCaseContradictions} contradiction alert${selectedCaseContradictions === 1 ? "" : "s"} in ${selectedCase.title}.`,
-          tone: "danger" as const,
-          details: storyShiftLines ?? [
-            "Earlier: commitment was made.",
-            "Later: commitment was denied.",
-          ],
-        }
-      : {
-          title: "✓ No Contradictions Yet",
-          body: `${selectedCase.title} is currently consistent across the recorded timeline.`,
-          tone: "success" as const,
-          details: [] as string[],
-        },
-  ] : [];
 
   const selectedCaseFeed = selectedCase ? buildThreatFeed(selectedCaseIncidentRows) : [];
   const selectedCasePattern = selectedCase ? buildPatternInsight(selectedCase, selectedCaseIncidentRows) : null;
@@ -875,22 +702,14 @@ const Dashboard = () => {
   const nextInteractionCase = upcomingReminder
     ? displayCases.find((c) => c.id === upcomingReminder.case_id) ?? selectedCase
     : selectedCase;
-  const nextInteractionLabel = upcomingReminder?.title ?? (nextInteractionCase ? `${caseCategoryLabel(nextInteractionCase.category)} check-in` : "No interaction scheduled");
-  const nextInteractionTime = upcomingReminder?.due_at
-    ? new Date(upcomingReminder.due_at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-    : "Set up the next conversation when you're ready.";
   const resumeLiveLink = liveSessionId
     ? `/stress-mode?liveSession=${encodeURIComponent(liveSessionId)}${selectedCase ? `&caseId=${encodeURIComponent(selectedCase.id)}` : ""}`
     : "/stress-mode";
-  const createFromLiveLink = liveSessionId && selectedCase
-    ? `/cases/${selectedCase.id}/incidents/new?liveSession=${encodeURIComponent(liveSessionId)}`
-    : null;
 
   const animatedIncidentCount = useAnimatedNumber(vaultIncidentCount);
   const animatedContradictionCount = useAnimatedNumber(vaultContradictionCount);
   const animatedMissingWarnings = useAnimatedNumber(vaultMissingWarnings);
   const animatedAverageStrength = useAnimatedNumber(averageEvidenceStrength);
-  const animatedSelectedScore = useAnimatedNumber(selectedCaseScore);
 
   useEffect(() => {
     if (!selectedCase || selectedCaseContradictions < 1) return;
@@ -911,30 +730,6 @@ const Dashboard = () => {
         intelligencePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
-  };
-
-  const dismissOnboarding = () => {
-    if (user && typeof window !== "undefined") {
-      window.localStorage.setItem(`proof_onboarding_seen_${user.id}`, "true");
-    }
-    setShowOnboarding(false);
-  };
-
-  const nextOnboardingStep = () => {
-    setOnboardingStep((prev) => {
-      const next = Math.min(prev + 1, ONBOARDING_STEPS.length - 1);
-      if (next !== prev) {
-        playUiTone("click");
-        triggerHaptic("light");
-      }
-      return next;
-    });
-  };
-
-  const previousOnboardingStep = () => {
-    setOnboardingStep((prev) => Math.max(0, prev - 1));
-    playUiTone("click");
-    triggerHaptic("light");
   };
 
   const exploreDemoCase = async () => {
@@ -962,76 +757,6 @@ const Dashboard = () => {
   return (
     <AppLayout>
       <main className="px-6 max-[420px]:px-3 lg:px-10 py-10 max-[420px]:py-7 pb-28 lg:pb-10 ios-safe-page-pad" style={{ background: "#050B16" }}>
-        <section className="mb-6 rounded-2xl border px-4 py-3 intelligence-glass" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
-          <div className="flex flex-wrap items-center gap-2 text-xs md:text-sm">
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "rgba(46, 204, 113, 0.45)", color: "#2ECC71", background: "rgba(46, 204, 113, 0.12)" }}>
-              ✓ Timestamp Verified
-            </span>
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "rgba(79, 140, 255, 0.45)", color: "#4F8CFF", background: "rgba(79, 140, 255, 0.12)" }}>
-              ✓ Evidence Protected
-            </span>
-            <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
-              ✓ Private
-            </span>
-          </div>
-        </section>
-
-        {showOnboarding && (
-          <section className="mb-6 rounded-2xl border p-5 intelligence-glass case-intelligence-fade" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="intel-module-title text-[#4F8CFF]">ONBOARDING</p>
-                <h2 className="mt-1 text-lg font-semibold">Welcome to Proof — here’s the 30-second orientation</h2>
-                <div className="mt-3 rounded-xl border p-4" style={{ borderColor: "#243045", background: "#050B16" }}>
-                  <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Screen {onboardingStep + 1} of {ONBOARDING_STEPS.length}</p>
-                  <h3 className="mt-2 text-base font-semibold">{ONBOARDING_STEPS[onboardingStep].title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{ONBOARDING_STEPS[onboardingStep].body}</p>
-                </div>
-                <div className="mt-3 flex items-center gap-1.5">
-                  {ONBOARDING_STEPS.map((_, idx) => (
-                    <span
-                      key={`onboarding-dot-${idx}`}
-                      className="inline-flex h-1.5 w-6 rounded-full"
-                      style={{ background: idx === onboardingStep ? "#4F8CFF" : "rgba(79, 140, 255, 0.25)" }}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  className="border-border tactile-button"
-                  onClick={exploreDemoCase}
-                  disabled={seedingDemo}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  {seedingDemo ? "Loading demo…" : "Open Demo Export Packet"}
-                </Button>
-                <Button variant="outline" className="border-border tactile-button" onClick={dismissOnboarding}>
-                  Skip
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-border tactile-button"
-                  onClick={previousOnboardingStep}
-                  disabled={onboardingStep === 0}
-                >
-                  Back
-                </Button>
-                {onboardingStep < ONBOARDING_STEPS.length - 1 ? (
-                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button" onClick={nextOnboardingStep}>
-                    Next
-                  </Button>
-                ) : (
-                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button" onClick={dismissOnboarding}>
-                    Let’s go
-                  </Button>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-
         {liveIncidentState?.active && (
           <div className="sticky ios-safe-sticky-top lg:top-4 z-20 mb-6 rounded-2xl border px-4 py-3 intelligence-glass live-banner-glow" style={{ borderColor: "rgba(231, 76, 60, 0.35)" }}>
             <div className="flex flex-wrap items-center gap-3">
@@ -1041,141 +766,45 @@ const Dashboard = () => {
             </div>
           </div>
         )}
+        <section className="mb-8 rounded-[28px] border p-7 md:p-9 intelligence-glass" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
+          <p className="text-sm font-medium text-[#4F8CFF]">{getGreeting()}{displayName ? `, ${displayName}` : ""}</p>
+          <h1 className="mt-3 text-[2.3rem] md:text-[2.6rem] leading-tight font-semibold tracking-tight text-balance">
+            Capture reality while it&apos;s fresh.
+          </h1>
+          <p className="mt-3 text-base text-muted-foreground">Powered by the Reality Intelligence Center.</p>
 
-        {liveSessionId && (
-          <section className="mb-6 rounded-2xl border p-5 intelligence-glass case-intelligence-fade" style={{ borderColor: "rgba(79, 140, 255, 0.35)" }}>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="intel-module-title text-[#4F8CFF]">LIVE SESSION</p>
-                <h2 className="mt-1 text-lg font-semibold">Resume Live Session</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Continue capturing your active timeline or auto-create a draft incident from this session.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Link to={resumeLiveLink}>
-                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
-                    Resume capture
-                  </Button>
-                </Link>
-                {createFromLiveLink ? (
-                  <Link to={createFromLiveLink}>
-                    <Button variant="outline" className="border-border tactile-button">
-                      Create incident draft
-                    </Button>
-                  </Link>
-                ) : (
-                  <Button variant="outline" disabled className="border-border">
-                    Create incident draft
-                  </Button>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
+          <div className="mt-7">
+            <Link to="/stress-mode" className="inline-flex">
+              <Button className="h-16 px-8 text-lg font-semibold bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated tactile-button">
+                <Siren className="mr-2 h-5 w-5" /> START LIVE INCIDENT
+              </Button>
+            </Link>
+          </div>
 
-        <section className="mb-6 rounded-2xl border p-5 intelligence-glass case-intelligence-fade" style={{ borderColor: hasPrepareAccess ? "rgba(79, 140, 255, 0.35)" : "rgba(242, 201, 76, 0.35)" }}>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="intel-module-title text-[#4F8CFF]">NEXT INTERACTION</p>
-              <h2 className="mt-1 text-lg font-semibold">{hasPrepareAccess ? nextInteractionLabel : "Unlock Prepare Me"}</h2>
-              <p className="mt-2 text-sm text-muted-foreground max-w-xl">
-                {hasPrepareAccess
-                  ? `${nextInteractionCase?.title ?? "Select a case"} • ${nextInteractionTime}`
-                  : "Prepare Me is a Pro feature that briefs users before custody exchanges, meetings, mediation, calls, and difficult conversations."}
-              </p>
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border p-4" style={{ borderColor: "#243045", background: "#101826" }}>
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Protection Score</p>
+              <p className="mt-2 text-3xl font-semibold text-[#2ECC71]">{animatedAverageStrength}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {hasPrepareAccess && nextInteractionCase ? (
-                <Link to={`/cases/${nextInteractionCase.id}/prepare`}>
-                  <Button className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
-                    <Sparkles className="mr-2 h-4 w-4" /> PREPARE ME
-                  </Button>
-                </Link>
-              ) : (
-                <Link to="/pricing">
-                  <Button className="bg-[#F2C94C] hover:bg-[#F2C94C]/90 text-[#05111A] tactile-button">
-                    <Sparkles className="mr-2 h-4 w-4" /> Unlock Pro
-                  </Button>
-                </Link>
-              )}
+            <div className="rounded-xl border p-4" style={{ borderColor: "#243045", background: "#101826" }}>
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Active Cases</p>
+              <p className="mt-2 text-3xl font-semibold text-foreground">{displayCases.length}</p>
+            </div>
+            <div className="rounded-xl border p-4" style={{ borderColor: "rgba(231, 76, 60, 0.45)", background: "rgba(52, 16, 21, 0.9)" }}>
+              <p className="text-xs uppercase tracking-[0.08em] text-[#F7B4AD]">Alerts</p>
+              <p className="mt-2 text-3xl font-semibold text-[#E74C3C]">{vaultContradictionCount}</p>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-4 max-[420px]:gap-3 xl:grid-cols-[1.4fr_0.95fr] xl:items-start mb-8">
-          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-            <p className="text-xs text-muted-foreground mb-1 font-mono">
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-            </p>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-[#4F8CFF]">{getGreeting()}{displayName ? `, ${displayName}` : ""}.</p>
-                <h1 className="mt-3 text-4xl md:text-6xl font-semibold tracking-tight text-balance">REALITY INTELLIGENCE CENTER</h1>
-                <p className="mt-2 text-lg md:text-xl font-medium text-[#E2E8F6]">Protect the record before it changes.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
-                  <Bell className="intel-inline-icon" /> {vaultContradictionCount} alerts
-                </span>
-                <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
-                  <Siren className="intel-inline-icon" /> {activeIncidentsDisplay} active
-                </span>
-                <span className="intel-chip-md intel-chip-icon" style={{ borderColor: "#243045", color: "#AAB4C8", background: "rgba(16, 24, 38, 0.7)" }}>
-                  <UserCircle2 className="intel-inline-icon" /> {displayName || "Operator"}
-                </span>
-              </div>
-            </div>
-            <p className="mt-4 text-base md:text-lg text-muted-foreground max-w-2xl">Capture the moment. Lock the facts. Keep contradictions visible.</p>
-
-            <div className="mt-6 rounded-2xl border p-5" style={{ background: "rgba(5, 11, 22, 0.82)", borderColor: "#243045" }}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#4F8CFF]">
-                  <ShieldCheck className="h-4 w-4" />
-                  <span className="intel-section-title text-[#4F8CFF]">Reality Intelligence Overview</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[#4F8CFF] indicator-pulse" />
-                  <span className="intel-metric-label text-muted-foreground">Pattern visibility online</span>
-                </div>
-              </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-[#4F8CFF] indicator-pulse" />
-                    Active Incidents
-                  </div>
-                  <p className="mt-2 text-3xl font-bold counter-rise">{animatedIncidentCount}</p>
-                </div>
-                <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-[#E74C3C] indicator-pulse" />
-                    Contradiction Detected
-                  </div>
-                  <p className="mt-2 text-3xl font-bold text-[#E74C3C] counter-rise">{animatedContradictionCount}</p>
-                </div>
-                <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-[#F2C94C] indicator-pulse" />
-                    Missing Evidence Requests
-                  </div>
-                  <p className="mt-2 text-3xl font-bold text-[#F2C94C] counter-rise">{animatedMissingWarnings}</p>
-                </div>
-                <div className="rounded-xl border p-4" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <div className="flex items-center gap-2 intel-metric-label text-muted-foreground">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-[#2ECC71] indicator-pulse" />
-                    Protection Score
-                  </div>
-                  <p className="mt-2 text-3xl font-bold text-[#2ECC71] counter-rise">{animatedAverageStrength}%</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 max-[420px]:mt-7 flex flex-wrap gap-3 max-[420px]:gap-2.5">
+        <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr] mb-8">
+          <div className="rounded-[28px] border p-6 md:p-7 intelligence-glass" style={{ borderColor: "#243045" }}>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-2xl font-semibold">Active Cases</h2>
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
-                  <Button size="lg" className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white font-semibold tactile-button">
-                    <Plus className="mr-2 h-4 w-4" /> New Case
+                  <Button size="sm" className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
+                    <Plus className="mr-1 h-4 w-4" /> New Case
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="bg-card border-border">
@@ -1273,389 +902,134 @@ const Dashboard = () => {
                   </div>
                 </DialogContent>
               </Dialog>
+            </div>
 
-              <Button
-                variant="outline"
-                className="border-border text-muted-foreground hover:text-foreground tactile-button"
-                onClick={exploreDemoCase}
-                disabled={seedingDemo}
-              >
-                {seedingDemo ? "Loading demo…" : "EXPLORE DEMO CASE"}
-              </Button>
-
-              <span className="ml-3 inline-flex items-center rounded-full bg-indigo-700 text-xs px-2 py-1 text-white">Multi-evidence demo</span>
-
-              <Link to="/demo/playback" className="inline-flex">
-                <Button variant="outline" className="border-border text-muted-foreground hover:text-foreground tactile-button">
-                  Watch Demo Playback
-                </Button>
-              </Link>
+            <div className="mt-5 space-y-3">
+              {loading ? (
+                <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <p className="text-sm text-muted-foreground animate-pulse">{ANALYSIS_LOADING_LINES[loadingLineIndex]}</p>
+                </div>
+              ) : displayCases.length === 0 ? (
+                <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <p className="text-base font-semibold">No active cases yet.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">Create your first case to start protecting the record.</p>
+                </div>
+              ) : (
+                displayCases.slice(0, 4).map((c) => (
+                  <div
+                    key={c.id}
+                    className="rounded-xl border p-4 md:p-5 cursor-pointer hover:border-[#4F8CFF]/55 transition-colors"
+                    style={{ background: "#050B16", borderColor: c.id === selectedCase?.id ? "#4F8CFF" : "#243045" }}
+                    onClick={() => focusCase(c.id)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[1.05rem] font-semibold leading-snug">{c.title}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{caseCategoryLabel(c.category)}</p>
+                      </div>
+                      <Link to={`/cases/${c.id}`} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-[#4F8CFF] hover:text-white">
+                        Open
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
-          <div className="grid gap-4 max-[420px]:gap-3">
-            <div
-              className="rounded-[28px] border p-6 max-[420px]:p-4 md:p-7 intelligence-glass live-banner-glow"
-              style={{ borderColor: "rgba(79, 140, 255, 0.55)", boxShadow: "0 16px 42px rgba(79, 140, 255, 0.18)" }}
-            >
-              <p className="intel-label text-[#4F8CFF] max-[420px]:text-[10px]">EMERGENCY DOCUMENTATION</p>
-              <h3 className="mt-2 text-2xl max-[420px]:text-[1.4rem] md:text-3xl font-extrabold tracking-[0.02em] leading-tight">START LIVE INCIDENT</h3>
-              <p className="mt-2 intel-title-body text-base max-[420px]:text-sm md:text-lg">
-                Capture voice, photos, screenshots, witness details, and timeline events right now.
-              </p>
-              <Link to="/stress-mode" className="mt-5 block">
-                <Button className="w-full h-28 max-[420px]:h-24 md:h-32 text-xl max-[420px]:text-lg md:text-3xl font-extrabold tracking-[0.1em] max-[420px]:tracking-[0.06em] bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated tactile-button whitespace-normal leading-tight px-3 max-[420px]:px-2">
-                  <Siren className="mr-3 max-[420px]:mr-2 h-6 w-6 md:h-7 md:w-7" />
-                  START LIVE INCIDENT
-                </Button>
-              </Link>
-            </div>
+          <div className="rounded-[28px] border p-6 md:p-7 intelligence-glass" style={{ borderColor: "#243045" }}>
+            <h2 className="text-2xl font-semibold">Recent Activity</h2>
 
-            <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-              <p className="intel-label text-muted-foreground">Evidence Strength</p>
-              <div className="mt-4 flex flex-col items-center justify-center gap-5">
+            {selectedCaseContradictions > 0 && (
+              <div className="mt-5 rounded-xl border p-5 contradiction-wow" style={{ borderColor: "rgba(231, 76, 60, 0.6)", background: "rgba(48, 13, 18, 0.92)" }}>
+                <p className="text-sm uppercase tracking-[0.08em] font-semibold text-[#FF6E63]">⚠ Story Changed</p>
+                <p className="mt-2 text-sm text-[#FFD4D0]">
+                  {selectedCase ? `${selectedCase.title} has contradiction flags in the record.` : "Contradictions detected in recent incidents."}
+                </p>
+                {storyShiftLines && storyShiftLines.length > 0 && (
+                  <div className="mt-3 space-y-2 text-sm text-[#FFD4D0]">
+                    {storyShiftLines.map((line, idx) => (
+                      <p key={`story-shift-${idx}`}>{line}</p>
+                    ))}
+                  </div>
+                )}
+                {selectedCase && (
+                  <Link to={`/cases/${selectedCase.id}`} className="mt-4 inline-flex text-sm font-semibold text-[#FFB3AC] hover:text-white">
+                    Review Timeline →
+                  </Link>
+                )}
+              </div>
+            )}
+
+            <div className="mt-5 space-y-3" ref={intelligencePanelRef}>
+              {selectedCaseFeed.length ? selectedCaseFeed.map((item) => (
                 <div
-                  className="h-56 w-56 md:h-64 md:w-64 rounded-full p-[14px] transition-transform duration-300 hover:scale-[1.03] evidence-ring-orbit"
+                  key={`${item.title}-${item.timeAgo}`}
+                  className="rounded-lg border p-4"
                   style={{
-                    background: `conic-gradient(${selectedCaseStrengthTone.color} ${Math.round((selectedCaseScore / 100) * 360)}deg, rgba(255,255,255,0.08) 0deg)`,
+                    background: "#050B16",
+                    borderColor: item.tone === "danger" ? "rgba(231, 76, 60, 0.55)" : item.tone === "warning" ? "rgba(242, 201, 76, 0.45)" : "#243045",
                   }}
                 >
-                  <div className="flex h-full w-full flex-col items-center justify-center rounded-full border intelligence-glass evidence-ring-core" style={{ borderColor: "#243045" }}>
-                    <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Strength</span>
-                    <span className="mt-1 text-5xl md:text-6xl font-bold counter-rise">{animatedSelectedScore}</span>
-                    <span className="text-sm text-muted-foreground">/ 100</span>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <h3 className="text-xl font-semibold">Evidence Strength Ring</h3>
-                  <p className="intel-title-body">
-                    Color shifts as the case gets stronger, incomplete, or weak.
+                  <p className="text-sm font-semibold" style={{ color: item.tone === "danger" ? "#E74C3C" : item.tone === "warning" ? "#F2C94C" : "#2ECC71" }}>
+                    {item.title}
                   </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <div className="intel-chip-lg gap-2 text-sm" style={{ borderColor: selectedCaseStrengthTone.color, color: selectedCaseStrengthTone.color, background: `${selectedCaseStrengthTone.color}1A` }}>
-                      <span className="inline-flex h-2 w-2 rounded-full indicator-pulse" style={{ background: selectedCaseStrengthTone.color }} />
-                      {selectedCaseStrengthTone.label}
-                    </div>
-                    <div
-                      className="intel-chip-lg gap-2 text-xs font-semibold tracking-[0.04em]"
-                      style={{
-                        borderColor: selectedCaseConfidence.color,
-                        color: selectedCaseConfidence.color,
-                        background: selectedCaseConfidence.background,
-                      }}
-                      title={`${selectedCaseConfidence.analyzed} analyzed incident${selectedCaseConfidence.analyzed === 1 ? "" : "s"} · ${selectedCaseConfidence.fallback} fallback incident${selectedCaseConfidence.fallback === 1 ? "" : "s"}`}
-                    >
-                      {selectedCaseConfidence.label}
-                    </div>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {selectedCaseConfidence.analyzed} analyzed · {selectedCaseConfidence.fallback} fallback
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.timeAgo}</p>
                 </div>
-              </div>
+              )) : (
+                <div className="rounded-lg border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <p className="text-sm text-muted-foreground">No recent activity yet.</p>
+                </div>
+              )}
             </div>
-
-            <div className="rounded-[28px] border intel-panel-inset max-[420px]:p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
-              <p className="intel-label text-[#4F8CFF]">Reality Snapshot</p>
-              <div className="mt-3 space-y-2.5 text-sm max-[420px]:text-xs">
-                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <p className="intel-metric-label text-muted-foreground">Last Incident</p>
-                  <p className="mt-1 font-semibold text-foreground leading-snug break-words">{latestIncident ? timeAgoLabel(latestIncident.occurred_at) : "No incidents yet"}</p>
-                </div>
-                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <p className="intel-metric-label text-muted-foreground">Most Active Case</p>
-                  <p className="mt-1 font-semibold text-foreground leading-snug break-words">{mostActiveCase?.title ?? "No active case"}</p>
-                </div>
-                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <p className="intel-metric-label text-muted-foreground">Next Interaction</p>
-                  <p className="mt-1 font-semibold text-foreground leading-snug break-words">{nextInteractionTime}</p>
-                </div>
-                <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
-                  <p className="intel-metric-label text-muted-foreground">Protection Score</p>
-                  <p className="mt-1 font-semibold text-[#2ECC71]">{animatedAverageStrength}%</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-8 grid gap-4 max-[420px]:gap-3 lg:grid-cols-5">
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
-            <p className="intel-module-title text-[#4F8CFF]">INCIDENT CAPTURE</p>
-            <p className="intel-title-body">Live sessions, screenshots, voice notes, and raw event intake.</p>
-            <div className="mt-3 text-xs text-[#AAB4C8]">{activeIncidentsDisplay} active capture streams</div>
-          </div>
-          <div className="rounded-2xl border p-5 max-[420px]:p-4 intelligence-glass lg:col-span-1 max-[420px]:order-first contradiction-wow" style={{ borderColor: "rgba(231, 76, 60, 0.75)", background: "linear-gradient(180deg, rgba(44, 12, 16, 0.95) 0%, rgba(17, 8, 11, 0.95) 100%)" }}>
-            <p className="intel-module-title text-[#E74C3C]">THREAT / CONTRADICTION ENGINE</p>
-            <p className="intel-title-body text-[#F6C2BE] max-[420px]:text-xs">Changed stories, timeline conflicts, and claim mismatches.</p>
-            <div className="mt-3 text-xs max-[420px]:text-[11px] font-semibold text-[#FF6E63]">{vaultContradictionCount} contradiction alerts</div>
-          </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
-            <p className="intel-module-title text-[#4F8CFF]">TIMELINE RECONSTRUCTION</p>
-            <p className="intel-title-body">Playback sequencing and reconstructed incident flow.</p>
-            <div className="mt-3 text-xs text-[#AAB4C8]">35-day sequence tracking online</div>
-          </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
-            <p className="intel-module-title text-[#2ECC71]">EVIDENCE SECURITY</p>
-            <p className="intel-title-body">Encrypted intake, integrity checks, and export-ready packets.</p>
-            <div className="mt-3 text-xs text-[#2ECC71] intel-chip-icon"><Lock className="intel-inline-icon" /> Integrity monitoring active</div>
-          </div>
-          <div className="rounded-2xl border p-5 intelligence-glass lg:col-span-1" style={{ borderColor: "#243045" }}>
-            <p className="intel-module-title text-[#4F8CFF]">AI INTELLIGENCE</p>
-            <p className="intel-title-body">Behavior patterns, repeated phrases, and dynamic risk scoring.</p>
-            <div className="mt-3 text-xs text-[#AAB4C8] intel-chip-icon"><Sparkles className="intel-inline-icon" /> {selectedCaseBackendDisplay.label}</div>
           </div>
         </section>
 
         <section className="mb-8">
-          <WhatsNewCard className="intelligence-glass" maxItems={3} />
-        </section>
-
-        <section className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr] xl:items-start mb-8">
-          <div className="rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="intel-section-head">
-              <FolderOpen className="h-4 w-4 text-[#4F8CFF]" />
-              <h3 className="intel-section-title text-foreground">Case Cards</h3>
-            </div>
-
-            {loading ? (
-              <div className="rounded-xl border p-5 case-intelligence-fade" style={{ background: "#050B16", borderColor: "#243045" }}>
-                <p className="text-sm text-muted-foreground animate-pulse">{ANALYSIS_LOADING_LINES[loadingLineIndex]}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Preparing your case intelligence workspace…</p>
-              </div>
-            ) : cases.length === 0 ? (
-              <div className="rounded-xl border p-5 case-intelligence-fade" style={{ background: "#050B16", borderColor: "#243045" }}>
-                <h4 className="text-lg font-semibold">No incidents recorded yet.</h4>
-                <p className="mt-2 text-sm text-muted-foreground">Start documenting while details are fresh. You can also load the demo contractor dispute to explore the full flow instantly.</p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button onClick={() => setOpen(true)} className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
-                    <Plus className="mr-2 h-4 w-4" /> Start first case
-                  </Button>
-                  <Button variant="outline" className="border-border tactile-button" onClick={exploreDemoCase} disabled={seedingDemo}>
-                    {seedingDemo ? "Loading demo…" : "EXPLORE DEMO CASE"}
-                  </Button>
-                </div>
-                <p className="mt-3 text-xs text-[#AAB4C8]">Advanced multi-evidence demo now includes photo, video, voice, GPS, witness, contradiction, and export-ready incident examples.</p>
-              </div>
-            ) : (
-              <div className="grid gap-3 md:grid-cols-2">
-                {displayCases.map((c) => {
-                  const incidents = c.incident_count ?? 0;
-                  const contradictions = caseContradictions(incidents);
-                  const missingWarnings = caseMissingEvidenceWarnings(incidents);
-                  const incidentRows = c.id !== "sample-case" ? (incidentsByCase[c.id] ?? []) : [];
-                  const score = evidenceScoreFromIncidents(incidentRows, incidents);
-                  const risk = caseRiskFromIncidents(incidentRows, incidents);
-                  const isSelected = c.id === selectedCase?.id;
-                  const cardContradictions = incidentRows.length
-                    ? incidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
-                    : contradictions;
-
-                  return (
-                    <div
-                      key={c.id}
-                      className={`rounded-xl border p-5 transition-all duration-200 hover:border-[#4F8CFF]/50 hover:shadow-card cursor-pointer micro-lift ${isSelected ? "case-focus-glow" : ""}`}
-                      style={{
-                        background: "#050B16",
-                        borderColor: isSelected ? "#4F8CFF" : "#243045",
-                        boxShadow: isSelected ? "0 0 0 1px rgba(79, 140, 255, 0.22)" : undefined,
-                      }}
-                      onClick={() => focusCase(c.id)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-lg font-semibold leading-tight">{c.title}</h4>
-                          <p className="text-sm text-muted-foreground mt-1">{caseCategoryLabel(c.category)}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <span className={`intel-chip-md intel-metric-label ${categoryColor(c.category)}`}>
-                            {caseCategoryLabel(c.category)}
-                          </span>
-                          <span className="intel-chip-md intel-metric-label" style={{ color: risk.color, borderColor: risk.color, background: risk.background }}>
-                            {risk.label}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
-                          <p className="intel-metric-label text-muted-foreground">Incidents</p>
-                          <p className="mt-1 font-semibold">{incidents}</p>
-                        </div>
-                        <div className="rounded-lg border intel-nested-inset" style={{ background: "#101826", borderColor: "#243045" }}>
-                          <p className="intel-metric-label text-muted-foreground">Contradictions</p>
-                          <p className="mt-1 font-semibold text-[#E74C3C]">{cardContradictions}</p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-                        <p>Evidence Score: <span className="text-[#2ECC71] font-semibold">{score}/100</span></p>
-                        <p>Missing evidence: <span className="font-semibold text-[#F2C94C]">{missingWarnings}</span></p>
-                        <p>Last updated: <span className="text-foreground">{lastUpdatedLabel(c.updated_at)}</span></p>
-                      </div>
-
-                      <div className="mt-4 flex items-center justify-between gap-3">
-                        <span className="text-xs text-muted-foreground">{isSelected ? "Focused for intelligence" : "Tap to focus intelligence"}</span>
-                        <div className="flex items-center gap-3">
-                          <Link
-                            to={`/cases/${c.id}/prepare`}
-                            className="text-sm font-semibold text-[#AAB4C8] hover:text-white"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Prepare Me
-                          </Link>
-                          <Link
-                            to={`/cases/${c.id}`}
-                            className="text-sm font-semibold text-[#4F8CFF] hover:text-white"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Open case
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div ref={intelligencePanelRef} className="grid gap-4 scroll-mt-20">
-            <div key={`feed-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border intel-panel-inset max-[420px]:p-4 intelligence-glass" style={{ borderColor: "#243045" }}>
-              <div className="intel-section-head">
-                <AlertTriangle className="h-4 w-4 text-[#E74C3C]" />
-                <h3 className="intel-section-title text-foreground">Live Intelligence Feed</h3>
-              </div>
-              <div className="mb-4 flex flex-wrap items-center gap-2 text-muted-foreground">
-                <span className="inline-flex items-center gap-1 intel-label">
-                  Source legend
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label="Source legend definitions"
-                      >
-                        <CircleHelp className="h-3.5 w-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[260px] text-xs leading-relaxed">
-                      <p><span className="font-semibold">Live LLM</span>: analyzed by deployed language model.</p>
-                      <p><span className="font-semibold">Fallback</span>: local analyzer used because live LLM was unavailable.</p>
-                      <p><span className="font-semibold">Mixed Sources</span>: case includes both live and fallback analyses.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </span>
-                <span className="intel-chip-sm intel-metric-label" style={{ color: "#2ECC71", borderColor: "rgba(46, 204, 113, 0.45)", background: "rgba(46, 204, 113, 0.12)" }}>
-                  Live LLM
-                </span>
-                <span className="intel-chip-sm intel-metric-label" style={{ color: "#F2C94C", borderColor: "rgba(242, 201, 76, 0.45)", background: "rgba(242, 201, 76, 0.12)" }}>
-                  Fallback
-                </span>
-                <span className="intel-chip-sm intel-metric-label" style={{ color: "#4F8CFF", borderColor: "rgba(79, 140, 255, 0.45)", background: "rgba(79, 140, 255, 0.12)" }}>
-                  Mixed Sources
-                </span>
-              </div>
-              {selectedCase && (
-                <div className="mb-4 rounded-lg border intel-nested-inset text-sm" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <span className="text-muted-foreground">Focused case:</span>{" "}
-                  <span className="font-semibold text-foreground">{selectedCase.title}</span>
-                </div>
-              )}
-              <div className="space-y-3">
-                {selectedCaseFeed.map((item) => (
-                  <div
-                    key={`${item.title}-${item.timeAgo}`}
-                    className={`rounded-lg border p-4 max-[420px]:p-3 ${item.tone === "danger" ? "contradiction-wow" : ""}`}
-                    style={{
-                      background: item.tone === "danger" ? "rgba(231, 76, 60, 0.16)" : "#050B16",
-                      borderColor: item.tone === "danger" ? "rgba(231, 76, 60, 0.55)" : "#243045",
-                      borderLeftColor: item.tone === "danger" ? "#E74C3C" : undefined,
-                      borderLeftWidth: item.tone === "danger" ? 4 : undefined,
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="mt-1 inline-flex h-2.5 w-2.5 rounded-full indicator-pulse" style={{ background: item.tone === "danger" ? "#E74C3C" : item.tone === "warning" ? "#F2C94C" : "#2ECC71" }} />
-                      <div>
-                        <p className="text-sm font-semibold" style={{ color: item.tone === "danger" ? "#E74C3C" : item.tone === "warning" ? "#F2C94C" : "#2ECC71" }}>
-                          {item.tone === "success" ? "✓" : "⚠"} {item.title}
-                        </p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2">
-                          <p className="text-xs text-muted-foreground">{item.timeAgo}</p>
-                          {item.aiDerived && (
-                            <span
-                              className="intel-chip-sm text-[10px] font-semibold"
-                              style={{
-                                color: backendUsedDisplay(item.backendUsed ?? "unknown").color,
-                                borderColor: backendUsedDisplay(item.backendUsed ?? "unknown").borderColor,
-                                background: backendUsedDisplay(item.backendUsed ?? "unknown").background,
-                              }}
-                            >
-                              {backendUsedDisplay(item.backendUsed ?? "unknown").label}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {selectedCaseAlerts.map((alert) => (
-                  <div
-                    key={`${alert.title}-${alert.body}`}
-                    className={`rounded-lg border p-4 max-[420px]:p-3 ${alert.title.includes("STORY CHANGED") ? "contradiction-subtle contradiction-wow" : ""}`}
-                    style={{
-                      background: alert.title.includes("STORY CHANGED") ? "rgba(231, 76, 60, 0.14)" : "#050B16",
-                      borderColor: alert.title.includes("STORY CHANGED") ? "rgba(231, 76, 60, 0.65)" : "#243045",
-                      borderLeftColor: alert.title.includes("STORY CHANGED") ? "#E74C3C" : undefined,
-                      borderLeftWidth: alert.title.includes("STORY CHANGED") ? 4 : undefined,
-                    }}
-                  >
-                    <p className="text-sm max-[420px]:text-xs font-semibold" style={{ color: alert.tone === "success" ? "#2ECC71" : "#FF6E63" }}>{alert.title}</p>
-                    <p className="text-sm max-[420px]:text-xs text-muted-foreground mt-1">{alert.body}</p>
-                    {alert.details.length > 0 && (
-                      <div className="mt-3 space-y-2 text-sm max-[420px]:text-xs">
-                        {alert.details.map((detail, idx) => (
-                          <div
-                            key={`${alert.title}-detail-${idx}`}
-                            className="rounded-md border px-3 py-2"
-                            style={{ borderColor: "rgba(231, 76, 60, 0.55)", background: "rgba(38, 11, 14, 0.76)", color: "#FFD4D0" }}
-                          >
-                            {detail}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-2">
-                      <span
-                        className="intel-chip-sm text-[10px] font-semibold"
-                        style={{
-                          color: selectedCaseBackendDisplay.color,
-                          borderColor: selectedCaseBackendDisplay.borderColor,
-                          background: selectedCaseBackendDisplay.background,
-                        }}
-                      >
-                        {selectedCaseBackendDisplay.label}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div key={`pattern-${selectedCase?.id ?? "none"}`} className="case-intelligence-fade rounded-[28px] border intel-panel-inset intelligence-glass" style={{ borderColor: "#243045" }}>
-              <div className="intel-section-head">
-                <ShieldCheck className="h-4 w-4 text-[#4F8CFF]" />
-                <h3 className="intel-section-title text-foreground">AI Pattern Detection</h3>
+          <details className="rounded-2xl border intelligence-glass" style={{ borderColor: "#243045" }}>
+            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-[#4F8CFF]">
+              Open advanced intelligence (one tap)
+            </summary>
+            <div className="px-5 pb-5 pt-1 space-y-4 text-sm">
+              <div className="rounded-xl border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
+                <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current AI source</p>
+                <p className="mt-2 font-semibold" style={{ color: selectedCaseBackendDisplay.color }}>{selectedCaseBackendDisplay.label}</p>
               </div>
               {selectedCasePattern && (
-                <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <p className="intel-section-title text-[#4F8CFF]">{selectedCasePattern.title}</p>
-                  <h4 className="mt-3 text-2xl font-semibold text-balance">{selectedCasePattern.headline}</h4>
-                  <p className="intel-title-body">{selectedCasePattern.body}</p>
+                <div className="rounded-xl border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
+                  <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Pattern detection</p>
+                  <p className="mt-2 font-semibold text-foreground">{selectedCasePattern.headline}</p>
+                  <p className="mt-2 text-sm text-muted-foreground">{selectedCasePattern.body}</p>
                 </div>
               )}
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" className="border-border tactile-button" onClick={exploreDemoCase} disabled={seedingDemo}>
+                  {seedingDemo ? "Loading demo…" : "Explore Demo"}
+                </Button>
+                <Link to="/demo/playback" className="inline-flex">
+                  <Button variant="outline" className="border-border tactile-button">Watch Playback</Button>
+                </Link>
+                {hasPrepareAccess && nextInteractionCase ? (
+                  <Link to={`/cases/${nextInteractionCase.id}/prepare`} className="inline-flex">
+                    <Button variant="outline" className="border-border tactile-button">Prepare Interaction</Button>
+                  </Link>
+                ) : (
+                  <Link to="/pricing" className="inline-flex">
+                    <Button variant="outline" className="border-border tactile-button">Unlock Prepare Me</Button>
+                  </Link>
+                )}
+                {liveSessionId && (
+                  <Link to={resumeLiveLink} className="inline-flex">
+                    <Button variant="outline" className="border-border tactile-button">Resume Live Session</Button>
+                  </Link>
+                )}
+              </div>
             </div>
-          </div>
+          </details>
+        </section>
+
+        <section className="mb-8">
+          <WhatsNewCard className="intelligence-glass" maxItems={3} />
         </section>
 
         {!loading && cases.length > 0 && (
