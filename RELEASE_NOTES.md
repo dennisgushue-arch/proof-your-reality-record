@@ -18,6 +18,7 @@ Key outcomes:
 - Reduced initial app payload with route-level lazy loading and vendor chunk splitting.
 - Removed remaining `any` usage in core page surfaces for safer TypeScript behavior.
 - Fixed a navigation runtime test regression caused by lazy-loaded header auth controls.
+- Bumped Android release `versionCode` from `24` to `30` to unblock Play Console upload conflicts.
 
 ---
 
