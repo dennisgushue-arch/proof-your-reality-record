@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 const demoEvents = [
   {
@@ -57,6 +58,10 @@ export default function IncidentPlayback() {
 
   return (
     <div style={styles.page}>
+      <div style={styles.topNavRow}>
+        <Link to="/dashboard" style={styles.backLink}>← Back to Dashboard</Link>
+      </div>
+
       <div style={styles.header}>
         <div>
           <p style={styles.live}>● INCIDENT PLAYBACK</p>
@@ -64,7 +69,7 @@ export default function IncidentPlayback() {
           <p style={styles.subtitle}>May 5, 2026 · Contractor Dispute</p>
         </div>
 
-        <button style={styles.playButton} onClick={playTimeline} disabled={playing}>
+        <button type="button" style={styles.playButton} onClick={playTimeline} disabled={playing}>
           {playing ? "Playing..." : "Play Incident"}
         </button>
       </div>
@@ -129,6 +134,22 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "32px",
     fontFamily: "Inter, Arial, sans-serif",
   },
+  topNavRow: {
+    display: "flex",
+    alignItems: "center",
+    marginBottom: "14px",
+  },
+  backLink: {
+    color: "#F4F8FF",
+    textDecoration: "none",
+    fontSize: "13px",
+    letterSpacing: "0.04em",
+    fontWeight: 700,
+    border: "1px solid rgba(255,255,255,0.18)",
+    borderRadius: "999px",
+    padding: "8px 12px",
+    background: "rgba(255,255,255,0.06)",
+  },
   header: {
     display: "flex",
     justifyContent: "space-between",
@@ -144,9 +165,12 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: "34px",
     margin: "4px 0",
+    color: "#F8FBFF",
+    letterSpacing: "-0.01em",
+    textShadow: "0 0 18px rgba(255,255,255,0.08)",
   },
   subtitle: {
-    color: "#AAB4C8",
+    color: "#C7D2E7",
     margin: 0,
   },
   playButton: {
@@ -181,6 +205,8 @@ const styles: Record<string, React.CSSProperties> = {
   sectionTitle: {
     fontSize: "20px",
     marginBottom: "20px",
+    color: "#F4F8FF",
+    letterSpacing: "0.01em",
   },
   timeline: {
     display: "flex",
@@ -206,14 +232,16 @@ const styles: Record<string, React.CSSProperties> = {
   eventTitle: {
     margin: "0 0 6px",
     fontSize: "16px",
+    color: "#F5F9FF",
+    fontWeight: 700,
   },
   eventDescription: {
     margin: 0,
-    color: "#C8D0E0",
+    color: "#D8E0EE",
     lineHeight: "1.5",
   },
   analysisText: {
-    color: "#C8D0E0",
+    color: "#D8E0EE",
     lineHeight: "1.6",
   },
   alertBox: {
@@ -232,5 +260,6 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "16px",
     display: "flex",
     justifyContent: "space-between",
+    color: "#F5F9FF",
   },
 };
