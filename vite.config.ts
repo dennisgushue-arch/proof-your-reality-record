@@ -10,6 +10,9 @@ export default defineConfig({
     hmr: {
       overlay: false,
     },
+    watch: {
+      ignored: ["**/android/build/**", "**/android/app/build/**"],
+    },
   },
   plugins: [react()],
   resolve: {
