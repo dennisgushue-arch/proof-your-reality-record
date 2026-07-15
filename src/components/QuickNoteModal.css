@@ -1,0 +1,151 @@
+.quick-note-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  padding: 16px;
+}
+
+.quick-note-modal {
+  width: 100%;
+  max-width: 480px;
+  background: #111827;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: slideUp 200ms ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quick-note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.quick-note-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  transition: color 160ms ease;
+}
+
+.close-button:hover {
+  color: #f8fafc;
+}
+
+.quick-note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+
+.quick-note-input {
+  width: 100%;
+  min-height: 140px;
+  max-height: 280px;
+  padding: 12px;
+  background: #0f1117;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color 160ms ease;
+}
+
+.quick-note-input::placeholder {
+  color: #64748b;
+}
+
+.quick-note-input:focus {
+  outline: none;
+  border-color: rgba(37, 99, 235, 0.6);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.quick-note-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.cancel-button,
+.save-button {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.cancel-button {
+  background: #0f1117;
+  color: #94a3b8;
+}
+
+.cancel-button:hover {
+  background: #1a2844;
+  color: #f8fafc;
+  border-color: #2a3f5f;
+}
+
+.save-button {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.save-button:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.save-button:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 640px) {
+  .quick-note-modal {
+    max-width: 100%;
+  }
+
+  .quick-note-input {
+    min-height: 120px;
+    max-height: 240px;
+  }
+}

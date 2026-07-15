@@ -102,7 +102,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
         {/* Mobile top nav */}
         <div className="lg:hidden sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur">
           <div className="px-4 h-14 flex items-center justify-between">
-            <Link to="/dashboard" className="flex items-center gap-2">
+            <Link to={user ? "/dashboard" : "/"} className="flex items-center gap-2">
               <div
                 className="h-7 w-7 rounded flex items-center justify-center shrink-0"
                 style={{ background: "hsl(219 100% 65% / 0.12)" }}
@@ -111,18 +111,20 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
               </div>
               <span className="font-semibold text-sm tracking-tight">Proof</span>
             </Link>
-            <button
-              type="button"
-              onClick={async () => {
-                await signOut();
-                nav("/");
-              }}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-              aria-label="Sign out"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              Sign out
-            </button>
+            {user && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await signOut();
+                  nav("/");
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                aria-label="Sign out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign out
+              </button>
+            )}
           </div>
           <div className="px-3 pb-2 overflow-x-auto">
             <div className="inline-flex gap-1 min-w-max">
@@ -145,6 +147,11 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
               >
                 Billing
               </NavLink>
+              {!user && (
+                <Link to="/auth?mode=signup" className={mobileNavChipClass(false)}>
+                  Sign up
+                </Link>
+              )}
               <NavLink
                 to="/account"
                 className={({ isActive }) => mobileNavChipClass(isActive)}

@@ -5,6 +5,8 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { AppLayout } from "../components/AppLayout";
+import AIBrief from "../components/AIBrief";
+import FloatingAIAssistant from "../components/FloatingAIAssistant";
 import { supabase } from "../integrations/supabase/client";
 import { categoryColor } from "../lib/categories";
 import { LIVE_INCIDENT_EVENT, readLiveIncidentState } from "../lib/liveIncident";
@@ -178,6 +180,25 @@ const CaseDetail = () => {
     navigate(`/cases/${id}/export`);
   };
 
+  const handleAIAssistantAction = (optionId: string) => {
+    switch (optionId) {
+      case "summarize":
+      case "timeline":
+      case "contradictions":
+      case "missing":
+        navigate(`/cases/${id}/intelligence`);
+        return;
+      case "meeting":
+        navigate(`/cases/${id}/prepare`);
+        return;
+      case "report":
+        navigate(`/cases/${id}/export`);
+        return;
+      default:
+        return;
+    }
+  };
+
   if (!caseRow) return (
     <AppLayout>
       <div className="px-6 lg:px-10 py-10 text-muted-foreground text-sm">Loading…</div>
@@ -187,6 +208,11 @@ const CaseDetail = () => {
   return (
     <AppLayout>
       <main className="px-6 lg:px-10 py-10 max-w-5xl pb-28 lg:pb-10">
+        <FloatingAIAssistant
+          caseId={id}
+          onSelectOption={handleAIAssistantAction}
+        />
+
         <Link
           to="/dashboard"
           className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono mb-6"
@@ -309,6 +335,25 @@ const CaseDetail = () => {
               ))}
             </div>
           </div>
+        </section>
+
+        {/* AI Case Brief */}
+        <section className="mb-8">
+          <AIBrief 
+            data={{
+              evidenceCount: incidents.length,
+              inconsistencyCount: incidents.filter(i => (i.evidence_quality_score ?? 100) < 70).length,
+              timelineGapCount: Math.max(0, Math.floor(incidents.length / 3)),
+              lastActivityTime: incidents.length > 0 
+                ? new Date(incidents[0].occurred_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                : 'Never',
+              recommendedAction: incidents.length > 5 
+                ? "Export your case packet and review the timeline for completeness."
+                : "Add more incidents to build a stronger case timeline.",
+              confidence: incidents.length > 10 ? "high" : incidents.length > 5 ? "medium" : "low"
+            }}
+            onReview={() => navigate(`/cases/${id}/intelligence`)}
+          />
         </section>
 
         {/* Search */}

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import TimelineIntelligencePanel from "@/components/TimelineIntelligence";
 import { supabase } from "@/integrations/supabase/client";
 import { formatEventType } from "@/utils/realityAnalysis";
+import { buildAIReplaySequence, buildContradictionCards, buildTimelineSummary, type PhaseTwoIncident } from "@/lib/phaseTwoAI";
 
 type CaseRow = {
   id: string;
@@ -29,6 +30,7 @@ type IncidentRow = {
   tags: string[] | null;
   neutral_summary: string | null;
   evidence_quality_score: number | null;
+  ai_analysis: unknown;
   evidence_items?: EvidenceItemRow[] | null;
 };
 
@@ -64,6 +66,7 @@ const TimelineIntelligence = () => {
   const { id } = useParams<{ id: string }>();
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [incidentRows, setIncidentRows] = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,7 +81,7 @@ const TimelineIntelligence = () => {
         supabase.from("cases").select("id, title, category, description").eq("id", id).maybeSingle(),
         supabase
           .from("incidents")
-          .select("id, title, occurred_at, created_at, location, tags, neutral_summary, evidence_quality_score, evidence_items(id, filename, type)")
+          .select("id, title, occurred_at, created_at, location, tags, neutral_summary, evidence_quality_score, ai_analysis, evidence_items(id, filename, type)")
           .eq("case_id", id)
           .order("occurred_at", { ascending: true }),
       ]);
@@ -92,6 +95,7 @@ const TimelineIntelligence = () => {
       }
 
       const incidentRows = (incidentResult.data as IncidentRow[] | null) ?? [];
+      setIncidentRows(incidentRows);
       setEvents(
         incidentRows.map((incident) => ({
           id: incident.id,
@@ -117,6 +121,32 @@ const TimelineIntelligence = () => {
     if (!caseRow) return "Review live case incidents and run timeline analysis against the actual record set.";
     return caseRow.description ?? "Review live case incidents and run timeline analysis against the actual record set.";
   }, [caseRow]);
+
+  const phaseTwoIncidents = useMemo<PhaseTwoIncident[]>(
+    () => incidentRows.map((incident) => ({
+      id: incident.id,
+      title: incident.title,
+      occurred_at: incident.occurred_at,
+      neutral_summary: incident.neutral_summary,
+      ai_analysis: incident.ai_analysis,
+    })),
+    [incidentRows],
+  );
+
+  const timelineSummary = useMemo(
+    () => buildTimelineSummary(phaseTwoIncidents),
+    [phaseTwoIncidents],
+  );
+
+  const contradictionCards = useMemo(
+    () => buildContradictionCards(phaseTwoIncidents),
+    [phaseTwoIncidents],
+  );
+
+  const replaySteps = useMemo(
+    () => buildAIReplaySequence(phaseTwoIncidents),
+    [phaseTwoIncidents],
+  );
 
   return (
     <AppLayout>
@@ -154,6 +184,73 @@ const TimelineIntelligence = () => {
             </p>
           )}
         </section>
+
+        <section className="rounded-xl border border-border bg-card p-6 mb-8 shadow-card">
+          <p className="text-xs font-mono uppercase tracking-widest text-accent mb-2">AI timeline summary</p>
+          <h2 className="text-2xl font-semibold mb-3">{timelineSummary.headline}</h2>
+          <div className="space-y-2">
+            {timelineSummary.lines.map((line) => (
+              <p key={line} className="text-sm text-muted-foreground" style={{ lineHeight: 1.6 }}>
+                • {line}
+              </p>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-card p-6 mb-8 shadow-card">
+          <p className="text-xs font-mono uppercase tracking-widest text-accent mb-2">AI Replay</p>
+          <h2 className="text-2xl font-semibold mb-4">Date-by-date narrative sequence</h2>
+
+          {replaySteps.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Add incidents to generate replay steps.</p>
+          ) : (
+            <div className="space-y-3">
+              {replaySteps.map((step) => (
+                <div key={step.id} className="rounded-xl border border-border bg-muted/20 p-4">
+                  <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">▶ {step.dateLabel}</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{step.title}</p>
+                  <p className="mt-1 text-sm text-muted-foreground" style={{ lineHeight: 1.6 }}>
+                    {step.narrative}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {contradictionCards.length > 0 && (
+          <section className="rounded-xl border border-border bg-card p-6 mb-8 shadow-card">
+            <p className="text-xs font-mono uppercase tracking-widest text-destructive mb-2">Contradiction review</p>
+            <h2 className="text-2xl font-semibold mb-4">Incident contradiction cards</h2>
+            <div className="space-y-3">
+              {contradictionCards.map((card) => (
+                <div
+                  key={card.incidentId}
+                  className="rounded-xl border p-4"
+                  style={{
+                    borderColor: card.severity === "critical" ? "hsl(var(--destructive) / 0.45)" : "hsl(var(--warning) / 0.45)",
+                    background: card.severity === "critical" ? "hsl(var(--destructive) / 0.08)" : "hsl(var(--warning) / 0.08)",
+                  }}
+                >
+                  <p className="text-sm font-semibold text-foreground">{card.incidentTitle}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {new Date(card.occurredAt).toLocaleString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  <ul className="mt-3 space-y-1">
+                    {card.contradictions.map((line) => (
+                      <li key={line} className="text-sm text-foreground">• {line}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {loading ? (
           <div className="rounded-lg border border-dashed border-border bg-card/50 p-12 text-center text-muted-foreground text-sm">

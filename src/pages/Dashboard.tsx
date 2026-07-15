@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, Siren } from "lucide-react";
+import { Plus, FileText, Camera, Mic, Square, X, Siren, Settings, CreditCard, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -719,7 +719,7 @@ const Dashboard = () => {
     playUiTone("alert");
     triggerHaptic("alert");
   }, [selectedCase, selectedCaseContradictions]);
-
+  
   const focusCase = (caseId: string) => {
     setSelectedCaseId(caseId);
     playUiTone("click");
@@ -777,6 +777,27 @@ const Dashboard = () => {
             <Link to="/stress-mode" className="inline-flex">
               <Button className="h-16 px-8 text-lg font-semibold bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated tactile-button">
                 <Siren className="mr-2 h-5 w-5" /> START LIVE INCIDENT
+              </Button>
+            </Link>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link to="/account" className="inline-flex">
+              <Button variant="outline" className="border-border tactile-button">
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+              </Button>
+            </Link>
+            <Link to="/pricing" className="inline-flex">
+              <Button variant="outline" className="border-border tactile-button">
+                <CreditCard className="mr-2 h-4 w-4" />
+                Billing
+              </Button>
+            </Link>
+            <Link to="/auth?mode=signup" className="inline-flex">
+              <Button variant="outline" className="border-border tactile-button">
+                <UserPlus className="mr-2 h-4 w-4" />
+                Sign up
               </Button>
             </Link>
           </div>

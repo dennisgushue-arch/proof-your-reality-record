@@ -10,6 +10,7 @@ import { supabase } from "../integrations/supabase/client.ts";
 import { useAuth } from "../contexts/AuthContext.tsx";
 import { buildInteractionChecklist, buildPrepareBriefing, type PrepareIncident, type PrepareInteractionType } from "../lib/prepareInteraction.ts";
 import { hasBillingAccess, type BillingSubscription } from "../lib/billing.ts";
+import { buildPrepareTalkingPoints } from "../lib/phaseTwoAI.ts";
 
 type CaseRow = {
   id: string;
@@ -178,6 +179,16 @@ const PrepareInteraction = () => {
   const briefing = useMemo(
     () => buildPrepareBriefing({ incidents, interactionType, scheduledAt }),
     [incidents, interactionType, scheduledAt],
+  );
+  const talkingPoints = useMemo(
+    () => buildPrepareTalkingPoints(incidents.map((incident) => ({
+      id: incident.id,
+      title: incident.title,
+      occurred_at: incident.occurred_at,
+      neutral_summary: incident.neutral_summary,
+      ai_analysis: incident.ai_analysis,
+    }))),
+    [incidents],
   );
 
   useEffect(() => {
@@ -382,6 +393,15 @@ const PrepareInteraction = () => {
                       </li>
                     ))}
                   </ol>
+
+                  <div className="mt-6 rounded-xl border border-border bg-muted/20 p-4">
+                    <p className="text-xs uppercase tracking-[0.14em] text-accent font-semibold mb-2">AI Talking Points</p>
+                    <ul className="space-y-2">
+                      {talkingPoints.map((point) => (
+                        <li key={point} className="text-sm text-foreground">• {point}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               )}
 
