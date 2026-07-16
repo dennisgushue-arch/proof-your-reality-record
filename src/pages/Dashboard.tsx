@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, Siren, Settings, CreditCard, UserPlus } from "lucide-react";
+import { Plus, FileText, Camera, Mic, Square, X, Siren, Settings, CreditCard, UserPlus, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -694,6 +694,7 @@ const Dashboard = () => {
   const selectedCaseBackendUsed = aggregateBackendUsed(selectedCaseIncidentRows);
   const selectedCaseBackendDisplay = backendUsedDisplay(selectedCaseBackendUsed);
   const storyShiftLines = contradictionStoryLines(selectedCaseIncidentRows);
+  const firstContradictionIncidentId = selectedCaseIncidentRows.find((incident) => incidentContradictionCount(incident) > 0)?.id ?? null;
 
   const selectedCaseFeed = selectedCase ? buildThreatFeed(selectedCaseIncidentRows) : [];
   const selectedCasePattern = selectedCase ? buildPatternInsight(selectedCase, selectedCaseIncidentRows) : null;
@@ -705,6 +706,7 @@ const Dashboard = () => {
   const resumeLiveLink = liveSessionId
     ? `/stress-mode?liveSession=${encodeURIComponent(liveSessionId)}${selectedCase ? `&caseId=${encodeURIComponent(selectedCase.id)}` : ""}`
     : "/stress-mode";
+  const focusCaseId = selectedCase?.id ?? displayCases[0]?.id ?? null;
 
   const animatedIncidentCount = useAnimatedNumber(vaultIncidentCount);
   const animatedContradictionCount = useAnimatedNumber(vaultContradictionCount);
@@ -745,9 +747,9 @@ const Dashboard = () => {
 
     if (demoCaseId) {
       toast.success("Demo case ready", {
-        description: "Opening export packet now. Explore contradiction detection and playback next.",
+        description: "Opening AI intelligence view now. Explore contradiction detection and playback next.",
       });
-      navigate(`/cases/${demoCaseId}/export`);
+      navigate(`/cases/${demoCaseId}/intelligence?focus=ai`);
       return;
     }
 
@@ -814,6 +816,44 @@ const Dashboard = () => {
             <div className="rounded-xl border p-4" style={{ borderColor: "rgba(231, 76, 60, 0.45)", background: "rgba(52, 16, 21, 0.9)" }}>
               <p className="text-xs uppercase tracking-[0.08em] text-[#F7B4AD]">Alerts</p>
               <p className="mt-2 text-3xl font-semibold text-[#E74C3C]">{vaultContradictionCount}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-8 rounded-[24px] border p-5 md:p-6 intelligence-glass" style={{ borderColor: "rgba(79, 140, 255, 0.5)", background: "linear-gradient(145deg, rgba(14, 26, 49, 0.94), rgba(8, 16, 30, 0.94))" }}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.12em] text-[#8EB6FF]">Proof AI Command Center</p>
+              <h2 className="mt-1 text-xl md:text-2xl font-semibold text-foreground">AI insights are ready now</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Generate case summaries, detect contradictions, and prep timelines in one tap.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button"
+                onClick={() => navigate("/ai")}
+              >
+                <Bot className="mr-2 h-4 w-4" />
+                Open Proof AI
+              </Button>
+              <Button
+                variant="outline"
+                className="border-border tactile-button"
+                onClick={exploreDemoCase}
+                disabled={seedingDemo}
+              >
+                {seedingDemo ? "Loading demo…" : "Add Demo Cases"}
+              </Button>
+              {focusCaseId && (
+                <Button
+                  variant="outline"
+                  className="border-border tactile-button"
+                  onClick={() => navigate(`/cases/${focusCaseId}/intelligence`)}
+                >
+                  Open Intelligence
+                </Button>
+              )}
             </div>
           </div>
         </section>
@@ -934,6 +974,25 @@ const Dashboard = () => {
                 <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
                   <p className="text-base font-semibold">No active cases yet.</p>
                   <p className="mt-2 text-sm text-muted-foreground">Create your first case to start protecting the record.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button"
+                      onClick={exploreDemoCase}
+                      disabled={seedingDemo}
+                    >
+                      {seedingDemo ? "Loading demo…" : "Load Demo Case"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-border tactile-button"
+                      onClick={() => navigate("/ai")}
+                    >
+                      <Bot className="mr-1.5 h-4 w-4" />
+                      Open AI
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 displayCases.slice(0, 4).map((c) => (
@@ -975,7 +1034,12 @@ const Dashboard = () => {
                   </div>
                 )}
                 {selectedCase && (
-                  <Link to={`/cases/${selectedCase.id}`} className="mt-4 inline-flex text-sm font-semibold text-[#FFB3AC] hover:text-white">
+                  <Link
+                    to={firstContradictionIncidentId
+                      ? `/cases/${selectedCase.id}/intelligence?focus=contradiction&incidentId=${encodeURIComponent(firstContradictionIncidentId)}`
+                      : `/cases/${selectedCase.id}/intelligence?focus=ai`}
+                    className="mt-4 inline-flex text-sm font-semibold text-[#FFB3AC] hover:text-white"
+                  >
                     Review Timeline →
                   </Link>
                 )}

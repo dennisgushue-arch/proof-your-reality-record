@@ -270,6 +270,67 @@ line-height: 1.45;
 flex-shrink: 0;
 }
 
+/* Live AI badge */
+.ai-live-badge {
+display: inline-flex;
+align-items: center;
+padding: 2px 7px;
+margin-left: 6px;
+color: #4ade80;
+background: rgba(74, 222, 128, 0.1);
+border: 1px solid rgba(74, 222, 128, 0.3);
+border-radius: 999px;
+font-size: 9px;
+font-weight: 800;
+letter-spacing: 0.1em;
+text-transform: uppercase;
+vertical-align: middle;
+}
+
+.ai-live-badge-inline {
+font-size: 8px;
+padding: 1px 5px;
+}
+
+.quick-prompt-live {
+border-color: rgba(74, 222, 128, 0.28) !important;
+}
+
+/* Error / retry */
+.ai-error-state {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 12px;
+padding: 12px 14px;
+margin-bottom: 14px;
+color: #fca5a5;
+background: rgba(239, 68, 68, 0.07);
+border: 1px solid rgba(239, 68, 68, 0.28);
+border-radius: 10px;
+font-size: 13px;
+}
+
+.ai-retry-button {
+display: inline-flex;
+align-items: center;
+gap: 6px;
+min-height: 32px;
+padding: 0 12px;
+color: #f8fafc;
+background: rgba(239, 68, 68, 0.18);
+border: 1px solid rgba(239, 68, 68, 0.35);
+border-radius: 8px;
+font-size: 12px;
+font-weight: 700;
+cursor: pointer;
+flex-shrink: 0;
+}
+
+.ai-retry-button:hover {
+background: rgba(239, 68, 68, 0.28);
+}
+
 .ai-summary {
 margin: 0 0 24px;
 color: #c3ccda;

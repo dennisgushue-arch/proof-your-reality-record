@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -64,10 +64,17 @@ function buildSourceType(evidenceItems?: EvidenceItemRow[] | null) {
 
 const TimelineIntelligence = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const aiSummaryRef = useRef<HTMLDivElement | null>(null);
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [incidentRows, setIncidentRows] = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const focusTarget = searchParams.get("focus");
+  const focusIncidentId = searchParams.get("incidentId");
+  const highlightAiSummary = focusTarget === "ai";
+  const highlightReplayIncident = focusTarget === "incident" ? focusIncidentId : null;
+  const highlightContradictionIncident = focusTarget === "contradiction" ? focusIncidentId : null;
 
   useEffect(() => {
     if (!id) return;
@@ -116,6 +123,26 @@ const TimelineIntelligence = () => {
       cancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (highlightAiSummary) {
+      aiSummaryRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (highlightContradictionIncident) {
+      const contradictionEl = document.getElementById(`contradiction-${highlightContradictionIncident}`);
+      contradictionEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (highlightReplayIncident) {
+      const replayEl = document.getElementById(`replay-${highlightReplayIncident}`);
+      replayEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [highlightAiSummary, highlightContradictionIncident, highlightReplayIncident, loading]);
 
   const headerDescription = useMemo(() => {
     if (!caseRow) return "Review live case incidents and run timeline analysis against the actual record set.";
@@ -185,9 +212,18 @@ const TimelineIntelligence = () => {
           )}
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-6 mb-8 shadow-card">
+        <section
+          ref={aiSummaryRef}
+          className={[
+            "rounded-xl border bg-card p-6 mb-8 shadow-card transition-all duration-500",
+            highlightAiSummary ? "border-accent ring-2 ring-accent/30 shadow-[0_0_0_1px_rgba(59,130,246,0.35),0_0_32px_rgba(59,130,246,0.14)]" : "border-border",
+          ].join(" ")}
+        >
           <p className="text-xs font-mono uppercase tracking-widest text-accent mb-2">AI timeline summary</p>
-          <h2 className="text-2xl font-semibold mb-3">{timelineSummary.headline}</h2>
+          <h2 className="text-2xl font-semibold mb-3 flex items-center gap-2">
+            {timelineSummary.headline}
+            {highlightAiSummary && <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">Focused</span>}
+          </h2>
           <div className="space-y-2">
             {timelineSummary.lines.map((line) => (
               <p key={line} className="text-sm text-muted-foreground" style={{ lineHeight: 1.6 }}>
@@ -206,9 +242,25 @@ const TimelineIntelligence = () => {
           ) : (
             <div className="space-y-3">
               {replaySteps.map((step) => (
-                <div key={step.id} className="rounded-xl border border-border bg-muted/20 p-4">
+                <div
+                  key={step.id}
+                  id={`replay-${step.id}`}
+                  className={[
+                    "rounded-xl border bg-muted/20 p-4 transition-all duration-500",
+                    highlightReplayIncident === step.id
+                      ? "border-accent ring-2 ring-accent/25 shadow-[0_0_0_1px_rgba(59,130,246,0.28),0_0_24px_rgba(59,130,246,0.12)]"
+                      : "border-border",
+                  ].join(" ")}
+                >
                   <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">▶ {step.dateLabel}</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">{step.title}</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground flex items-center gap-2">
+                    {step.title}
+                    {highlightReplayIncident === step.id && (
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">
+                        Focused
+                      </span>
+                    )}
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground" style={{ lineHeight: 1.6 }}>
                     {step.narrative}
                   </p>
@@ -226,13 +278,26 @@ const TimelineIntelligence = () => {
               {contradictionCards.map((card) => (
                 <div
                   key={card.incidentId}
-                  className="rounded-xl border p-4"
+                  id={`contradiction-${card.incidentId}`}
+                  className={[
+                    "rounded-xl border p-4 transition-all duration-500",
+                    highlightContradictionIncident === card.incidentId
+                      ? "ring-2 ring-destructive/35 shadow-[0_0_0_1px_rgba(239,68,68,0.28),0_0_24px_rgba(239,68,68,0.14)]"
+                      : "",
+                  ].join(" ")}
                   style={{
                     borderColor: card.severity === "critical" ? "hsl(var(--destructive) / 0.45)" : "hsl(var(--warning) / 0.45)",
                     background: card.severity === "critical" ? "hsl(var(--destructive) / 0.08)" : "hsl(var(--warning) / 0.08)",
                   }}
                 >
-                  <p className="text-sm font-semibold text-foreground">{card.incidentTitle}</p>
+                  <p className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    {card.incidentTitle}
+                    {highlightContradictionIncident === card.incidentId && (
+                      <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-destructive">
+                        Focused
+                      </span>
+                    )}
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {new Date(card.occurredAt).toLocaleString(undefined, {
                       month: "short",

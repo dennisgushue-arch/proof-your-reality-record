@@ -16,6 +16,7 @@ ShieldCheck,
 Sparkles,
 } from "lucide-react";
 import { supabase } from "../integrations/supabase/client.ts";
+import { isSummarizePrompt, isLivePrompt, normalizeApiResponse, createDemoResponse } from "../lib/aiSummarize.js";
 
 import "./AICommandCenter.css";
 
@@ -73,247 +74,16 @@ description: "Create a neutral summary of the documented events.",
 icon: FileText,
 tone: "success",
 prompt: "Create a neutral factual summary of this case.",
-},
-];
-
+    live: true,
+  },];
 const quickPrompts = [
-"Summarize this case",
-"Find possible contradictions",
-"What evidence is missing?",
-"Build a chronological timeline",
-"Prepare me for my next interaction",
-"Show unresolved issues",
+  { text: "Summarize this case", live: true },
+  { text: "Find possible contradictions", live: false },
+  { text: "What evidence is missing?", live: false },
+  { text: "Build a chronological timeline", live: false },
+  { text: "Prepare me for my next interaction", live: false },
+  { text: "Show unresolved issues", live: false },
 ];
-
-function isSummarizePrompt(prompt) {
-return /summarize this case|refresh and summarize this case/i.test(prompt.trim());
-}
-
-function normalizeApiResponse(data, selectedCase) {
-const fallback = createDemoResponse("Summarize this case", selectedCase);
-const obj = data && typeof data === "object" ? data : {};
-
-const findings = Array.isArray(obj.findings)
-? obj.findings
-		.map((item) => {
-			if (!item || typeof item !== "object") return null;
-			const label = typeof item.label === "string" ? item.label.trim() : "";
-			const value = typeof item.value === "string" ? item.value.trim() : "";
-			const incidentId = typeof item.incidentId === "string" ? item.incidentId : (typeof item.incident_id === "string" ? item.incident_id : undefined);
-			if (!label || !value) return null;
-			return { label, value, ...(incidentId ? { incidentId } : {}) };
-		})
-		.filter(Boolean)
-: fallback.findings;
-
-const recommendations = Array.isArray(obj.recommendations)
-? obj.recommendations.filter((item) => typeof item === "string" && item.trim().length > 0)
-: fallback.recommendations;
-
-const confidence = typeof obj.confidence === "string" ? obj.confidence.toLowerCase() : undefined;
-const normalizedConfidence = confidence === "high" || confidence === "medium" || confidence === "low"
-? confidence
-: undefined;
-
-const sources = Array.isArray(obj.sources)
-? obj.sources
-		.map((item) => {
-			if (!item || typeof item !== "object") return null;
-			const incidentId = typeof item.incidentId === "string" ? item.incidentId : (typeof item.incident_id === "string" ? item.incident_id : "");
-			const title = typeof item.title === "string" ? item.title.trim() : "";
-			const occurredAt = typeof item.occurredAt === "string" ? item.occurredAt : (typeof item.occurred_at === "string" ? item.occurred_at : "");
-			if (!incidentId || !title) return null;
-			return { incidentId, title, occurredAt };
-		})
-		.filter(Boolean)
-		.slice(0, 8)
-: [];
-
-return {
-title: typeof obj.title === "string" && obj.title.trim() ? obj.title.trim() : fallback.title,
-summary: typeof obj.summary === "string" && obj.summary.trim() ? obj.summary.trim() : fallback.summary,
-findings,
-recommendations,
-...(normalizedConfidence ? { confidence: normalizedConfidence } : {}),
-...(sources.length ? { sources } : {}),
-};
-}
-
-function readAnalysis(value) {
-if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-return value;
-}
-
-function asStringArray(value) {
-if (!Array.isArray(value)) return [];
-return value.filter((item) => typeof item === "string" && item.trim().length > 0);
-}
-
-function contradictionCountFromIncident(incident) {
-const analysis = readAnalysis(incident.ai_analysis);
-return asStringArray(analysis?.contradictions).length;
-}
-
-function timelineGapCountFromIncidents(incidents, thresholdHours = 24) {
-if (!Array.isArray(incidents) || incidents.length <= 1) return 0;
-
-const sorted = [...incidents].sort(
-(a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
-);
-
-let gaps = 0;
-for (let index = 1; index < sorted.length; index += 1) {
-const previous = new Date(sorted[index - 1].occurred_at).getTime();
-const current = new Date(sorted[index].occurred_at).getTime();
-const diffHours = (current - previous) / (1000 * 60 * 60);
-if (Number.isFinite(diffHours) && diffHours >= thresholdHours) gaps += 1;
-}
-
-return gaps;
-}
-
-function createDemoResponse(prompt, selectedCase) {
-const normalizedPrompt = prompt.toLowerCase();
-
-if (normalizedPrompt.includes("contradiction")) {
-return {
-title: "Potential inconsistency review",
-summary:
-"One documented statement appears different from an earlier record. This does not determine which statement is accurate and should be reviewed manually.",
-findings: [
-{
-label: "Earlier record",
-value: "Completion was expected by April 19.",
-},
-{
-label: "Later record",
-value: "No specific completion date had been promised.",
-},
-],
-recommendations: [
-"Review the original message screenshots.",
-"Confirm the dates attached to both records.",
-"Add any written change orders or revised schedules.",
-],
-};
-}
-
-if (
-normalizedPrompt.includes("missing") ||
-normalizedPrompt.includes("evidence")
-) {
-return {
-title: "Evidence coverage review",
-summary:
-"Several records would benefit from additional source documentation.",
-findings: [
-{
-label: "Missing item",
-value: "Written confirmation of the revised completion date.",
-},
-{
-label: "Missing item",
-value: "Payment receipt linked to the related incident.",
-},
-{
-label: "Needs context",
-value: "One voice note does not identify who was present.",
-},
-],
-recommendations: [
-"Upload the payment receipt.",
-"Link screenshots to the relevant incidents.",
-"Add witness names where appropriate.",
-],
-};
-}
-
-if (
-normalizedPrompt.includes("timeline") ||
-normalizedPrompt.includes("chronological")
-) {
-return {
-title: "Timeline reconstruction",
-summary: `${selectedCase.incidents} incidents were organized chronologically. Two documentation gaps require review.`,
-findings: [
-{
-label: "April 12",
-value: "Completion date documented.",
-},
-{
-label: "April 13",
-value: "Payment record added.",
-},
-{
-label: "April 19",
-value: "Deadline documented as missed.",
-},
-{
-label: "April 28",
-value: "Later statement added to the record.",
-},
-],
-recommendations: [
-"Review activity between April 13 and April 19.",
-"Add any messages exchanged during the gap.",
-],
-};
-}
-
-if (
-normalizedPrompt.includes("prepare") ||
-normalizedPrompt.includes("interaction")
-) {
-return {
-title: "Interaction preparation brief",
-summary:
-"Focus on unresolved dates, payment documentation, and obtaining written confirmation of the next deadline.",
-findings: [
-{
-label: "Priority topic",
-value: "Confirmed completion date.",
-},
-{
-label: "Priority topic",
-value: "Status of outstanding work.",
-},
-{
-label: "Bring with you",
-value: "Payment receipt and message screenshots.",
-},
-],
-recommendations: [
-"Ask for the revised deadline in writing.",
-"Avoid relying only on verbal agreements.",
-"Document the interaction immediately afterward.",
-],
-};
-}
-
-return {
-title: "AI case brief",
-summary: `${selectedCase.title} contains ${selectedCase.incidents} incidents and ${selectedCase.evidenceItems} evidence items. The records include ${selectedCase.contradictions} possible inconsistency and ${selectedCase.timelineGaps} timeline gaps requiring review.`,
-findings: [
-{
-label: "Current strength",
-value: "Most incidents contain timestamps.",
-},
-{
-label: "Needs review",
-value: "Some records lack supporting documentation.",
-},
-{
-label: "Recent signal",
-value: "A later statement differs from an earlier record.",
-},
-],
-recommendations: [
-"Review the timeline gaps.",
-"Link supporting screenshots to each incident.",
-"Generate an updated case summary before exporting.",
-],
-};
-}
 
 export default function AICommandCenter() {
 const navigate = useNavigate();
@@ -322,6 +92,8 @@ const [liveCases, setLiveCases] = useState([]);
 const [isLoadingCases, setIsLoadingCases] = useState(true);
 const [question, setQuestion] = useState("");
 const [isAnalyzing, setIsAnalyzing] = useState(false);
+const [lastPromptForRetry, setLastPromptForRetry] = useState(null);
+const [hasError, setHasError] = useState(false);
 const [response, setResponse] = useState(
 createDemoResponse("Summarize this case", demoCases[0])
 );
@@ -439,6 +211,8 @@ return;
 
 setQuestion(trimmedPrompt);
 setIsAnalyzing(true);
+setHasError(false);
+setLastPromptForRetry(trimmedPrompt);
 
 try {
 /*
@@ -485,7 +259,7 @@ setResponse(createDemoResponse(trimmedPrompt, selectedCase));
 }
 } catch (error) {
 console.error(error);
-
+setHasError(true);
 setResponse({
 title: "Analysis unavailable",
 summary:
@@ -612,15 +386,29 @@ tone="amber"
 
 <span className="ai-generated-badge">
 <Sparkles size={14} />
-AI generated
+{isLivePrompt(question) && !String(selectedCase?.id ?? "").startsWith("case-") ? "AI generated · live" : "AI generated"}
 </span>
 </div>
 
 <div className="ai-disclosure" role="note" aria-label="AI disclosure notice">
 <ShieldCheck size={14} />
-<span>Privacy-first mode: data is minimized server-side. AI may be imperfect — verify critical details.</span>
-</div>
+              <span>Privacy-first mode: data is minimized server-side. AI may be imperfect — verify critical details independently.</span>
+            </div>
 
+            {hasError && !isAnalyzing && (
+              <div className="ai-error-state" role="alert">
+                <span>Something went wrong. Check your connection and try again.</span>
+                <button
+                  type="button"
+                  className="ai-retry-button"
+                  onClick={() => lastPromptForRetry && runAnalysis(lastPromptForRetry)}
+                  disabled={!lastPromptForRetry}
+                >
+                  <RefreshCw size={14} />
+                  Retry
+                </button>
+              </div>
+            )}
 {isAnalyzing ? (
 <div className="ai-loading-state">
 <LoaderCircle className="ai-spinner" size={34} />
@@ -717,14 +505,16 @@ day: "numeric",
 </div>
 
 <div className="quick-prompt-list">
-{quickPrompts.map((prompt) => (
+{quickPrompts.map((item) => (
 <button
 type="button"
-key={prompt}
-onClick={() => runAnalysis(prompt)}
+key={item.text}
+onClick={() => runAnalysis(item.text)}
 disabled={isAnalyzing}
+className={item.live ? "quick-prompt-live" : undefined}
 >
-{prompt}
+{item.text}
+{item.live && <span className="ai-live-badge">Live AI</span>}
 </button>
 ))}
 </div>
@@ -774,7 +564,10 @@ disabled={isAnalyzing}
 </div>
 
 <div>
-<strong>{action.title}</strong>
+<strong>
+{action.title}
+{action.live && <span className="ai-live-badge ai-live-badge-inline">Live AI</span>}
+</strong>
 <span>{action.description}</span>
 </div>
 

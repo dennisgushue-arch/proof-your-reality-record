@@ -268,6 +268,16 @@ const ProfessionalDashboard: FC<ProfessionalDashboardProps> = ({
             View Insights
             <ArrowRight size={14} />
           </button>
+
+          <button
+            type="button"
+            className="ai-banner-button"
+            onClick={() => navigate("/ai")}
+            aria-label="Open Proof AI"
+          >
+            <Bot size={16} />
+            Open Proof AI
+          </button>
         </div>
 
         {showAIInsights && (
