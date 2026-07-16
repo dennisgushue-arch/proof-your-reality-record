@@ -218,15 +218,15 @@ const App = () => (
       </Suspense>
       <BrowserRouter>
         <Suspense fallback={<div className="px-6 lg:px-10 py-10 text-sm text-muted-foreground">Loading…</div>}>
-          <Routes>
-            <Route path="/" element={<ProfessionalDashboardPage />} />
-            <Route path="/central-intelligence" element={<CentralIntelligenceScreen />} />
-            <Route path="/pricing" element={<Pricing />} />
-            <Route path="/example" element={<Example />} />
-            <Route path="/ai" element={<AICommandCenter />} />
-            <Route path="/demo/playback" element={<IncidentPlayback />} />
+          <AuthBoundary>
+            <Routes>
+              <Route path="/" element={<ProfessionalDashboardPage />} />
+              <Route path="/central-intelligence" element={<CentralIntelligenceScreen />} />
+              <Route path="/pricing" element={<Pricing />} />
+              <Route path="/example" element={<Example />} />
+              <Route path="/ai" element={<AICommandCenter />} />
+              <Route path="/demo/playback" element={<IncidentPlayback />} />
 
-            <Route element={<AuthBoundary><Outlet /></AuthBoundary>}>
               <Route path="/auth" element={<Auth />} />
               <Route path="/stress-mode" element={<ProtectedRoute><StressMode /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -237,10 +237,10 @@ const App = () => (
               <Route path="/cases/:id/incidents/new" element={<ProtectedRoute><IncidentNew /></ProtectedRoute>} />
               <Route path="/cases/:id/export" element={<ProtectedRoute><ExportPreview /></ProtectedRoute>} />
               <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
-            </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthBoundary>
         </Suspense>
       </BrowserRouter>
     </TooltipProvider>

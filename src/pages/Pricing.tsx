@@ -19,7 +19,7 @@ const freePlanFeatures = [
 const premiumOffers = BILLING_OFFERS.filter((offer) => offer.billingMode === "subscription");
 
 const Pricing = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loadingOfferId, setLoadingOfferId] = useState<string | null>(null);
@@ -49,21 +49,29 @@ const Pricing = () => {
       return;
     }
 
-    if (!user) {
-      toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
-      navigate("/auth?mode=signup");
-      return;
-    }
-
     try {
       setLoadingOfferId(offerId);
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
         body: { offerId },
       });
 
-      if (error || !data?.url) {
+      if (error) {
+        const message = error.message ?? "";
+        if (/missing authorization|unauthorized|jwt|sign in|signin/i.test(message)) {
+          toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
+          navigate("/auth?mode=signup");
+          return;
+        }
+
         toast.error("Could not start checkout", {
-          description: error?.message ?? "Please verify Stripe env vars and try again.",
+          description: message || "Please verify Stripe env vars and try again.",
+        });
+        return;
+      }
+
+      if (!data?.url) {
+        toast.error("Could not start checkout", {
+          description: "No checkout URL was returned. Please verify Stripe configuration and try again.",
         });
         return;
       }
@@ -103,7 +111,7 @@ const Pricing = () => {
               ))}
             </ul>
             <Button asChild className="w-full mt-auto pt-7 sm:pt-8 h-11">
-              <Link to="/auth?mode=signup">Get started free</Link>
+              <Link to={user ? "/dashboard" : "/auth?mode=signup"}>{user ? "Go to dashboard" : "Get started free"}</Link>
             </Button>
           </div>
 
@@ -150,9 +158,9 @@ const Pricing = () => {
                   className="w-full mt-auto pt-6 h-11"
                   variant={highlighted ? "default" : "outline"}
                   onClick={() => startCheckout(offer.id)}
-                  disabled={loadingOfferId !== null}
+                  disabled={loading || loadingOfferId !== null}
                 >
-                  {loadingOfferId === offer.id ? "Redirecting…" : offer.cta}
+                  {loading ? "Checking session…" : loadingOfferId === offer.id ? "Redirecting…" : offer.cta}
                 </Button>
               </div>
             );
