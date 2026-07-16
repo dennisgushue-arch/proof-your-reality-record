@@ -17,7 +17,6 @@ const freePlanFeatures = [
 ];
 
 const subscriptionOffers = BILLING_OFFERS.filter((offer) => offer.billingMode === "subscription");
-const prepaidOffers = BILLING_OFFERS.filter((offer) => offer.billingMode !== "subscription");
 
 const Pricing = () => {
   const { user } = useAuth();
@@ -86,12 +85,12 @@ const Pricing = () => {
         <div className="text-center max-w-2xl mx-auto">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-balance">Private, straightforward pricing</h1>
           <p className="mt-4 text-muted-foreground">
-            Choose the billing style that fits your workflow: auto-renewing subscriptions, prepaid plans with top-ups, or upgrade offers for users who want a bigger commitment later.
+            Choose the plan that fits your workflow with two premium subscription options.
           </p>
         </div>
         <p className="mt-4 text-center text-xs text-muted-foreground">Private by default. No public sharing, and no hidden fees.</p>
         <p className="mt-4 text-center text-xs text-muted-foreground">Early user discount applies to accounts created during the first 3 months after launch.</p>
-        <div className="mt-10 sm:mt-12 grid gap-5 sm:gap-6 md:grid-cols-3 max-w-6xl mx-auto">
+        <div className="mt-10 sm:mt-12 grid gap-5 sm:gap-6 md:grid-cols-2 max-w-5xl mx-auto">
           <div className="rounded-2xl border border-border bg-card p-5 sm:p-8 shadow-card">
             <h2 className="text-xl font-semibold">Free</h2>
             <div className="mt-3 flex items-baseline gap-1">
@@ -139,42 +138,13 @@ const Pricing = () => {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border bg-card p-5 sm:p-8 shadow-card">
-            <h2 className="text-xl font-semibold">Prepaid plans & top-ups</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Good for users who want fixed periods of access without auto-renewal, plus small top-ups when a case runs long.</p>
-            <div className="mt-5 space-y-4">
-              {prepaidOffers.map((offer) => (
-                <div key={offer.id} className="rounded-xl border border-border bg-background/70 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{offer.badge}</div>
-                      <h3 className="mt-1 text-lg font-semibold">{offer.title}</h3>
-                      <p className="mt-1 text-sm text-muted-foreground">{offer.shortCopy}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-semibold">{offer.priceText}</div>
-                      <div className="text-sm text-muted-foreground">{offer.cadenceText}</div>
-                    </div>
-                  </div>
-                  <ul className="mt-4 space-y-2 text-sm">
-                    {offer.features.map((feature) => (
-                      <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
-                    ))}
-                  </ul>
-                  <Button className="w-full mt-5 h-11" variant={offer.billingMode === "topup" ? "outline" : "default"} onClick={() => startCheckout(offer.id)} disabled={loadingOfferId !== null}>
-                    {loadingOfferId === offer.id ? "Redirecting…" : offer.cta}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
         <div className="mt-8 max-w-5xl mx-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-card">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">What your account will show</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Recurring plans renew automatically, while prepaid plans and top-ups extend the date shown in your account.
+                Premium plans renew automatically and your current access date is always shown in your account.
               </p>
             </div>
             <div className="text-sm text-muted-foreground sm:text-right">
