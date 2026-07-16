@@ -15,8 +15,19 @@ const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 function planFromPriceId(priceId?: string) {
   if (!priceId) return "free";
-  if (priceId === Deno.env.get("STRIPE_PRICE_ID_PRO")) return "pro";
-  if (priceId === Deno.env.get("STRIPE_PRICE_ID_PREMIUM")) return "premium";
+
+  const proPriceIds = [
+    Deno.env.get("STRIPE_PRICE_ID_PRO"),
+  ].filter((value): value is string => Boolean(value));
+
+  const premiumPriceIds = [
+    Deno.env.get("STRIPE_PRICE_ID_PREMIUM"),
+    Deno.env.get("STRIPE_PRICE_ID_PREMIUM_MONTHLY"),
+    Deno.env.get("STRIPE_PRICE_ID_PREMIUM_ANNUAL"),
+  ].filter((value): value is string => Boolean(value));
+
+  if (proPriceIds.includes(priceId)) return "pro";
+  if (premiumPriceIds.includes(priceId)) return "premium";
   return "free";
 }
 
