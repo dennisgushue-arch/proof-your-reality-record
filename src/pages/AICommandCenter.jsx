@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
 AlertTriangle,
@@ -98,29 +98,15 @@ const [response, setResponse] = useState(
 createDemoResponse("Summarize this case", demoCases[0])
 );
 
-function handleBackNavigation() {
-if (typeof globalThis !== "undefined" && globalThis.history.length > 1) {
-navigate(-1);
-return;
-}
-
-navigate("/dashboard");
-}
-
-useEffect(() => {
-let cancelled = false;
-
-const loadCases = async () => {
+const loadCases = useCallback(async () => {
 setIsLoadingCases(true);
 
 const { data: userData } = await supabase.auth.getUser();
 const userId = userData.user?.id;
 
 if (!userId) {
-if (!cancelled) {
 setLiveCases([]);
 setIsLoadingCases(false);
-}
 return;
 }
 
@@ -132,10 +118,8 @@ const { data: caseRows, error: caseError } = await supabase
 .limit(12);
 
 if (caseError || !caseRows?.length) {
-if (!cancelled) {
 setLiveCases([]);
 setIsLoadingCases(false);
-}
 return;
 }
 
@@ -146,8 +130,6 @@ const { data: incidentRows } = await supabase
 .in("case_id", caseIds)
 .order("occurred_at", { ascending: true })
 .limit(2000);
-
-if (cancelled) return;
 
 const groupedByCase = new Map();
 caseIds.forEach((id) => groupedByCase.set(id, []));
@@ -180,19 +162,54 @@ timelineGaps,
 });
 
 setLiveCases(mapped);
-if (!mapped.some((item) => item.id === selectedCaseId)) {
-setSelectedCaseId(mapped[0]?.id ?? demoCases[0].id);
-setResponse(createDemoResponse("Summarize this case", mapped[0] ?? demoCases[0]));
-}
-setIsLoadingCases(false);
-};
+setSelectedCaseId((previousCaseId) => {
+const nextCaseId = mapped.some((item) => item.id === previousCaseId)
+? previousCaseId
+: (mapped[0]?.id ?? demoCases[0].id);
 
+if (nextCaseId !== previousCaseId) {
+const nextCase = mapped.find((item) => item.id === nextCaseId) ?? demoCases[0];
+setResponse(createDemoResponse("Summarize this case", nextCase));
+}
+
+return nextCaseId;
+});
+setIsLoadingCases(false);
+}, []);
+
+function handleBackNavigation() {
+if (typeof globalThis !== "undefined" && globalThis.history.length > 1) {
+navigate(-1);
+return;
+}
+
+navigate("/dashboard");
+}
+
+useEffect(() => {
 void loadCases();
 
-return () => {
-cancelled = true;
+const {
+data: { subscription },
+} = supabase.auth.onAuthStateChange(() => {
+void loadCases();
+});
+
+const handleWindowFocus = () => {
+void loadCases();
 };
-}, []);
+
+if (typeof globalThis !== "undefined") {
+globalThis.addEventListener("focus", handleWindowFocus);
+}
+
+return () => {
+subscription.unsubscribe();
+if (typeof globalThis !== "undefined") {
+globalThis.removeEventListener("focus", handleWindowFocus);
+}
+};
+}, [loadCases]);
 
 const availableCases = useMemo(
 () => (liveCases.length ? liveCases : demoCases),
