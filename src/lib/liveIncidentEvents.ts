@@ -32,7 +32,7 @@ export async function persistLiveIncidentEvent(input: {
     event_type: type,
     event_text: text,
     occurred_at: occurredAt,
-    metadata,
+    metadata: metadata as never,
   });
 }
 
