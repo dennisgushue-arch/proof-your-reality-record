@@ -12,7 +12,7 @@ const ProtectedRoute = lazy(() => import("./components/ProtectedRoute").then((mo
 const Auth = lazy(() => import("./pages/Auth.tsx"));
 const Pricing = lazy(() => import("./pages/Pricing.tsx"));
 const Example = lazy(() => import("./pages/Example.tsx"));
-const AICommandCenter = lazy(() => import("./pages/AICommandCenter.jsx"));
+const AIPage = lazy(() => import("./pages/AIPage.tsx"));
 const StressMode = lazy(() => import("./components/StressMode"));
 const IncidentPlayback = lazy(() => import("./components/IncidentPlayback"));
 const CentralIntelligenceScreen = lazy(() => import("./components/CentralIntelligenceScreen.jsx"));
@@ -47,7 +47,7 @@ const App = () => (
               <Route path="/central-intelligence" element={<CentralIntelligenceScreen />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/example" element={<Example />} />
-              <Route path="/ai" element={<ProtectedRoute><AICommandCenter /></ProtectedRoute>} />
+              <Route path="/ai" element={<ProtectedRoute><AIPage /></ProtectedRoute>} />
               <Route path="/demo/playback" element={<IncidentPlayback />} />
 
               <Route path="/auth" element={<Auth />} />
