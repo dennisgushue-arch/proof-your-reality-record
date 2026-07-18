@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -51,7 +52,7 @@ function fmtDate(iso: string) {
 }
 
 const Section = ({ icon: Icon, title, subtitle, children, tone = "neutral" }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
