@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { AppLayout } from "@/components/AppLayout";
 
-const AICommandCenter = lazy(() => import("./AICommandCenter.jsx"));
+const AICommandCenter = lazy(() => import("./AICommandCenter"));
 
 const AIPage = () => (
   <AppLayout>
