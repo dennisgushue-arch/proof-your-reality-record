@@ -1,28 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  ArrowRight,
-  Bell,
-  Sparkles,
-  Mic,
   AlertTriangle,
-  FileText,
-  Clock3,
-  ShieldCheck,
-  FolderKanban,
-  MessageSquareText,
-  Activity,
-  TrendingUp,
-  Lock,
+  ArrowRight,
+  BrainCircuit,
+  Check,
   CheckCircle2,
-  ListChecks,
+  ChevronRight,
+  CircleDot,
+  Clock3,
+  FileText,
+  FolderKanban,
+  Lock,
+  MapPin,
+  Mic,
+  Play,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Users,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { seedDemoIfEmpty } from "@/lib/seedDemo";
-import { toast } from "sonner";
 import { calculateOverallCompletion } from "@/lib/evidenceCompletion";
 import { analyzeCase } from "@/lib/caseIntelligence";
 
@@ -45,32 +48,44 @@ type IncidentRow = {
   neutral_summary: string | null;
   evidence_quality_score: number | null;
   ai_analysis: unknown;
-  evidence_items?: { type: string; filename: string | null; storage_path: string | null }[] | null;
+  evidence_items?: {
+    type: string;
+    filename: string | null;
+    storage_path: string | null;
+  }[] | null;
 };
 
 function relTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.max(1, Math.round(diff / 60000));
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
-  return `${d}d ago`;
+  const minutes = Math.max(1, Math.round(diff / 60000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
 
 function readContradictions(ai: unknown): string[] {
   if (!ai || typeof ai !== "object" || Array.isArray(ai)) return [];
-  const c = (ai as { contradictions?: unknown }).contradictions;
-  return Array.isArray(c) ? c.filter((x) => typeof x === "string") as string[] : [];
+  const contradictions = (ai as { contradictions?: unknown }).contradictions;
+  return Array.isArray(contradictions)
+    ? contradictions.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
-function isMissingFields(inc: IncidentRow) {
-  const people = Array.isArray(inc.people_involved) ? inc.people_involved : [];
+function isMissingFields(incident: IncidentRow) {
+  const people = Array.isArray(incident.people_involved) ? incident.people_involved : [];
   return (
-    !inc.raw_narrative?.trim() ||
-    !inc.location?.trim() ||
+    !incident.raw_narrative?.trim() ||
+    !incident.location?.trim() ||
     people.length === 0
   );
+}
+
+function getTimeOfDay() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 const Dashboard = () => {
@@ -81,440 +96,636 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!user) return;
+
     let cancelled = false;
+
     (async () => {
       setLoading(true);
-      await seedDemoIfEmpty(user.id).catch(() => {});
-      const { data: cs } = await supabase
+      await seedDemoIfEmpty(user.id).catch(() => undefined);
+
+      const { data: caseData } = await supabase
         .from("cases")
         .select("id, title, category, updated_at, incidents(count)")
         .eq("user_id", user.id)
         .order("updated_at", { ascending: false });
-      const rows = (cs as CaseRow[] | null) ?? [];
+
+      const caseRows = (caseData as CaseRow[] | null) ?? [];
       if (cancelled) return;
-      setCases(rows);
-      const ids = rows.map((r) => r.id);
-      if (ids.length) {
-        const { data: ins } = await supabase
+
+      setCases(caseRows);
+
+      const caseIds = caseRows.map((item) => item.id);
+      if (caseIds.length > 0) {
+        const { data: incidentData } = await supabase
           .from("incidents")
-          .select("id, case_id, title, occurred_at, location, people_involved, raw_narrative, neutral_summary, evidence_quality_score, ai_analysis, evidence_items(type, filename, storage_path)")
-          .in("case_id", ids)
+          .select(
+            "id, case_id, title, occurred_at, location, people_involved, raw_narrative, neutral_summary, evidence_quality_score, ai_analysis, evidence_items(type, filename, storage_path)",
+          )
+          .in("case_id", caseIds)
           .order("occurred_at", { ascending: false })
           .limit(120);
-        if (!cancelled) setIncidents((ins as IncidentRow[] | null) ?? []);
+
+        if (!cancelled) {
+          setIncidents((incidentData as IncidentRow[] | null) ?? []);
+        }
       } else {
         setIncidents([]);
       }
+
       if (!cancelled) setLoading(false);
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
-  const brief = useMemo(() => {
-    const now = Date.now();
-    const oneWeek = 7 * 24 * 3600 * 1000;
-    const recent = incidents.filter((i) => now - new Date(i.occurred_at).getTime() < oneWeek);
-    const contradictionsCount = incidents.filter((i) => readContradictions(i.ai_analysis).length > 0).length;
-    const missingCount = incidents.filter(isMissingFields).length;
-    const lowScoreCount = incidents.filter((i) => (i.evidence_quality_score ?? 100) < 60).length;
+  const completion = useMemo(
+    () => calculateOverallCompletion(incidents),
+    [incidents],
+  );
 
-    // Recommended action heuristic
-    let action: { label: string; tone: "warning" | "primary" | "success"; href: string } = {
-      label: "Review your most recent incident",
-      tone: "primary",
-      href: incidents[0] ? `/incidents/${incidents[0].id}` : "/cases",
-    };
-    const missing = incidents.find(isMissingFields);
-    if (missing) {
-      action = {
-        label: "Complete missing incident details",
-        tone: "warning",
-        href: `/incidents/${missing.id}`,
+  const intelligence = useMemo(
+    () => analyzeCase(incidents),
+    [incidents],
+  );
+
+  const topCase = cases[0];
+  const topCaseIncidents = topCase
+    ? incidents
+        .filter((incident) => incident.case_id === topCase.id)
+        .sort(
+          (a, b) =>
+            new Date(a.occurred_at).getTime() -
+            new Date(b.occurred_at).getTime(),
+        )
+    : [];
+
+  const evidenceCount = incidents.reduce(
+    (sum, incident) => sum + (incident.evidence_items?.length ?? 0),
+    0,
+  );
+
+  const contradictionCount = incidents.reduce(
+    (sum, incident) => sum + readContradictions(incident.ai_analysis).length,
+    0,
+  );
+
+  const missingIncident = incidents.find(isMissingFields);
+
+  const nextAction = useMemo(() => {
+    if (missingIncident) {
+      return {
+        eyebrow: "Highest-impact action",
+        title: "Complete missing incident details",
+        description:
+          "Add the missing people, location, or narrative details to strengthen your documentation.",
+        href: `/incidents/${missingIncident.id}`,
+        button: "Complete incident",
+        improvement: "+8%",
       };
-    } else if (lowScoreCount > 0) {
-      const target = incidents.find((i) => (i.evidence_quality_score ?? 100) < 60);
-      action = {
-        label: "Add supporting evidence to a weak incident",
-        tone: "primary",
-        href: target ? `/incidents/${target.id}` : "/cases",
+    }
+
+    const weakIncident = incidents.find(
+      (incident) => (incident.evidence_quality_score ?? 100) < 60,
+    );
+
+    if (weakIncident) {
+      return {
+        eyebrow: "Evidence opportunity",
+        title: "Strengthen a weak incident",
+        description:
+          "Add supporting evidence or context to improve the reliability of this record.",
+        href: `/incidents/${weakIncident.id}`,
+        button: "Review incident",
+        improvement: "+6%",
       };
-    } else if (cases.some((c) => (c.incidents?.[0]?.count ?? 0) >= 3)) {
-      const c = cases.find((x) => (x.incidents?.[0]?.count ?? 0) >= 3);
-      action = {
-        label: "Export a case packet",
-        tone: "success",
-        href: c ? `/cases/${c.id}/export` : "/cases",
+    }
+
+    if (topCase) {
+      return {
+        eyebrow: "Recommended next step",
+        title: "Review your active case",
+        description:
+          "Open your latest case to review findings, missing documentation, and timeline intelligence.",
+        href: `/cases/${topCase.id}`,
+        button: "Continue case",
+        improvement: "+4%",
       };
     }
 
     return {
-      activeCases: cases.length,
-      recent7d: recent.length,
-      contradictionsCount,
-      missingCount,
-      lowScoreCount,
-      action,
+      eyebrow: "Start here",
+      title: "Create your first Reality Record",
+      description:
+        "Capture what happened, attach evidence, and let Proof organize the timeline.",
+      href: "/record",
+      button: "Start recording",
+      improvement: "New",
     };
-  }, [cases, incidents]);
+  }, [incidents, missingIncident, topCase]);
 
-  const completion = useMemo(() => calculateOverallCompletion(incidents), [incidents]);
-  const intelligence = useMemo(() => analyzeCase(incidents), [incidents]);
+  const greetingName =
+    user?.user_metadata?.full_name?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
+    "there";
 
-  const activity = useMemo(() => {
-    return incidents.slice(0, 6).map((i) => {
-      const contradictions = readContradictions(i.ai_analysis).length;
-      let tone: "danger" | "success" | "neutral" = "neutral";
-      let label = i.title;
-      if (contradictions > 0) { tone = "danger"; label = "Possible statement difference detected"; }
-      else if ((i.evidence_quality_score ?? 0) >= 75) { tone = "success"; }
-      const desc = i.neutral_summary?.trim()
-        || (i.raw_narrative?.trim() ? `${i.raw_narrative.slice(0, 110)}${i.raw_narrative.length > 110 ? "…" : ""}` : "Incident added to your timeline.");
-      return { id: i.id, label, desc, time: relTime(i.occurred_at), tone };
-    });
-  }, [incidents]);
-
-  const metrics = useMemo(() => {
-    const scored = incidents.filter((i) => typeof i.evidence_quality_score === "number");
-    const evidenceStrength = scored.length
-      ? Math.round(scored.reduce((s, i) => s + (i.evidence_quality_score ?? 0), 0) / scored.length)
-      : incidents.length ? 60 : 0;
-    const contradictionRatio = incidents.length ? brief.contradictionsCount / incidents.length : 0;
-    const timelineIntegrity = Math.max(0, Math.min(100, Math.round(100 - contradictionRatio * 40 - brief.missingCount * 5)));
-    const protection = incidents.length
-      ? Math.max(30, Math.min(99, Math.round(evidenceStrength * 0.6 + timelineIntegrity * 0.4)))
-      : 0;
-    return {
-      protection,
-      evidenceStrength,
-      timelineIntegrity,
-      storyChanges: brief.contradictionsCount,
-    };
-  }, [incidents, brief.contradictionsCount, brief.missingCount]);
-
-  const greetingName = user?.user_metadata?.full_name?.split(" ")[0]
-    || user?.email?.split("@")[0]
-    || "there";
-
-  const actionToneClasses = {
-    warning: "border-amber-500/40 bg-amber-500/5",
-    primary: "border-primary/40 bg-primary/5",
-    success: "border-emerald-500/40 bg-emerald-500/5",
-  } as const;
+  const statusTone =
+    intelligence.evidenceStrength >= 80
+      ? "Strong"
+      : intelligence.evidenceStrength >= 60
+        ? "Developing"
+        : "Needs attention";
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 py-8 space-y-8">
-        {/* Header */}
-        <header className="flex flex-wrap items-start justify-between gap-4">
+      <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+        <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-primary font-semibold mb-2">
-              Reality Intelligence Center
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.9)]" />
+              Intelligence briefing
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-              Good to see you, {greetingName}
+            <h1 className="text-3xl font-black tracking-[-0.045em] text-white sm:text-4xl lg:text-5xl">
+              {getTimeOfDay()}, {greetingName}.
             </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Here's what Proof AI has identified since your last review.
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500 sm:text-base">
+              Proof analyzed your records and prioritized the action most likely
+              to strengthen your documentation.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground border border-white/10 rounded-md px-2.5 py-1.5">
-              <Lock className="h-3 w-3 text-success" />
-              Encrypted · Private
-            </div>
-            <button
-              type="button"
-              onClick={() => toast.info("No new alerts.", { description: "You're all caught up." })}
-              className="h-9 w-9 rounded-md border border-white/10 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5"
-              aria-label="Notifications"
-            >
-              <Bell className="h-4 w-4" />
-            </button>
-            <Link to="/account" className="hidden sm:inline-flex">
-              <Button variant="outline" size="sm" className="border-white/10">Account</Button>
-            </Link>
+
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/10 bg-emerald-400/[0.04] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300">
+            <Lock className="h-3.5 w-3.5" />
+            Encrypted · Private
           </div>
         </header>
 
-        {/* PROOF AI BRIEF */}
-        <section
-          className="relative rounded-xl border border-primary/25 p-6 md:p-7 overflow-hidden"
-          style={{
-            background: "linear-gradient(180deg, hsl(220 45% 12%) 0%, hsl(220 45% 9%) 100%)",
-            boxShadow: "0 0 0 1px hsl(219 100% 65% / 0.05), 0 20px 60px -20px hsl(219 100% 40% / 0.35)",
-          }}
-        >
-          <span aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-          <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em] font-bold text-primary bg-primary/10 border border-primary/30 rounded-full px-2.5 py-1">
-                  <Sparkles className="h-3 w-3" />
-                  Proof AI Brief
-                </div>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Preview</span>
-              </div>
-              <h2 className="text-xl md:text-2xl font-bold tracking-tight mb-2">
-                {cases.length ? intelligence.status : "Create your first Reality Record"}
-              </h2>
-              {loading ? (
-                <div className="text-sm text-muted-foreground">Reading your case files…</div>
-              ) : cases.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
-                  Create your first case to activate Proof AI.
-                  <Link to="/cases" className="ml-2 text-primary hover:underline">Create a case →</Link>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    {intelligence.findings.map((finding) => (
-                      <li key={finding} className="flex gap-2">
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        <span>{finding}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="rounded-lg border border-white/10 bg-black/15 p-3">
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Recommended next action</div>
-                    <div className="mt-1 text-sm font-medium text-foreground">{intelligence.recommendedAction}</div>
+        <section className="relative overflow-hidden rounded-[28px] border border-blue-400/15 bg-[#0d1420] p-5 shadow-[0_30px_100px_-45px_rgba(37,99,235,0.7)] sm:p-7 lg:p-9">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent"
+          />
+
+          <div className="relative grid gap-8 xl:grid-cols-[1.5fr_0.8fr] xl:items-center">
+            <div>
+              <div className="mb-5 flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/12 ring-1 ring-blue-400/20">
+                  <BrainCircuit className="h-5 w-5 text-blue-300" />
+                </span>
+                <div>
+                  <div className="text-sm font-bold text-white">Proof AI</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
+                    Live case analysis
                   </div>
-                  <ul className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <BriefStat icon={ShieldCheck} value={intelligence.evidenceStrength} label="Evidence strength" tone={intelligence.evidenceStrength < 50 ? "warning" : "neutral"} />
-                    <BriefStat icon={FolderKanban} value={brief.activeCases} label="Active cases" tone="neutral" />
-                    <BriefStat icon={AlertTriangle} value={intelligence.contradictionCount} label="Possible differences" tone={intelligence.contradictionCount ? "danger" : "neutral"} />
-                    <BriefStat icon={Clock3} value={intelligence.timelineGapCount} label="Timeline gaps" tone={intelligence.timelineGapCount ? "warning" : "neutral"} />
-                  </ul>
                 </div>
-              )}
-            </div>
-            <div className="lg:w-72 shrink-0 flex flex-col gap-2">
-              <Link to="/ai">
-                <Button className="w-full bg-primary hover:bg-primary/90 justify-between">
-                  Open Full AI Brief <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link to="/ai?ask=1">
-                <Button variant="outline" className="w-full justify-between border-primary/30 hover:bg-primary/5">
-                  <span className="inline-flex items-center gap-2">
-                    <MessageSquareText className="h-4 w-4" /> Ask Proof AI
-                  </span>
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
+              </div>
 
-        {/* EVIDENCE COMPLETION */}
-        {cases.length > 0 && (
-          <section className="rounded-xl border border-white/5 bg-card p-6">
-            <div className="flex flex-col gap-5 md:flex-row md:items-center">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <ListChecks className="h-4 w-4 text-primary" />
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Evidence completion</span>
+              {loading ? (
+                <div className="py-10 text-sm text-slate-500">
+                  Analyzing your records…
                 </div>
-                <div className="flex items-end gap-3">
-                  <div className="text-3xl font-bold tracking-tight">{completion.score}%</div>
-                  <p className="pb-1 text-sm text-muted-foreground">of documented incident fields are complete</p>
-                </div>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5" role="progressbar" aria-valuenow={completion.score} aria-valuemin={0} aria-valuemax={100}>
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${completion.score}%` }} />
-                </div>
-                {completion.next ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Documentation may be incomplete for <span className="font-medium text-foreground">{completion.next.title}</span>. Missing: {completion.next.missing.slice(0, 3).map((item) => item.label).join(", ")}.
+              ) : cases.length === 0 ? (
+                <>
+                  <h2 className="max-w-3xl text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
+                    Your first Reality Record starts here.
+                  </h2>
+                  <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
+                    Record an incident, attach evidence, and let Proof organize
+                    the timeline automatically.
                   </p>
-                ) : (
-                  <p className="mt-3 text-sm text-muted-foreground">The available records indicate all tracked completion checks are currently satisfied.</p>
-                )}
-              </div>
-              {completion.next && (
-                <Link to={`/incidents/${completion.next.incidentId}`} className="w-full md:w-auto">
-                  <Button className="w-full md:w-auto">Fix next <ArrowRight className="ml-2 h-4 w-4" /></Button>
-                </Link>
+                  <Link to="/record" className="mt-7 inline-flex">
+                    <Button className="h-12 rounded-xl bg-blue-500 px-6 font-bold hover:bg-blue-400">
+                      <Mic className="mr-2 h-4 w-4" />
+                      Start recording
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-blue-400/15 bg-blue-400/[0.06] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-300">
+                      {statusTone}
+                    </span>
+                    <span className="text-xs text-slate-600">
+                      Updated from {incidents.length} documented{" "}
+                      {incidents.length === 1 ? "incident" : "incidents"}
+                    </span>
+                  </div>
+
+                  <h2 className="max-w-3xl text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
+                    {intelligence.status}
+                  </h2>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    {intelligence.findings.slice(0, 4).map((finding) => (
+                      <div
+                        key={finding}
+                        className="flex gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4"
+                      >
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
+                        <span className="text-sm leading-relaxed text-slate-300">
+                          {finding}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-7 flex flex-wrap gap-3">
+                    <Link to="/ai">
+                      <Button className="h-11 rounded-xl bg-blue-500 px-5 font-bold hover:bg-blue-400">
+                        Open AI brief
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                    {topCase && (
+                      <Link to={`/cases/${topCase.id}/replay`}>
+                        <Button
+                          variant="outline"
+                          className="h-11 rounded-xl border-white/10 bg-white/[0.02] px-5 font-bold hover:bg-white/[0.06]"
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Reality Replay
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </>
               )}
             </div>
-          </section>
-        )}
 
-        {/* START LIVE INCIDENT */}
-        <section
-          className="relative rounded-xl p-6 md:p-7 border overflow-hidden"
-          style={{
-            borderColor: "hsl(219 100% 65% / 0.35)",
-            background: "linear-gradient(135deg, hsl(219 100% 65% / 0.08) 0%, hsl(220 45% 10%) 60%)",
-          }}
-        >
-          <div className="flex flex-col md:flex-row md:items-center gap-5">
-            <div className="h-14 w-14 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-lg shadow-primary/30">
-              <Mic className="h-6 w-6" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-primary font-bold mb-1">
-                Live Capture
+            <div className="relative mx-auto flex h-[250px] w-[250px] items-center justify-center sm:h-[290px] sm:w-[290px]">
+              <div className="absolute inset-0 rounded-full border border-blue-400/10 bg-blue-500/[0.025]" />
+              <div className="absolute inset-4 rounded-full border border-dashed border-blue-400/15" />
+              <div className="absolute inset-10 rounded-full bg-[#0a101a] shadow-[inset_0_0_45px_rgba(59,130,246,0.08)] ring-1 ring-white/[0.05]" />
+              <div className="relative text-center">
+                <div className="text-6xl font-black tracking-[-0.07em] text-white">
+                  {completion.score}
+                  <span className="ml-1 text-2xl text-blue-300">%</span>
+                </div>
+                <div className="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                  Evidence complete
+                </div>
+                <div className="mx-auto mt-4 h-1.5 w-28 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300 transition-all duration-700"
+                    style={{ width: `${completion.score}%` }}
+                  />
+                </div>
               </div>
-              <h2 className="text-xl md:text-2xl font-bold tracking-tight">Start Live Incident</h2>
-              <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-                Timestamped capture with notes, voice, photos, and files — filed to a case in seconds.
-              </p>
             </div>
-            <Link to="/record" className="shrink-0">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 font-semibold">
-                <Mic className="mr-2 h-4 w-4" /> Start recording
-              </Button>
-            </Link>
           </div>
         </section>
 
-        {/* RECOMMENDED NEXT ACTION */}
-        {cases.length > 0 && (
-          <section className={`rounded-lg border p-5 flex flex-wrap items-center gap-4 ${actionToneClasses[brief.action.tone]}`}>
-            <div className="h-10 w-10 rounded-md bg-black/20 flex items-center justify-center shrink-0">
-              {brief.action.tone === "warning" ? <AlertTriangle className="h-5 w-5 text-amber-400" />
-                : brief.action.tone === "success" ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                : <Sparkles className="h-5 w-5 text-primary" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
-                Recommended next action <span className="ml-1 opacity-70">· Preview</span>
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+          <section className="rounded-[24px] border border-amber-300/12 bg-[#0c121c] p-5 sm:p-7">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400/10 ring-1 ring-amber-300/15">
+                <Sparkles className="h-5 w-5 text-amber-300" />
               </div>
-              <div className="font-semibold text-foreground">{brief.action.label}</div>
-            </div>
-            <Link to={brief.action.href}>
-              <Button variant="outline" size="sm" className="border-white/15">
-                Take action <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-              </Button>
-            </Link>
-          </section>
-        )}
 
-        {/* ACTIVE CASES + RECENT ACTIVITY */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <section className="lg:col-span-2 rounded-xl border border-white/5 bg-card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Case files</div>
-                <h2 className="text-lg font-bold">Active cases</h2>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                  {nextAction.eyebrow}
+                </div>
+                <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-white">
+                  {nextAction.title}
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+                  {nextAction.description}
+                </p>
               </div>
-              <Link to="/cases" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
-                View all <ArrowRight className="h-3 w-3" />
-              </Link>
+
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="hidden text-right md:block">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
+                    Potential gain
+                  </div>
+                  <div className="text-lg font-black text-emerald-300">
+                    {nextAction.improvement}
+                  </div>
+                </div>
+                <Link to={nextAction.href}>
+                  <Button className="h-11 rounded-xl bg-white px-5 font-bold text-slate-950 hover:bg-slate-200">
+                    {nextAction.button}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
             </div>
-            {loading ? (
-              <div className="text-sm text-muted-foreground">Loading…</div>
-            ) : cases.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-8 text-center">
-                No cases yet. <Link to="/cases" className="text-primary hover:underline">Create one</Link>.
-              </div>
-            ) : (
-              <ul className="divide-y divide-white/5">
-                {cases.slice(0, 5).map((c) => {
-                  const count = c.incidents?.[0]?.count ?? 0;
-                  return (
-                    <li key={c.id} className="py-3 flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                        <FolderKanban className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{c.category}</span>
-                          <span className="text-[10px] text-muted-foreground">· {relTime(c.updated_at)}</span>
-                        </div>
-                        <div className="text-sm font-semibold truncate">{c.title}</div>
-                        <div className="text-[11px] text-muted-foreground">{count} {count === 1 ? "incident" : "incidents"}</div>
-                      </div>
-                      <Link to={`/cases/${c.id}`}>
-                        <Button variant="ghost" size="sm" className="text-xs">Open</Button>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
           </section>
 
-          <section className="rounded-xl border border-white/5 bg-card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Timeline</div>
-                <h2 className="text-lg font-bold">Recent activity</h2>
+          <Link
+            to="/record"
+            className="group rounded-[24px] border border-blue-400/15 bg-blue-500 p-5 text-white shadow-[0_24px_60px_-30px_rgba(59,130,246,0.95)] transition hover:bg-blue-400 sm:p-7"
+          >
+            <div className="flex h-full items-center gap-5">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                <Mic className="h-6 w-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-100">
+                  Live capture
+                </div>
+                <div className="mt-1 text-xl font-black tracking-[-0.025em]">
+                  Record what happened
+                </div>
+                <div className="mt-1 text-sm text-blue-100/80">
+                  Voice, photos, location, and notes.
+                </div>
               </div>
+              <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" />
             </div>
-            {activity.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-6 text-center">No recent activity.</div>
-            ) : (
-              <ul className="space-y-3">
-                {activity.map((a) => (
-                  <li key={a.id} className="flex gap-3">
-                    <span
-                      aria-hidden
-                      className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${
-                        a.tone === "danger" ? "bg-destructive"
-                        : a.tone === "success" ? "bg-emerald-500"
-                        : "bg-primary"
-                      }`}
-                    />
-                    <Link to={`/incidents/${a.id}`} className="flex-1 min-w-0 group">
-                      <div className="text-sm font-medium truncate group-hover:text-primary transition-colors">{a.label}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2">{a.desc}</div>
-                      <div className="text-[10px] text-muted-foreground/70 mt-0.5">{a.time}</div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          </Link>
         </div>
 
-        {/* SECONDARY METRICS */}
         {cases.length > 0 && (
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <MetricTile icon={ShieldCheck} label="Protection Score" value={`${metrics.protection}%`} />
-            <MetricTile icon={FileText} label="Evidence Strength" value={`${metrics.evidenceStrength}%`} />
-            <MetricTile icon={Clock3} label="Timeline Integrity" value={`${metrics.timelineIntegrity}%`} />
-            <MetricTile icon={TrendingUp} label="Story Changes" value={String(metrics.storyChanges)} />
-          </section>
+          <>
+            <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                icon={ShieldCheck}
+                label="Evidence strength"
+                value={`${intelligence.evidenceStrength}%`}
+                detail="Across all active records"
+              />
+              <MetricCard
+                icon={Clock3}
+                label="Timeline gaps"
+                value={String(intelligence.timelineGapCount)}
+                detail={
+                  intelligence.timelineGapCount === 0
+                    ? "No major gaps detected"
+                    : "Review recommended"
+                }
+                warning={intelligence.timelineGapCount > 0}
+              />
+              <MetricCard
+                icon={AlertTriangle}
+                label="Statement differences"
+                value={String(contradictionCount)}
+                detail={
+                  contradictionCount === 0
+                    ? "No differences flagged"
+                    : "Possible differences for review"
+                }
+                warning={contradictionCount > 0}
+              />
+              <MetricCard
+                icon={FileText}
+                label="Evidence items"
+                value={String(evidenceCount)}
+                detail="Files attached to incidents"
+              />
+            </section>
+
+            <div className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <section className="rounded-[26px] border border-white/[0.06] bg-[#0b111a] p-5 sm:p-7">
+                <div className="mb-6 flex items-end justify-between gap-4">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                      Continue working
+                    </div>
+                    <h2 className="mt-1 text-2xl font-black tracking-[-0.035em] text-white">
+                      Active cases
+                    </h2>
+                  </div>
+                  <Link
+                    to="/cases"
+                    className="flex items-center gap-1 text-xs font-bold text-blue-300 hover:text-blue-200"
+                  >
+                    View all
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+
+                <div className="space-y-3">
+                  {cases.slice(0, 4).map((caseItem, index) => {
+                    const count = caseItem.incidents?.[0]?.count ?? 0;
+                    return (
+                      <Link
+                        key={caseItem.id}
+                        to={`/cases/${caseItem.id}`}
+                        className="group flex items-center gap-4 rounded-2xl border border-white/[0.055] bg-white/[0.018] p-4 transition hover:border-blue-400/20 hover:bg-blue-400/[0.035]"
+                      >
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/8 text-blue-300 ring-1 ring-blue-400/10">
+                          <FolderKanban className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
+                              {caseItem.category || "Case"}
+                            </span>
+                            {index === 0 && (
+                              <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-blue-300">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 truncate text-sm font-bold text-slate-100">
+                            {caseItem.title}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-600">
+                            {count} {count === 1 ? "incident" : "incidents"} ·{" "}
+                            {relTime(caseItem.updated_at)}
+                          </div>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-slate-700 transition group-hover:translate-x-0.5 group-hover:text-blue-300" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="relative overflow-hidden rounded-[26px] border border-white/[0.06] bg-[#0b111a] p-5 sm:p-7">
+                <div
+                  aria-hidden
+                  className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-cyan-400/[0.055] blur-3xl"
+                />
+                <div className="relative">
+                  <div className="mb-6 flex items-end justify-between gap-4">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                        Signature intelligence
+                      </div>
+                      <h2 className="mt-1 text-2xl font-black tracking-[-0.035em] text-white">
+                        Reality Replay
+                      </h2>
+                    </div>
+                    {topCase && (
+                      <Link
+                        to={`/cases/${topCase.id}/replay`}
+                        className="flex items-center gap-1 text-xs font-bold text-blue-300 hover:text-blue-200"
+                      >
+                        Open replay
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    )}
+                  </div>
+
+                  {topCaseIncidents.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-600">
+                      Add incidents to build a chronological replay.
+                    </div>
+                  ) : (
+                    <div className="relative space-y-0">
+                      <div className="absolute bottom-4 left-[15px] top-4 w-px bg-gradient-to-b from-blue-400/50 via-blue-400/20 to-transparent" />
+                      {topCaseIncidents.slice(0, 5).map((incident, index) => (
+                        <Link
+                          key={incident.id}
+                          to={`/incidents/${incident.id}`}
+                          className="group relative flex gap-4 py-3"
+                        >
+                          <span className="relative z-10 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-400/20 bg-[#0b111a]">
+                            <CircleDot className="h-3.5 w-3.5 text-blue-300" />
+                          </span>
+                          <div className="min-w-0 flex-1 rounded-2xl border border-white/[0.045] bg-white/[0.018] p-4 transition group-hover:border-blue-400/15 group-hover:bg-blue-400/[0.025]">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-xs font-black text-blue-300">
+                                {new Date(incident.occurred_at).toLocaleTimeString(
+                                  [],
+                                  { hour: "numeric", minute: "2-digit" },
+                                )}
+                              </div>
+                              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-700">
+                                Event {index + 1}
+                              </div>
+                            </div>
+                            <div className="mt-1 truncate text-sm font-bold text-slate-200">
+                              {incident.title}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-600">
+                              {incident.location && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {incident.location}
+                                </span>
+                              )}
+                              {Array.isArray(incident.people_involved) &&
+                                incident.people_involved.length > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Users className="h-3 w-3" />
+                                    {incident.people_involved.length} people
+                                  </span>
+                                )}
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            {completion.next && (
+              <section className="mt-8 rounded-[26px] border border-white/[0.06] bg-[#0b111a] p-5 sm:p-7">
+                <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                      Missing documentation
+                    </div>
+                    <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] text-white">
+                      Strengthen “{completion.next.title}”
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                      Proof identified incomplete fields that may reduce the
+                      usefulness of this incident later.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/[0.05] bg-white/[0.018] p-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {completion.next.missing.slice(0, 4).map((item) => (
+                        <div
+                          key={item.label}
+                          className="flex items-center gap-3 rounded-xl bg-black/10 p-3"
+                        >
+                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400/10">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                          </span>
+                          <span className="text-sm font-medium text-slate-300">
+                            {item.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <Link
+                      to={`/incidents/${completion.next.incidentId}`}
+                      className="mt-4 inline-flex"
+                    >
+                      <Button
+                        variant="outline"
+                        className="rounded-xl border-white/10 bg-white/[0.02] font-bold hover:bg-white/[0.06]"
+                      >
+                        Fix missing details
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </section>
+            )}
+          </>
         )}
 
-        <p className="text-[11px] text-muted-foreground/70 leading-relaxed max-w-3xl border-t border-white/5 pt-6">
-          Proof organizes information supplied by the user. AI output may contain errors and should be reviewed against original records. Proof is not a law firm and does not provide legal advice.
-        </p>
+        <footer className="mt-10 border-t border-white/[0.05] py-6">
+          <div className="flex flex-col gap-3 text-[11px] leading-relaxed text-slate-700 sm:flex-row sm:items-start sm:justify-between">
+            <p className="max-w-3xl">
+              Proof organizes information supplied by the user. AI output may
+              contain errors and should be reviewed against original records.
+              Proof is not a law firm and does not provide legal advice.
+            </p>
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-[0.12em]">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Private by design
+            </div>
+          </div>
+        </footer>
       </div>
     </AppLayout>
   );
 };
 
-function BriefStat({
-  icon: Icon, value, label, tone,
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  warning = false,
 }: {
-  icon: React.ElementType; value: number; label: string; tone: "neutral" | "warning" | "danger";
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  detail: string;
+  warning?: boolean;
 }) {
-  const color =
-    tone === "danger" ? "text-destructive"
-    : tone === "warning" ? "text-amber-400"
-    : "text-foreground";
   return (
-    <li className="rounded-lg bg-black/20 border border-white/5 p-3">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-        <Icon className={`h-3.5 w-3.5 ${color}`} />
-        {label}
+    <div className="rounded-[22px] border border-white/[0.06] bg-[#0b111a] p-5">
+      <div className="flex items-center justify-between">
+        <span
+          className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+            warning
+              ? "bg-amber-400/10 text-amber-300"
+              : "bg-blue-500/8 text-blue-300"
+          }`}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        {warning ? (
+          <AlertTriangle className="h-4 w-4 text-amber-300" />
+        ) : (
+          <Check className="h-4 w-4 text-emerald-300" />
+        )}
       </div>
-      <div className={`text-2xl font-bold mt-1 ${color}`}>{value}</div>
-    </li>
-  );
-}
-
-function MetricTile({
-  icon: Icon, label, value,
-}: { icon: React.ElementType; label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-white/5 bg-card p-4">
-      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
+      <div className="mt-5 text-3xl font-black tracking-[-0.045em] text-white">
+        {value}
       </div>
-      <div className="text-xl font-bold mt-1">{value}</div>
+      <div className="mt-1 text-sm font-bold text-slate-300">{label}</div>
+      <div className="mt-1 text-xs text-slate-600">{detail}</div>
     </div>
   );
 }

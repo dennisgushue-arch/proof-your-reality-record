@@ -17,7 +17,9 @@ const StressMode = lazy(() => import("./components/StressMode"));
 const IncidentPlayback = lazy(() => import("./components/IncidentPlayback"));
 const CentralIntelligenceScreen = lazy(() => import("./components/CentralIntelligenceScreen.jsx"));
 
-const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const DashboardV2Page = lazy(() =>
+  import("./features/dashboard-v2/DashboardV2").then((mod) => ({ default: mod.DashboardV2 })),
+);
 const Cases = lazy(() => import("./pages/Cases.tsx"));
 const RecordPage = lazy(() => import("./pages/Record.tsx"));
 const CaseDetail = lazy(() => import("./pages/CaseDetail.tsx"));
@@ -53,7 +55,8 @@ const App = () => (
 
               <Route path="/auth" element={<Auth />} />
               <Route path="/stress-mode" element={<ProtectedRoute><StressMode /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              {/* Rollback note: to restore legacy dashboard, swap DashboardV2Page with ./pages/Dashboard.tsx */}
+              <Route path="/dashboard" element={<ProtectedRoute><DashboardV2Page /></ProtectedRoute>} />
               <Route path="/cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
               <Route path="/record" element={<ProtectedRoute><RecordPage /></ProtectedRoute>} />
               <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
