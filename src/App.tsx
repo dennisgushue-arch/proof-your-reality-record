@@ -27,6 +27,7 @@ const ExportPreview = lazy(() => import("./pages/ExportPreview.tsx"));
 const Account = lazy(() => import("./pages/Account.tsx"));
 const PrepareInteraction = lazy(() => import("./pages/PrepareInteraction.tsx"));
 const TimelineIntelligence = lazy(() => import("./pages/TimelineIntelligence.tsx"));
+const RealityReplay = lazy(() => import("./pages/RealityReplay.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,7 @@ const App = () => (
               <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
               <Route path="/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
               <Route path="/cases/:id/intelligence" element={<ProtectedRoute><TimelineIntelligence /></ProtectedRoute>} />
+              <Route path="/cases/:id/replay" element={<ProtectedRoute><RealityReplay /></ProtectedRoute>} />
               <Route path="/cases/:id/prepare" element={<ProtectedRoute><PrepareInteraction /></ProtectedRoute>} />
               <Route path="/cases/:id/incidents/new" element={<ProtectedRoute><IncidentNew /></ProtectedRoute>} />
               <Route path="/cases/:id/export" element={<ProtectedRoute><ExportPreview /></ProtectedRoute>} />

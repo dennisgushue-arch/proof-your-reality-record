@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Lock,
   CheckCircle2,
+  ListChecks,
 } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { seedDemoIfEmpty } from "@/lib/seedDemo";
 import { toast } from "sonner";
+import { calculateOverallCompletion } from "@/lib/evidenceCompletion";
 
 type CaseRow = {
   id: string;
@@ -42,6 +44,7 @@ type IncidentRow = {
   neutral_summary: string | null;
   evidence_quality_score: number | null;
   ai_analysis: unknown;
+  evidence_items?: { type: string; filename: string | null; storage_path: string | null }[] | null;
 };
 
 function relTime(iso: string) {
@@ -93,7 +96,7 @@ const Dashboard = () => {
       if (ids.length) {
         const { data: ins } = await supabase
           .from("incidents")
-          .select("id, case_id, title, occurred_at, location, people_involved, raw_narrative, neutral_summary, evidence_quality_score, ai_analysis")
+          .select("id, case_id, title, occurred_at, location, people_involved, raw_narrative, neutral_summary, evidence_quality_score, ai_analysis, evidence_items(type, filename, storage_path)")
           .in("case_id", ids)
           .order("occurred_at", { ascending: false })
           .limit(120);
@@ -152,6 +155,8 @@ const Dashboard = () => {
       action,
     };
   }, [cases, incidents]);
+
+  const completion = useMemo(() => calculateOverallCompletion(incidents), [incidents]);
 
   const activity = useMemo(() => {
     return incidents.slice(0, 6).map((i) => {
@@ -286,6 +291,39 @@ const Dashboard = () => {
             </div>
           </div>
         </section>
+
+        {/* EVIDENCE COMPLETION */}
+        {cases.length > 0 && (
+          <section className="rounded-xl border border-white/5 bg-card p-6">
+            <div className="flex flex-col gap-5 md:flex-row md:items-center">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <ListChecks className="h-4 w-4 text-primary" />
+                  <span className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Evidence completion</span>
+                </div>
+                <div className="flex items-end gap-3">
+                  <div className="text-3xl font-bold tracking-tight">{completion.score}%</div>
+                  <p className="pb-1 text-sm text-muted-foreground">of documented incident fields are complete</p>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5" role="progressbar" aria-valuenow={completion.score} aria-valuemin={0} aria-valuemax={100}>
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${completion.score}%` }} />
+                </div>
+                {completion.next ? (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Documentation may be incomplete for <span className="font-medium text-foreground">{completion.next.title}</span>. Missing: {completion.next.missing.slice(0, 3).map((item) => item.label).join(", ")}.
+                  </p>
+                ) : (
+                  <p className="mt-3 text-sm text-muted-foreground">The available records indicate all tracked completion checks are currently satisfied.</p>
+                )}
+              </div>
+              {completion.next && (
+                <Link to={`/incidents/${completion.next.incidentId}`} className="w-full md:w-auto">
+                  <Button className="w-full md:w-auto">Fix next <ArrowRight className="ml-2 h-4 w-4" /></Button>
+                </Link>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* START LIVE INCIDENT */}
         <section

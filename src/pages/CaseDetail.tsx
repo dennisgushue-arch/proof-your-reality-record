@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Clock3, FileDown, Home, MapPin, Paperclip, Plus, Search, ShieldCheck, Sparkles, Users, Tag } from "lucide-react";
+import { ArrowLeft, Clock3, FileDown, Home, MapPin, Paperclip, Plus, Search, ShieldCheck, Sparkles, Users, Tag, PlayCircle } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -146,6 +146,7 @@ const CaseDetail = () => {
       { value: "overview", label: "Overview", icon: Home, action: () => scrollToSection("overview") },
       { value: "timeline", label: "Timeline", icon: Clock3, action: () => scrollToSection("timeline") },
       { value: "intelligence", label: "Intelligence", icon: ShieldCheck, action: () => navigate(`/cases/${id}/intelligence`) },
+      { value: "replay", label: "Replay", icon: PlayCircle, action: () => navigate(`/cases/${id}/replay`) },
       { value: "evidence", label: "Evidence", icon: Paperclip, action: () => navigate(`/cases/${id}/export`) },
       { value: "prepare", label: "Prepare", icon: Sparkles, action: () => navigate(`/cases/${id}/prepare`) },
       { value: "export", label: "Export", icon: FileDown, action: () => navigate(`/cases/${id}/export`) },
@@ -243,6 +244,11 @@ const CaseDetail = () => {
             <Link to={`/cases/${id}/intelligence`} className="w-full sm:w-auto">
               <Button variant="outline" className="border-border w-full sm:w-auto">
                 Timeline Intelligence
+              </Button>
+            </Link>
+            <Link to={`/cases/${id}/replay`} className="w-full sm:w-auto">
+              <Button variant="outline" className="border-primary/30 w-full sm:w-auto">
+                <PlayCircle className="mr-2 h-4 w-4" /> Reality Replay
               </Button>
             </Link>
             <Link to={`/cases/${id}/export`} className="w-full sm:w-auto">
