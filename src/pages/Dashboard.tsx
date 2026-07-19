@@ -24,6 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { seedDemoIfEmpty } from "@/lib/seedDemo";
 import { toast } from "sonner";
 import { calculateOverallCompletion } from "@/lib/evidenceCompletion";
+import { analyzeCase } from "@/lib/caseIntelligence";
 
 type CaseRow = {
   id: string;
@@ -157,6 +158,7 @@ const Dashboard = () => {
   }, [cases, incidents]);
 
   const completion = useMemo(() => calculateOverallCompletion(incidents), [incidents]);
+  const intelligence = useMemo(() => analyzeCase(incidents), [incidents]);
 
   const activity = useMemo(() => {
     return incidents.slice(0, 6).map((i) => {
@@ -252,12 +254,9 @@ const Dashboard = () => {
                 </div>
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Preview</span>
               </div>
-              <h2 className="text-xl md:text-2xl font-bold tracking-tight mb-1">
-                Here's what changed since your last review
+              <h2 className="text-xl md:text-2xl font-bold tracking-tight mb-2">
+                {cases.length ? intelligence.status : "Create your first Reality Record"}
               </h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                The available records indicate the following. Documentation may be incomplete — review original evidence.
-              </p>
               {loading ? (
                 <div className="text-sm text-muted-foreground">Reading your case files…</div>
               ) : cases.length === 0 ? (
@@ -266,12 +265,26 @@ const Dashboard = () => {
                   <Link to="/cases" className="ml-2 text-primary hover:underline">Create a case →</Link>
                 </div>
               ) : (
-                <ul className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <BriefStat icon={FolderKanban} value={brief.activeCases} label="Active cases" tone="neutral" />
-                  <BriefStat icon={Activity} value={brief.recent7d} label="Incidents this week" tone="neutral" />
-                  <BriefStat icon={AlertTriangle} value={brief.contradictionsCount} label="Possible differences" tone={brief.contradictionsCount ? "danger" : "neutral"} />
-                  <BriefStat icon={FileText} value={brief.missingCount} label="Missing details" tone={brief.missingCount ? "warning" : "neutral"} />
-                </ul>
+                <div className="space-y-4">
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    {intelligence.findings.map((finding) => (
+                      <li key={finding} className="flex gap-2">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                        <span>{finding}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="rounded-lg border border-white/10 bg-black/15 p-3">
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Recommended next action</div>
+                    <div className="mt-1 text-sm font-medium text-foreground">{intelligence.recommendedAction}</div>
+                  </div>
+                  <ul className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <BriefStat icon={ShieldCheck} value={intelligence.evidenceStrength} label="Evidence strength" tone={intelligence.evidenceStrength < 50 ? "warning" : "neutral"} />
+                    <BriefStat icon={FolderKanban} value={brief.activeCases} label="Active cases" tone="neutral" />
+                    <BriefStat icon={AlertTriangle} value={intelligence.contradictionCount} label="Possible differences" tone={intelligence.contradictionCount ? "danger" : "neutral"} />
+                    <BriefStat icon={Clock3} value={intelligence.timelineGapCount} label="Timeline gaps" tone={intelligence.timelineGapCount ? "warning" : "neutral"} />
+                  </ul>
+                </div>
               )}
             </div>
             <div className="lg:w-72 shrink-0 flex flex-col gap-2">

@@ -10,6 +10,7 @@ import FloatingAIAssistant from "../components/FloatingAIAssistant";
 import { supabase } from "../integrations/supabase/client";
 import { categoryColor } from "../lib/categories";
 import { LIVE_INCIDENT_EVENT, readLiveIncidentState } from "../lib/liveIncident";
+import { analyzeCase } from "../lib/caseIntelligence";
 
 type Inc = {
   id: string;
@@ -19,7 +20,10 @@ type Inc = {
   people_involved: string[] | null;
   tags: string[] | null;
   neutral_summary: string | null;
+  raw_narrative: string | null;
   evidence_quality_score: number | null;
+  ai_analysis: unknown;
+  evidence_items?: { id: string; type: string }[] | null;
 };
 
 type CaseRow = {
@@ -52,7 +56,7 @@ const CaseDetail = () => {
     setCaseRow((c as CaseRow | null) ?? null);
     const { data: ins } = await supabase
       .from("incidents")
-      .select("id, title, occurred_at, location, people_involved, tags, neutral_summary, evidence_quality_score")
+      .select("id, title, occurred_at, location, people_involved, tags, neutral_summary, raw_narrative, evidence_quality_score, ai_analysis, evidence_items(id, type)")
       .eq("case_id", id)
       .order("occurred_at", { ascending: false });
     setIncidents(((ins as Inc[] | null) ?? []));
@@ -127,6 +131,8 @@ const CaseDetail = () => {
       observer.disconnect();
     };
   }, []);
+
+  const intelligence = useMemo(() => analyzeCase(incidents), [incidents]);
 
   const filtered = useMemo(() => {
     if (!q.trim()) return incidents;
@@ -347,18 +353,18 @@ const CaseDetail = () => {
         <section className="mb-8">
           <AIBrief 
             data={{
-              evidenceCount: incidents.length,
-              inconsistencyCount: incidents.filter(i => (i.evidence_quality_score ?? 100) < 70).length,
-              timelineGapCount: Math.max(0, Math.floor(incidents.length / 3)),
+              evidenceCount: intelligence.evidenceItemCount,
+              inconsistencyCount: intelligence.contradictionCount,
+              timelineGapCount: intelligence.timelineGapCount,
               lastActivityTime: incidents.length > 0 
                 ? new Date(incidents[0].occurred_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                 : 'Never',
-              recommendedAction: incidents.length > 5 
-                ? "Export your case packet and review the timeline for completeness."
-                : "Add more incidents to build a stronger case timeline.",
-              confidence: incidents.length > 10 ? "high" : incidents.length > 5 ? "medium" : "low"
+              recommendedAction: intelligence.recommendedAction,
+              confidence: intelligence.confidence
             }}
-            onReview={() => navigate(`/cases/${id}/intelligence`)}
+            onReview={() => intelligence.recommendedIncidentId
+              ? navigate(`/incidents/${intelligence.recommendedIncidentId}`)
+              : navigate(`/cases/${id}/intelligence`)}
           />
         </section>
 
