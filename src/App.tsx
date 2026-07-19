@@ -12,7 +12,9 @@ const ProtectedRoute = lazy(() => import("./components/ProtectedRoute").then((mo
 const Auth = lazy(() => import("./pages/Auth.tsx"));
 const Pricing = lazy(() => import("./pages/Pricing.tsx"));
 const Example = lazy(() => import("./pages/Example.tsx"));
-const AIPage = lazy(() => import("./pages/AIPage.tsx"));
+const AIWorkspaceV2Page = lazy(() => import("./features/ai-workspace-v2/AIWorkspaceV2").then((mod) => ({ default: mod.AIWorkspaceV2 })));
+// Rollback option: swap AIWorkspaceV2Page with LegacyAIPage to restore the previous Proof AI experience.
+const LegacyAIPage = lazy(() => import("./pages/AIPage.tsx"));
 const StressMode = lazy(() => import("./components/StressMode"));
 const IncidentPlayback = lazy(() => import("./components/IncidentPlayback"));
 const CentralIntelligenceScreen = lazy(() => import("./components/CentralIntelligenceScreen.jsx"));
@@ -50,7 +52,7 @@ const App = () => (
               <Route path="/central-intelligence" element={<CentralIntelligenceScreen />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/example" element={<Example />} />
-              <Route path="/ai" element={<ProtectedRoute><AIPage /></ProtectedRoute>} />
+              <Route path="/ai" element={<ProtectedRoute><AIWorkspaceV2Page /></ProtectedRoute>} />
               <Route path="/demo/playback" element={<IncidentPlayback />} />
 
               <Route path="/auth" element={<Auth />} />
