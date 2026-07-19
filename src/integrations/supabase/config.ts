@@ -11,11 +11,19 @@ const isPlaceholderLike = (value: string) => {
 const isValidSupabaseUrl = (value: string | undefined) => {
   if (!value) return false;
 
-  if (isPlaceholderLike(value)) return false;
+  const candidate = value.trim();
+  if (isPlaceholderLike(candidate)) return false;
 
   try {
-    const parsed = new URL(value);
+    const parsed = new URL(candidate);
     if (isPlaceholderLike(parsed.hostname)) return false;
+
+    // Supabase client expects the project base URL only, e.g. https://<project>.supabase.co
+    // Paths like /rest/v1 would break auth endpoint composition.
+    const normalizedPath = parsed.pathname.replace(/\/+$/, "");
+    if (normalizedPath && normalizedPath !== "") return false;
+    if (parsed.search || parsed.hash) return false;
+
     return /(^|\.)supabase\.co$/i.test(parsed.hostname);
   } catch {
     return false;
@@ -35,7 +43,8 @@ export const resolveSupabaseConfig = (
   envUrl: string | undefined,
   envPublishableKey: string | undefined,
 ) => {
-  const url = isValidSupabaseUrl(envUrl) ? envUrl : FALLBACK_SUPABASE_URL;
+  const sanitizedUrl = envUrl?.trim();
+  const url = isValidSupabaseUrl(sanitizedUrl) ? sanitizedUrl! : FALLBACK_SUPABASE_URL;
   const publishableKey = isValidPublishableKey(envPublishableKey)
     ? envPublishableKey!.trim()
     : FALLBACK_SUPABASE_PUBLISHABLE_KEY;
