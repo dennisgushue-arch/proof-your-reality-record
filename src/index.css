@@ -371,4 +371,36 @@
       transform: none !important;
     }
   }
+
+  @media print {
+    html,
+    body,
+    #root {
+      background: #ffffff !important;
+      color: #000000 !important;
+    }
+
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    a {
+      color: inherit !important;
+      text-decoration: none !important;
+    }
+
+    .release-export-document {
+      width: 100% !important;
+      max-width: none !important;
+      box-shadow: none !important;
+    }
+
+    .release-export-document section,
+    .release-export-document li,
+    .release-export-document header {
+      break-inside: avoid-page;
+      page-break-inside: avoid;
+    }
+  }
 }

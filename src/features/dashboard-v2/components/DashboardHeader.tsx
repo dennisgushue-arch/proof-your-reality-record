@@ -19,11 +19,11 @@ export const DashboardHeader = ({ greeting, userDisplayName }: DashboardHeaderPr
       </div>
 
       <div
-        aria-label="Encrypted private workspace"
+        aria-label="Private account workspace"
         className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300"
       >
         <span aria-hidden className="h-2 w-2 rounded-full bg-emerald-300" />
-        Encrypted · Private
+        Private · Account-scoped
       </div>
     </header>
   );

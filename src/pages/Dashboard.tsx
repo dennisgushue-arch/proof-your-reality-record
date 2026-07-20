@@ -257,7 +257,7 @@ const Dashboard = () => {
 
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/10 bg-emerald-400/[0.04] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300">
             <Lock className="h-3.5 w-3.5" />
-            Encrypted · Private
+            Private · Account-scoped
           </div>
         </header>
 

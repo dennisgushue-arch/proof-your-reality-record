@@ -1,9 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Download, Shield, MapPin, Users, Paperclip } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, MapPin, Paperclip, Shield, Users } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Disclaimer } from "@/components/Disclaimer";
+import { ExportOptions } from "@/features/release-v1/components/ExportOptions";
+import { ExportReadiness } from "@/features/release-v1/components/ExportReadiness";
+import { GlobalErrorState } from "@/features/release-v1/components/GlobalErrorState";
+import {
+  buildClipboardExport,
+  buildExportReadiness,
+  createDefaultExportSections,
+  labelAIExportContent,
+  normalizeSafeError,
+  selectedSectionIds,
+} from "@/features/release-v1/releaseUtils";
+import type { ExportSection, ReleaseIncident } from "@/features/release-v1/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -14,53 +25,82 @@ type CaseRow = {
   description: string | null;
 };
 
-type EvidenceItem = {
-  filename: string | null;
-};
+type IncidentExportRow = ReleaseIncident;
 
-type IncidentExportRow = {
-  id: string;
-  occurred_at: string;
-  title: string;
-  neutral_summary: string | null;
-  location: string | null;
-  people_involved: string[] | null;
-  evidence_items: EvidenceItem[] | null;
-  evidence_quality_score: number | null;
-};
+function readAnalysisArray(ai: unknown, key: string): string[] {
+  if (!ai || typeof ai !== "object" || Array.isArray(ai)) return [];
+  const value = (ai as Record<string, unknown>)[key];
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0).map((item) => item.trim());
+}
 
 const ExportPreview = () => {
   const { id } = useParams<{ id: string }>();
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [incidents, setIncidents] = useState<IncidentExportRow[]>([]);
+  const [sections, setSections] = useState<ExportSection[]>(() => createDefaultExportSections());
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const documentRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
+
     (async () => {
-      const { data: c } = await supabase.from("cases").select("*").eq("id", id).maybeSingle();
+      setLoading(true);
+      setLoadError(null);
+
+      const { data: c, error: caseError } = await supabase
+        .from("cases")
+        .select("id, title, category, description")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (caseError) {
+        setLoadError("Case export could not be loaded. Please try again.");
+        setLoading(false);
+        return;
+      }
+
       setCaseRow((c as CaseRow | null) ?? null);
-      const { data: ins } = await supabase
+
+      const { data: ins, error: incidentError } = await supabase
         .from("incidents")
-        .select("*, evidence_items(*)")
+        .select("id, case_id, occurred_at, title, raw_narrative, neutral_summary, location, people_involved, ai_analysis, evidence_items(id, filename, type)")
         .eq("case_id", id)
         .order("occurred_at", { ascending: true });
+
+      if (cancelled) return;
+      if (incidentError) {
+        setLoadError("Incident records could not be loaded for export. Please try again.");
+        setIncidents([]);
+        setLoading(false);
+        return;
+      }
+
       setIncidents((ins as IncidentExportRow[] | null) ?? []);
+      setLoading(false);
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
-  if (!caseRow) return (
-    <AppLayout>
-      <div className="px-6 lg:px-10 py-10 text-muted-foreground text-sm">Loading…</div>
-    </AppLayout>
-  );
+  const enabledSections = useMemo(() => new Set(selectedSectionIds(sections)), [sections]);
+  const readiness = useMemo(() => caseRow ? buildExportReadiness(caseRow, incidents, sections) : null, [caseRow, incidents, sections]);
 
   const generatedAt = new Date().toLocaleString(undefined, {
-    year: "numeric", month: "long", day: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 
-  const downloadPdf = () => {
+  const handlePrint = () => {
     if (!documentRef.current) return;
     toast.message("Opening print dialog", {
       description: "Choose “Save as PDF” in your browser/device print options.",
@@ -68,138 +108,151 @@ const ExportPreview = () => {
     window.print();
   };
 
+  const handleCopy = async () => {
+    if (!caseRow) return;
+    try {
+      await navigator.clipboard.writeText(buildClipboardExport(caseRow, incidents, sections));
+      toast.success("Prepared export copied", { description: "Review it before sharing outside Proof." });
+    } catch (error) {
+      const safe = normalizeSafeError(error, "Could not copy the prepared export. Your section selections were preserved.");
+      toast.error(safe.title, { description: safe.message });
+    }
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="px-6 py-10 text-sm text-muted-foreground lg:px-10" role="status" aria-live="polite">Loading export preview…</div>
+      </AppLayout>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <AppLayout>
+        <main className="mx-auto max-w-3xl px-6 py-10 lg:px-10">
+          <GlobalErrorState title="Export unavailable" message={loadError} onRetry={() => window.location.reload()} />
+        </main>
+      </AppLayout>
+    );
+  }
+
+  if (!caseRow) {
+    return (
+      <AppLayout>
+        <main className="mx-auto max-w-3xl px-6 py-10 lg:px-10">
+          <GlobalErrorState title="Case unavailable" message="This case may have been removed or is unavailable." />
+        </main>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
-      <main className="px-6 lg:px-10 py-10 max-w-3xl">
-        {/* Top bar */}
-        <div className="flex items-center justify-between mb-8 print:hidden">
-          <Link
-            to={`/cases/${id}`}
-            className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground font-mono"
-          >
-            <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to case
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-10">
+        <div className="mb-8 flex flex-col gap-4 print:hidden sm:flex-row sm:items-center sm:justify-between">
+          <Link to={`/cases/${id}`} className="inline-flex items-center text-xs font-mono text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="mr-1 h-3.5 w-3.5" aria-hidden="true" /> Back to case
           </Link>
-          <Button
-            onClick={downloadPdf}
-            className="bg-accent hover:bg-accent/90 text-white font-semibold"
-          >
-            <Download className="mr-2 h-4 w-4" /> Download PDF
-          </Button>
+          <p className="max-w-xl text-xs text-muted-foreground">
+            Review included sections before exporting. Browser print is the supported PDF path.
+          </p>
         </div>
 
-        {/* Evidence packet document */}
-        <article ref={documentRef} className="rounded-lg border border-border bg-card shadow-elevated overflow-hidden print:border-0 print:shadow-none">
+        <div className="mb-6 grid gap-4 print:hidden lg:grid-cols-[1fr_0.9fr]">
+          <ExportOptions
+            sections={sections}
+            onToggleSection={(sectionId, selected) => setSections((current) => current.map((section) => section.id === sectionId ? { ...section, selected } : section))}
+            onPrint={handlePrint}
+            onCopy={handleCopy}
+            copyDisabled={incidents.length === 0}
+          />
+          {readiness && <ExportReadiness readiness={readiness} />}
+        </div>
 
-          {/* Cover / header */}
-          <header className="border-b border-border px-10 py-10">
-            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground mb-6">
-              <Shield className="h-3.5 w-3.5 text-accent" />
-              EVIDENCE PACKET — CONFIDENTIAL
+        <article ref={documentRef} className="release-export-document overflow-hidden rounded-lg border border-border bg-card shadow-elevated print:border-0 print:bg-white print:text-black print:shadow-none">
+          <header className="border-b border-border px-6 py-8 sm:px-10 sm:py-10 print:border-neutral-300">
+            <div className="mb-6 flex items-center gap-2 text-xs font-mono text-muted-foreground print:text-neutral-600">
+              <Shield className="h-3.5 w-3.5 text-accent print:text-neutral-700" aria-hidden="true" />
+              EVIDENCE PACKET — REVIEW BEFORE SHARING
             </div>
-            <h1 className="text-2xl md:text-3xl mb-1">{caseRow.title}</h1>
-            <p className="text-sm text-muted-foreground uppercase tracking-widest font-mono">{caseRow.category}</p>
-
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-border pt-6">
-              <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Generated</div>
-                <div className="text-xs text-foreground">{generatedAt}</div>
-              </div>
-              <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Incidents</div>
-                <div className="text-xs text-foreground font-semibold">{incidents.length}</div>
-              </div>
-              <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Date Range</div>
-                <div className="text-xs text-foreground">
-                  {incidents.length > 0
-                    ? `${new Date(incidents[0].occurred_at).toLocaleDateString()} – ${new Date(incidents[incidents.length - 1].occurred_at).toLocaleDateString()}`
-                    : "—"}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs font-mono text-muted-foreground uppercase mb-1">Evidence Items</div>
-                <div className="text-xs text-foreground font-semibold">
-                  {incidents.reduce((sum, i) => sum + (Array.isArray(i.evidence_items) ? i.evidence_items.length : 0), 0)}
-                </div>
-              </div>
+            <h1 className="mb-1 break-words text-2xl md:text-3xl print:text-black">{caseRow.title}</h1>
+            <p className="text-sm uppercase tracking-widest text-muted-foreground print:text-neutral-600">{caseRow.category}</p>
+            <div className="mt-8 grid grid-cols-2 gap-4 border-t border-border pt-6 md:grid-cols-4 print:border-neutral-300">
+              <CoverStat label="Generated" value={generatedAt} />
+              <CoverStat label="Incidents" value={incidents.length} />
+              <CoverStat label="Date Range" value={incidents.length > 0 ? `${new Date(incidents[0].occurred_at).toLocaleDateString()} – ${new Date(incidents[incidents.length - 1].occurred_at).toLocaleDateString()}` : "—"} />
+              <CoverStat label="Evidence Items" value={incidents.reduce((sum, incident) => sum + (incident.evidence_items?.length ?? 0), 0)} />
             </div>
           </header>
 
-          {/* Body */}
-          <div className="px-10 py-8 space-y-8">
-            {/* Case summary */}
-            {caseRow.description && (
-              <section>
-                <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-3 pb-2 border-b border-border">
-                  Case Summary
-                </h2>
-                <p className="text-sm text-foreground" style={{ lineHeight: 1.6 }}>{caseRow.description}</p>
-              </section>
+          <div className="space-y-8 px-6 py-8 sm:px-10 print:text-black">
+            {enabledSections.has("overview") && caseRow.description && (
+              <DocumentSection title="Case overview">
+                <p className="text-sm leading-7 text-foreground print:text-black">{caseRow.description}</p>
+              </DocumentSection>
             )}
 
-            {/* Chronological incident log */}
-            <section>
-              <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground mb-4 pb-2 border-b border-border">
-                Chronological Incident Log
-              </h2>
-              {incidents.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No incidents recorded.</p>
-              ) : (
-                <ol className="space-y-6">
-                  {incidents.map((i, idx) => (
-                    <li key={i.id} className="relative pl-8">
-                      {/* Incident number */}
-                      <div className="absolute left-0 top-0 h-5 w-5 rounded border border-border bg-background flex items-center justify-center">
-                        <span className="text-xs font-mono text-muted-foreground">{String(idx + 1).padStart(2, "0")}</span>
-                      </div>
+            {enabledSections.has("timeline") && (
+              <DocumentSection title="Chronological timeline">
+                {incidents.length === 0 ? <p className="text-sm text-muted-foreground">No incidents recorded.</p> : (
+                  <ol className="space-y-3">
+                    {incidents.map((incident) => <li key={incident.id} className="text-sm"><span className="font-mono text-muted-foreground print:text-neutral-600">{new Date(incident.occurred_at).toLocaleString()}</span> — {incident.title}</li>)}
+                  </ol>
+                )}
+              </DocumentSection>
+            )}
 
-                      <div className="text-xs font-mono text-muted-foreground mb-1">
-                        {new Date(i.occurred_at).toLocaleString(undefined, {
-                          weekday: "short", year: "numeric", month: "short", day: "numeric",
-                          hour: "2-digit", minute: "2-digit",
-                        })}
-                      </div>
-                      <h3 className="font-semibold text-sm mb-1">{i.title}</h3>
+            {enabledSections.has("incidents") && (
+              <DocumentSection title="Incident summaries">
+                {incidents.length === 0 ? <p className="text-sm text-muted-foreground">No incidents recorded.</p> : (
+                  <ol className="space-y-6">
+                    {incidents.map((incident, index) => (
+                      <li key={incident.id} className="break-inside-avoid-page relative pl-8">
+                        <div className="absolute left-0 top-0 flex h-5 w-5 items-center justify-center rounded border border-border bg-background print:border-neutral-400 print:bg-white">
+                          <span className="text-xs font-mono text-muted-foreground print:text-neutral-700">{String(index + 1).padStart(2, "0")}</span>
+                        </div>
+                        <div className="mb-1 text-xs font-mono text-muted-foreground print:text-neutral-600">{new Date(incident.occurred_at).toLocaleString()}</div>
+                        <h3 className="mb-1 text-sm font-semibold print:text-black">{incident.title}</h3>
+                        {(incident.neutral_summary || incident.raw_narrative) && <p className="mb-2 text-sm leading-7 text-muted-foreground print:text-neutral-800">{incident.neutral_summary || incident.raw_narrative}</p>}
+                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground print:text-neutral-700">
+                          {incident.location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" aria-hidden="true" /> {incident.location}</span>}
+                          {Array.isArray(incident.people_involved) && incident.people_involved.length > 0 && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" aria-hidden="true" /> {incident.people_involved.filter((item): item is string => typeof item === "string").join(", ")}</span>}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </DocumentSection>
+            )}
 
-                      {i.neutral_summary && (
-                        <p className="text-sm text-muted-foreground mb-2" style={{ lineHeight: 1.6 }}>
-                          {i.neutral_summary}
-                        </p>
-                      )}
+            {enabledSections.has("evidence") && (
+              <DocumentSection title="Evidence inventory">
+                <ul className="space-y-2 text-sm text-muted-foreground print:text-neutral-800">
+                  {incidents.flatMap((incident) => (incident.evidence_items ?? []).map((item) => <li key={`${incident.id}-${item.id ?? item.filename}`} className="break-inside-avoid-page"><Paperclip className="mr-1 inline h-3 w-3" aria-hidden="true" /> {incident.title}: {item.filename || item.type || "Evidence item"}</li>))}
+                </ul>
+              </DocumentSection>
+            )}
 
-                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        {i.location && (
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" /> {i.location}
-                          </span>
-                        )}
-                        {Array.isArray(i.people_involved) && i.people_involved.length > 0 && (
-                          <span className="inline-flex items-center gap-1">
-                            <Users className="h-3 w-3" /> {i.people_involved.join(", ")}
-                          </span>
-                        )}
-                        {Array.isArray(i.evidence_items) && i.evidence_items.length > 0 && (
-                          <span className="inline-flex items-center gap-1">
-                            <Paperclip className="h-3 w-3" />
-                            {i.evidence_items.length} attached — {i.evidence_items.map((e) => e.filename).filter(Boolean).join(", ")}
-                          </span>
-                        )}
-                        {typeof i.evidence_quality_score === "number" && (
-                          <span className="font-mono">Evidence score: {i.evidence_quality_score}/100</span>
-                        )}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </section>
+            {enabledSections.has("differences") && (
+              <DocumentSection title="Possible statement differences">
+                <ul className="space-y-2 text-sm text-muted-foreground print:text-neutral-800">
+                  {incidents.flatMap((incident) => readAnalysisArray(incident.ai_analysis, "contradictions").map((item) => <li key={`${incident.id}-${item}`}>AI-generated observation — {incident.title}: {item}</li>))}
+                </ul>
+              </DocumentSection>
+            )}
 
-            {/* Footer */}
-            <section className="border-t border-border pt-6">
+            {enabledSections.has("ai") && (
+              <DocumentSection title="AI-generated observations">
+                <ul className="space-y-2 text-sm text-muted-foreground print:text-neutral-800">
+                  {incidents.flatMap((incident) => readAnalysisArray(incident.ai_analysis, "key_claims").map((item) => <li key={`${incident.id}-${item}`}>{labelAIExportContent(`${incident.title}: ${item}`)}</li>))}
+                </ul>
+              </DocumentSection>
+            )}
+
+            <section className="break-inside-avoid-page border-t border-border pt-6 print:border-neutral-300">
               <Disclaimer />
-              <p className="mt-4 text-xs font-mono text-muted-foreground text-center">
-                Generated by Proof — {generatedAt}
-              </p>
+              <p className="mt-4 text-center text-xs font-mono text-muted-foreground print:text-neutral-600">Generated by Proof — {generatedAt}</p>
             </section>
           </div>
         </article>
@@ -207,5 +260,19 @@ const ExportPreview = () => {
     </AppLayout>
   );
 };
+
+const CoverStat = ({ label, value }: { label: string; value: string | number }) => (
+  <div>
+    <div className="mb-1 text-xs font-mono uppercase text-muted-foreground print:text-neutral-600">{label}</div>
+    <div className="break-words text-xs font-semibold text-foreground print:text-black">{value}</div>
+  </div>
+);
+
+const DocumentSection = ({ title, children }: { title: string; children: ReactNode }) => (
+  <section className="break-inside-avoid-page">
+    <h2 className="mb-4 border-b border-border pb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground print:border-neutral-300 print:text-neutral-700">{title}</h2>
+    {children}
+  </section>
+);
 
 export default ExportPreview;

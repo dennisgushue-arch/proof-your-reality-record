@@ -6,6 +6,8 @@ import { AppHeader } from "../components/AppHeader.tsx";
 import { Disclaimer } from "../components/Disclaimer.tsx";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext.tsx";
+import { TrustPanel } from "../features/release-v1/components/TrustPanel.tsx";
+import { UpgradePanel } from "../features/release-v1/components/UpgradePanel.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
 import { BILLING_OFFERS, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
 
@@ -13,7 +15,7 @@ const freePlanFeatures = [
   "1 incident per month",
   "Basic timeline view",
   "Text & photo uploads",
-  "Private, encrypted storage",
+  "Private account workspace",
 ];
 
 const premiumOffers = BILLING_OFFERS.filter((offer) => offer.billingMode === "subscription");
@@ -166,6 +168,10 @@ const Pricing = () => {
             );
           })}
 
+        </div>
+        <div className="mt-8 max-w-5xl mx-auto grid gap-4 md:grid-cols-[1fr_1fr]">
+          <TrustPanel />
+          <UpgradePanel description="Upgrade through the existing Stripe checkout flow when you need supported premium features." />
         </div>
         <div className="mt-8 max-w-5xl mx-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-card">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

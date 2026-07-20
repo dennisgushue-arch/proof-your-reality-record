@@ -6,9 +6,11 @@ import { Textarea } from "../components/ui/textarea.tsx";
 import { AppHeader } from "../components/AppHeader.tsx";
 import { WhatsNewCard } from "../components/WhatsNewCard.tsx";
 import { useAuth } from "../contexts/AuthContext.tsx";
+import { SubscriptionStatus } from "../features/release-v1/components/SubscriptionStatus.tsx";
+import { TrustPanel } from "../features/release-v1/components/TrustPanel.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
 import { AIAnalysisSchema } from "../lib/aiAnalysis.ts";
-import { describeBillingAccess, type BillingSubscription } from "../lib/billing.ts";
+import type { BillingSubscription } from "../lib/billing.ts";
 import { toast } from "sonner";
 
 const Account = () => {
@@ -103,10 +105,6 @@ const Account = () => {
     }
   };
 
-  const renewalDate = subscription?.current_period_end
-    ? new Date(subscription.current_period_end).toLocaleDateString()
-    : null;
-
   const sendFeedback = () => {
     const subject = encodeURIComponent("Proof app feedback");
     const body = encodeURIComponent(
@@ -133,33 +131,16 @@ const Account = () => {
           <Button onClick={save} disabled={loading} className="w-full sm:w-auto h-11">{loading ? "Saving…" : "Save changes"}</Button>
         </div>
 
-        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card space-y-3">
-          <h2 className="text-lg font-semibold">Billing</h2>
-          <p className="text-xs text-muted-foreground">Premium signups include a 7-day trial. Early users may also have launch discount pricing applied at checkout.</p>
-          <p className="text-sm text-muted-foreground">
-            Plan: <span className="text-foreground font-medium uppercase">{subscription?.plan ?? "free"}</span>
-            {subscription?.status ? ` · Status: ${subscription.status}` : ""}
-          </p>
-          <p className="text-sm text-muted-foreground">Access: {describeBillingAccess(subscription)}</p>
-          {renewalDate && (
-            <p className="text-sm text-muted-foreground">Current period ends: {renewalDate}</p>
-          )}
-          <Button onClick={openPortal} disabled={portalLoading} variant="outline" className="w-full sm:w-auto h-11">
-            {portalLoading ? "Opening…" : "Manage subscription"}
-          </Button>
+        <div className="mt-6">
+          <SubscriptionStatus subscription={subscription} onManage={openPortal} manageLoading={portalLoading} />
         </div>
 
         <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card text-sm text-muted-foreground">
           Your data is private and scoped to your account. Only you can access it from within your account.
         </div>
 
-        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-card space-y-3">
-          <h2 className="text-lg font-semibold">Security & Privacy reassurance</h2>
-          <ul className="space-y-2 text-sm text-muted-foreground leading-relaxed">
-            <li>• Account data is scoped per user and protected by authenticated access rules.</li>
-            <li>• Incident records preserve timestamp context to support trustworthy chronology.</li>
-            <li>• You can review privacy and deletion policies any time in the support links below.</li>
-          </ul>
+        <div className="mt-6">
+          <TrustPanel />
         </div>
 
         <div className="mt-6">

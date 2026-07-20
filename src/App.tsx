@@ -2,6 +2,7 @@ import { Suspense, lazy, type PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { RouteErrorBoundary } from "@/features/release-v1/components/RouteErrorBoundary";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -23,8 +24,12 @@ const DashboardV2Page = lazy(() =>
   import("./features/dashboard-v2/DashboardV2").then((mod) => ({ default: mod.DashboardV2 })),
 );
 const Cases = lazy(() => import("./pages/Cases.tsx"));
-const RecordPage = lazy(() => import("./pages/Record.tsx"));
-const CaseDetail = lazy(() => import("./pages/CaseDetail.tsx"));
+const RecordingV2Page = lazy(() => import("./features/recording-v2/RecordingV2").then((mod) => ({ default: mod.RecordingV2 })));
+// Rollback option: swap RecordingV2Page with LegacyRecordPage to restore the previous recording selector.
+const LegacyRecordPage = lazy(() => import("./pages/Record.tsx"));
+const CaseDetailV2Page = lazy(() => import("./features/case-detail-v2/CaseDetailV2").then((mod) => ({ default: mod.CaseDetailV2 })));
+// Rollback option: swap CaseDetailV2Page with LegacyCaseDetail to restore the previous case workspace.
+const LegacyCaseDetail = lazy(() => import("./pages/CaseDetail.tsx"));
 const IncidentNew = lazy(() => import("./pages/IncidentNew.tsx"));
 const IncidentDetail = lazy(() => import("./pages/IncidentDetail.tsx"));
 const ExportPreview = lazy(() => import("./pages/ExportPreview.tsx"));
@@ -45,9 +50,10 @@ const App = () => (
         <LazySonner />
       </Suspense>
       <BrowserRouter>
-        <Suspense fallback={<div className="px-6 lg:px-10 py-10 text-sm text-muted-foreground">Loading…</div>}>
-          <AuthBoundary>
-            <Routes>
+        <RouteErrorBoundary>
+          <Suspense fallback={<div className="px-6 lg:px-10 py-10 text-sm text-muted-foreground" role="status" aria-live="polite">Loading…</div>}>
+            <AuthBoundary>
+              <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/central-intelligence" element={<CentralIntelligenceScreen />} />
               <Route path="/pricing" element={<Pricing />} />
@@ -60,9 +66,9 @@ const App = () => (
               {/* Rollback note: to restore legacy dashboard, swap DashboardV2Page with ./pages/Dashboard.tsx */}
               <Route path="/dashboard" element={<ProtectedRoute><DashboardV2Page /></ProtectedRoute>} />
               <Route path="/cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
-              <Route path="/record" element={<ProtectedRoute><RecordPage /></ProtectedRoute>} />
+              <Route path="/record" element={<ProtectedRoute><RecordingV2Page /></ProtectedRoute>} />
               <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-              <Route path="/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
+              <Route path="/cases/:id" element={<ProtectedRoute><CaseDetailV2Page /></ProtectedRoute>} />
               <Route path="/cases/:id/intelligence" element={<ProtectedRoute><TimelineIntelligence /></ProtectedRoute>} />
               <Route path="/cases/:id/replay" element={<ProtectedRoute><RealityReplay /></ProtectedRoute>} />
               <Route path="/cases/:id/prepare" element={<ProtectedRoute><PrepareInteraction /></ProtectedRoute>} />
@@ -71,9 +77,10 @@ const App = () => (
               <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
 
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthBoundary>
-        </Suspense>
+              </Routes>
+            </AuthBoundary>
+          </Suspense>
+        </RouteErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

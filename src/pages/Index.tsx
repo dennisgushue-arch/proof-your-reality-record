@@ -20,7 +20,7 @@ const Index = () => (
     <section className="border-b border-border">
       <div className="container py-24 md:py-36 max-w-5xl">
         <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground mb-8">
-          <Lock className="h-3 w-3 text-accent" /> Private, encrypted, owned by you
+          <Lock className="h-3 w-3 text-accent" /> Private by design, controlled by you
         </div>
         <h1 className="text-5xl md:text-7xl leading-[1.05]">
           Lock the facts before<br />memory changes.
@@ -41,8 +41,8 @@ const Index = () => (
           </Link>
         </div>
         <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-accent" /> Row-level encrypted records</div>
-          <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-accent" /> Tamper-evident timestamps</div>
+          <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-accent" /> Account-scoped records</div>
+          <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-accent" /> Timestamped timelines</div>
           <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-accent" /> Private export packets</div>
         </div>
       </div>
