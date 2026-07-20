@@ -1,5 +1,7 @@
 import type { Category } from "@/lib/categories";
 import { CATEGORIES } from "@/lib/categories";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { RecordingCaseRow } from "../types";
@@ -19,6 +21,7 @@ type CaptureContextPanelProps = {
   onOccurredAtChange: (value: string) => void;
   onLocationChange: (value: string) => void;
   onPeopleChange: (people: string[]) => void;
+  onCreateCase: () => void;
 };
 
 export const CaptureContextPanel = ({
@@ -35,13 +38,20 @@ export const CaptureContextPanel = ({
   onOccurredAtChange,
   onLocationChange,
   onPeopleChange,
+  onCreateCase,
 }: CaptureContextPanelProps) => (
   <section className="rounded-[28px] border border-white/[0.06] bg-[#0B111A] p-5 sm:p-6" aria-labelledby="context-title">
     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">Capture context</p>
     <h2 id="context-title" className="mt-1 text-2xl font-black tracking-[-0.035em] text-white">Add the basics</h2>
     <div className="mt-5 grid gap-4 md:grid-cols-2">
       <div>
-        <label className="text-sm font-bold text-white">Case</label>
+        <div className="flex items-center justify-between gap-3">
+          <label className="text-sm font-bold text-white">Case</label>
+          <Button type="button" variant="outline" size="sm" onClick={onCreateCase} className="h-8 rounded-lg border-white/10 bg-white/[0.03] text-xs">
+            <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            New case
+          </Button>
+        </div>
         <Select value={caseId || undefined} onValueChange={onCaseChange}>
           <SelectTrigger className="mt-2 rounded-xl border-white/10 bg-[#050812]">
             <SelectValue placeholder="Choose a case before saving" />

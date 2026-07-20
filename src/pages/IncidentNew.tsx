@@ -140,7 +140,11 @@ const IncidentNew = () => {
       raw_narrative: narrative.trim(),
     }).select().single();
 
-    if (error || !data) { toast.error(error?.message ?? "Failed to save"); return; }
+    if (error || !data) {
+      setSaving(false);
+      toast.error(error?.message ?? "Failed to save");
+      return;
+    }
 
     if (files.length) {
       const evidenceRows: Array<{

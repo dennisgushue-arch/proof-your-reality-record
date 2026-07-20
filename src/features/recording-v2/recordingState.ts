@@ -72,7 +72,7 @@ export function parseRecordingDraft(raw: string | null): RecordingDraft | null {
 export function applyDraftToState(draft: RecordingDraft, current: RecordingFormState): RecordingFormState {
   return {
     ...current,
-    stage: draft.stage,
+    stage: draft.stage === "save" ? "review" : draft.stage,
     captureMode: draft.captureMode,
     caseId: draft.caseId,
     title: draft.title,

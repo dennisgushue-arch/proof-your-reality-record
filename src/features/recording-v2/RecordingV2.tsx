@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Save } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Save } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { CATEGORIES, type Category } from "@/lib/categories";
@@ -73,7 +78,13 @@ export const RecordingV2 = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [saveProgress, setSaveProgress] = useState<SaveProgress>({ state: "idle", message: "Ready" });
+  const [createCaseOpen, setCreateCaseOpen] = useState(false);
+  const [newCaseTitle, setNewCaseTitle] = useState("");
+  const [newCaseCategory, setNewCaseCategory] = useState<Category>("Other");
+  const [newCaseDescription, setNewCaseDescription] = useState("");
+  const [creatingCase, setCreatingCase] = useState(false);
   const sessionIdRef = useRef(createId("live-session"));
+  const voiceFallbackAppliedRef = useRef(false);
 
   const finalNarrative = useMemo(() => buildNarrativeFromEvents(state.transcriptEvents, state.narrative), [state.narrative, state.transcriptEvents]);
   const selectedCase = useMemo(() => cases.find((caseRow) => caseRow.id === state.caseId), [cases, state.caseId]);
@@ -93,6 +104,41 @@ export const RecordingV2 = () => {
   const updateState = (patch: Partial<RecordingFormState>) => {
     setState((current) => ({ ...current, ...patch }));
     setDraftStatus("unsaved");
+  };
+
+  const openCreateCaseDialog = () => {
+    setNewCaseTitle((current) => current || state.title.trim() || "");
+    setNewCaseCategory(state.category || "Other");
+    setCreateCaseOpen(true);
+  };
+
+  const createCaseForRecording = async () => {
+    if (!user || !newCaseTitle.trim()) return;
+    setCreatingCase(true);
+    const { data, error } = await supabase
+      .from("cases")
+      .insert({
+        user_id: user.id,
+        title: newCaseTitle.trim(),
+        category: newCaseCategory,
+        description: newCaseDescription.trim() || null,
+      })
+      .select("id, title, category, updated_at")
+      .single();
+
+    setCreatingCase(false);
+    if (error || !data) {
+      toast.error(error?.message ?? "Failed to create case.");
+      return;
+    }
+
+    const createdCase = data as RecordingCaseRow;
+    setCases((current) => [createdCase, ...current.filter((caseRow) => caseRow.id !== createdCase.id)]);
+    updateState({ caseId: createdCase.id, category: (createdCase.category as Category | null) ?? newCaseCategory });
+    setNewCaseTitle("");
+    setNewCaseDescription("");
+    setCreateCaseOpen(false);
+    toast.success("Case created", { description: "This incident will be saved under the new case." });
   };
 
   const addTranscriptEvent = async (event: Omit<TranscriptEvent, "id">) => {
@@ -121,6 +167,15 @@ export const RecordingV2 = () => {
     },
     onError: (message) => setDictationError(message),
   });
+
+  useEffect(() => {
+    if (isSupported || voiceFallbackAppliedRef.current || state.captureMode !== "speak") return;
+    if (state.narrative.trim() || state.transcriptEvents.length > 0) return;
+
+    voiceFallbackAppliedRef.current = true;
+    updateState({ captureMode: "type" });
+    setDictationError("Voice dictation is not available here. Type mode is ready so you can still record and save the incident.");
+  }, [isSupported, state.captureMode, state.narrative, state.transcriptEvents.length]);
 
   useEffect(() => {
     if (!isDictating) return;
@@ -272,7 +327,9 @@ export const RecordingV2 = () => {
 
       if (error || !data) {
         console.error("Recording V2 incident creation failed", error);
-        setSaveProgress({ state: "failed", message: "Incident could not be saved. Check the required fields and try again." });
+        updateState({ stage: "review" });
+        setSaveProgress({ state: "failed", message: error?.message ?? "Incident could not be saved. Check the required fields and try again." });
+        toast.error(error?.message ?? "Incident could not be saved. Check the required fields and try again.");
         return;
       }
 
@@ -363,11 +420,61 @@ export const RecordingV2 = () => {
       <main className="mx-auto max-w-5xl px-4 py-5 pb-[calc(env(safe-area-inset-bottom)+6rem)] sm:px-6 lg:px-10 lg:py-8">
         <RecordingHeader stage={state.stage} selectedCase={selectedCase} draftStatus={draftStatus} onClose={handleClose} />
 
+        <Dialog open={createCaseOpen} onOpenChange={setCreateCaseOpen}>
+          <DialogContent className="border-white/10 bg-[#0B111A] text-white">
+            <DialogHeader>
+              <DialogTitle>Create a case for this incident</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="recording-new-case-title">Case title</Label>
+                <Input
+                  id="recording-new-case-title"
+                  value={newCaseTitle}
+                  onChange={(event) => setNewCaseTitle(event.target.value)}
+                  placeholder="e.g. Workplace retaliation timeline"
+                  className="mt-2 rounded-xl border-white/10 bg-[#050812]"
+                />
+              </div>
+              <div>
+                <Label>Category</Label>
+                <Select value={newCaseCategory} onValueChange={(value) => setNewCaseCategory(value as Category)}>
+                  <SelectTrigger className="mt-2 rounded-xl border-white/10 bg-[#050812]"><SelectValue /></SelectTrigger>
+                  <SelectContent>{CATEGORIES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="recording-new-case-description">Description (optional)</Label>
+                <Textarea
+                  id="recording-new-case-description"
+                  value={newCaseDescription}
+                  onChange={(event) => setNewCaseDescription(event.target.value)}
+                  placeholder="Briefly describe what this case is about."
+                  rows={3}
+                  className="mt-2 rounded-xl border-white/10 bg-[#050812]"
+                />
+              </div>
+              <Button type="button" onClick={createCaseForRecording} disabled={creatingCase || !newCaseTitle.trim()} className="w-full rounded-xl bg-blue-500 font-bold hover:bg-blue-400">
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                {creatingCase ? "Creating…" : "Create case and continue recording"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {cases.length === 0 ? (
-          <RecordingErrorState title="Create a case first" message="Incidents must be saved inside a case. Create a case, then return to live capture." actionLabel="Open cases" onAction={() => navigate("/cases")} />
+          <RecordingErrorState title="Create a case first" message="Incidents must be saved inside a case. Create one here, then keep recording without leaving this screen." actionLabel="Create new case" onAction={openCreateCaseDialog} />
         ) : (
           <div className="mt-6 space-y-6">
-            <CaptureModeSelector mode={state.captureMode} onChange={(captureMode) => updateState({ captureMode })} />
+            <CaptureModeSelector
+              mode={state.captureMode}
+              onChange={(captureMode) => updateState({ captureMode })}
+              disabledModes={
+                isSupported
+                  ? undefined
+                  : { speak: "Voice unavailable here. Use Type mode." }
+              }
+            />
 
             {state.stage === "capture" && (
               <LiveCapturePanel
@@ -416,6 +523,7 @@ export const RecordingV2 = () => {
                   onOccurredAtChange={(occurredAt) => updateState({ occurredAt })}
                   onLocationChange={(nextLocation) => updateState({ location: nextLocation })}
                   onPeopleChange={(people) => updateState({ people })}
+                  onCreateCase={openCreateCaseDialog}
                 />
                 <IncidentDetailsPanel narrative={state.narrative} onChange={(narrative) => updateState({ narrative })} />
                 <EvidenceCaptureTray items={state.evidenceItems} onFiles={handleFiles} onRemove={(id) => updateState({ evidenceItems: state.evidenceItems.filter((item) => item.id !== id) })} />

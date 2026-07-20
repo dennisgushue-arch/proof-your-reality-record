@@ -37,4 +37,11 @@ describe("recordingState", () => {
     expect(restored.title).toBe("Draft title");
     expect(restored.evidenceItems).toEqual([]);
   });
+
+  it("restores drafts saved during submission back to review so users can retry", () => {
+    const current = createEmptyRecordingState("Other");
+    const restored = applyDraftToState({ ...draft, stage: "save" }, current);
+
+    expect(restored.stage).toBe("review");
+  });
 });
