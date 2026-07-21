@@ -207,7 +207,11 @@ export const RecordingV2 = () => {
       const rows = (data as RecordingCaseRow[] | null) ?? [];
       setCases(rows);
       setState((current) => {
-        const nextCaseId = current.caseId || queryCaseId || (rows.length === 1 ? rows[0].id : "");
+        const validCaseIds = new Set(rows.map((row) => row.id));
+        const nextCaseId =
+          (queryCaseId && validCaseIds.has(queryCaseId) ? queryCaseId : "") ||
+          (current.caseId && validCaseIds.has(current.caseId) ? current.caseId : "") ||
+          (rows.length === 1 ? rows[0].id : "");
         const selected = rows.find((row) => row.id === nextCaseId);
         return { ...current, caseId: nextCaseId, category: (selected?.category as Category | undefined) ?? current.category };
       });
@@ -293,11 +297,15 @@ export const RecordingV2 = () => {
     }
     if (!submissionGuard.begin()) return;
 
-    const validation = validateRequiredFields({ caseId: state.caseId, title: state.title, narrative: state.narrative, transcriptEvents: state.transcriptEvents });
+    const selectedSaveCase = cases.find((caseRow) => caseRow.id === state.caseId);
+    const validation = validateRequiredFields({ caseId: selectedSaveCase?.id ?? "", title: state.title, narrative: state.narrative, transcriptEvents: state.transcriptEvents });
     if (!validation.valid) {
       submissionGuard.reset();
       setSaveProgress({ state: "failed", message: `Missing required fields: ${validation.missing.join(", ")}.` });
       updateState({ stage: "review" });
+      if (!selectedSaveCase) {
+        toast.error("Choose or create a case before saving this incident.");
+      }
       return;
     }
 
@@ -308,7 +316,7 @@ export const RecordingV2 = () => {
       const { data, error } = await supabase
         .from("incidents")
         .insert({
-          case_id: state.caseId,
+          case_id: selectedSaveCase.id,
           user_id: user.id,
           title: state.title.trim(),
           occurred_at: new Date(state.occurredAt || localDateTimeInputValue()).toISOString(),
@@ -339,7 +347,7 @@ export const RecordingV2 = () => {
       if (state.evidenceItems.length > 0) {
         setSaveProgress({ state: "uploading", message: "Uploading evidence…" });
         for (const item of state.evidenceItems) {
-          const path = buildEvidenceStoragePath({ userId: user.id, caseId: state.caseId, incidentId, fileName: item.filename });
+          const path = buildEvidenceStoragePath({ userId: user.id, caseId: selectedSaveCase.id, incidentId, fileName: item.filename });
           try {
             await uploadEvidenceFile(item.file, path);
             uploadResult.successful.push({ filename: item.filename, storagePath: path, type: item.type });
@@ -387,6 +395,12 @@ export const RecordingV2 = () => {
       setDraftStatus("saved");
       toast.success(summary.message);
       navigate(`/incidents/${incidentId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected error while saving incident.";
+      console.error("Recording V2 incident save failed unexpectedly", error);
+      updateState({ stage: "review" });
+      setSaveProgress({ state: "failed", message });
+      toast.error("Incident could not be saved", { description: message });
     } finally {
       submissionGuard.reset();
     }
