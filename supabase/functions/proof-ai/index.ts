@@ -45,6 +45,22 @@ type ProofAIResponse = {
   sources?: AISource[];
 };
 
+type AuditStatus = "success" | "error";
+type AuditConfidence = "high" | "medium" | "low";
+type ProofAIFailurePhase = "request" | "provider" | "response_parsing" | "audit_logging";
+
+class ProofAIError extends Error {
+  failurePhase: ProofAIFailurePhase;
+  providerStatusCode?: number;
+
+  constructor(message: string, failurePhase: ProofAIFailurePhase, providerStatusCode?: number) {
+    super(message);
+    this.name = "ProofAIError";
+    this.failurePhase = failurePhase;
+    this.providerStatusCode = providerStatusCode;
+  }
+}
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -53,6 +69,28 @@ function safeString(value: unknown, fallback = ""): string {
   if (typeof value !== "string") return fallback;
   const trimmed = value.trim();
   return trimmed || fallback;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error || "Unknown error");
+}
+
+function getProofAIFailurePhase(error: unknown, fallback: ProofAIFailurePhase): ProofAIFailurePhase {
+  if (error instanceof ProofAIError) return error.failurePhase;
+  return fallback;
+}
+
+function getProviderStatusCode(error: unknown): number | undefined {
+  if (error instanceof ProofAIError) return error.providerStatusCode;
+  return undefined;
+}
+
+function logProofAIFailure(error: unknown, fallbackPhase: ProofAIFailurePhase) {
+  console.error("Proof AI request error", {
+    message: getErrorMessage(error),
+    phase: getProofAIFailurePhase(error, fallbackPhase),
+    providerStatusCode: getProviderStatusCode(error) ?? null,
+  });
 }
 
 function redactSensitiveText(value: string): string {
@@ -261,45 +299,64 @@ async function runProofAI(prompt: string, caseRow: CaseRow, incidents: IncidentR
     };
   });
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0.2,
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are Proof AI. Return ONLY valid JSON with keys: title(string), summary(string), findings(array of {label,value,incidentId?}), recommendations(string[]), confidence(string: high|medium|low), sources(array of {incidentId,title,occurredAt}). Keep output factual, neutral, and concise. Never provide legal advice or definitive guilt/truth claims.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            prompt: redactSensitiveText(prompt),
-            case: compactCase,
-            incidents: compactIncidents,
-          }),
-        },
-      ],
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.2,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are Proof AI. Return ONLY valid JSON with keys: title(string), summary(string), findings(array of {label,value,incidentId?}), recommendations(string[]), confidence(string: high|medium|low), sources(array of {incidentId,title,occurredAt}). Keep output factual, neutral, and concise. Never provide legal advice or definitive guilt/truth claims.",
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              prompt: redactSensitiveText(prompt),
+              case: compactCase,
+              incidents: compactIncidents,
+            }),
+          },
+        ],
+      }),
+    });
+  } catch (error) {
+    throw new ProofAIError(`LLM request error: ${getErrorMessage(error)}`, "request");
+  }
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`LLM request failed (${response.status}): ${text.slice(0, 300)}`);
+    const errorBody = await response.text();
+    throw new ProofAIError(
+      `LLM request failed (${response.status}): ${errorBody.slice(0, 300)}`,
+      "provider",
+      response.status,
+    );
   }
 
-  const payload = await response.json();
-  const content = payload?.choices?.[0]?.message?.content;
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    throw new ProofAIError(`LLM response JSON parsing error: ${getErrorMessage(error)}`, "response_parsing");
+  }
+  const content = (payload as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new Error("LLM response missing message content");
+    throw new ProofAIError("LLM response missing message content", "response_parsing");
   }
 
-  const rawObject = extractFirstJsonObject(content);
+  let rawObject: unknown;
+  try {
+    rawObject = extractFirstJsonObject(content);
+  } catch (error) {
+    throw new ProofAIError(`LLM response content parsing error: ${getErrorMessage(error)}`, "response_parsing");
+  }
   const normalized = normalizeProofAIResponse(rawObject);
 
   return {
@@ -309,26 +366,34 @@ async function runProofAI(prompt: string, caseRow: CaseRow, incidents: IncidentR
   };
 }
 
+function normalizeAuditConfidence(value: unknown): AuditConfidence | null {
+  return value === "high" || value === "medium" || value === "low" ? value : null;
+}
+
 async function logAuditEvent(input: {
   adminClient: ReturnType<typeof createClient> | null;
   userId: string;
   caseId: string;
   prompt: string;
-  status: "success" | "error";
-  confidence?: "high" | "medium" | "low";
+  status: AuditStatus;
+  confidence?: unknown;
 }) {
   if (!input.adminClient) return;
   try {
-    await input.adminClient.from("ai_request_audit_log").insert({
+    const { error } = await input.adminClient.from("ai_request_audit_log").insert({
       user_id: input.userId,
       case_id: input.caseId,
       prompt: redactSensitiveText(input.prompt).slice(0, 400),
       action_type: "summarize_case",
       status: input.status,
-      response_confidence: input.confidence ?? null,
+      response_confidence: input.status === "success" ? normalizeAuditConfidence(input.confidence) : null,
     });
-  } catch {
-    // Non-blocking: audit failures should not break user-facing response.
+    if (error) throw error;
+  } catch (error) {
+    console.error("Proof AI audit logging error", {
+      message: getErrorMessage(error),
+      phase: "audit_logging",
+    });
   }
 }
 
@@ -456,7 +521,20 @@ serve(async (req) => {
     }
 
     const incidents = (incidentsData as IncidentRow[] | null) ?? [];
-    const result = await runProofAI(prompt, caseRow, incidents);
+    let result: ProofAIResponse;
+    try {
+      result = await runProofAI(prompt, caseRow, incidents);
+    } catch (error) {
+      logProofAIFailure(error, "request");
+      await logAuditEvent({
+        adminClient,
+        userId: user.id,
+        caseId,
+        prompt,
+        status: "error",
+      });
+      throw error;
+    }
 
     await logAuditEvent({
       adminClient,
@@ -472,31 +550,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-
-    try {
-      const authHeader = req.headers.get("Authorization");
-      if (authHeader) {
-        const fallbackUserClient = createClient(supabaseUrl, supabaseAnonKey, {
-          global: { headers: { Authorization: authHeader } },
-        });
-        const {
-          data: { user },
-        } = await fallbackUserClient.auth.getUser();
-        if (user && supabaseServiceRoleKey) {
-          const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
-          await logAuditEvent({
-            adminClient,
-            userId: user.id,
-            caseId: "00000000-0000-0000-0000-000000000000",
-            prompt: "proof-ai request failed before case resolution",
-            status: "error",
-          });
-        }
-      }
-    } catch {
-      // Ignore logging failures on error path.
-    }
+    const message = getErrorMessage(error);
 
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
