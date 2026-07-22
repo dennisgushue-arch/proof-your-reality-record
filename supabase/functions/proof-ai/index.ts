@@ -276,6 +276,7 @@ async function runProofAI(prompt: string, caseRow: CaseRow, incidents: IncidentR
 
   const model = Deno.env.get("LLM_MODEL") ?? "gpt-4o-mini";
   const baseUrl = (Deno.env.get("LLM_BASE_URL") ?? "https://api.openai.com/v1").replace(/\/$/, "");
+  const supportsCustomTemperature = !model.toLowerCase().startsWith("gpt-5");
 
   // Data minimization: only send fields required for summary/intelligence actions.
   const compactCase = {
@@ -309,7 +310,7 @@ async function runProofAI(prompt: string, caseRow: CaseRow, incidents: IncidentR
       },
       body: JSON.stringify({
         model,
-        temperature: 0.2,
+        ...(supportsCustomTemperature ? { temperature: 0.2 } : {}),
         messages: [
           {
             role: "system",

@@ -31,6 +31,11 @@ describe("Proof AI audit logging", () => {
     expect(source).toMatch(/await logAuditEvent\([\s\S]*?status: "error"[\s\S]*?throw error;/);
   });
 
+  it("omits custom temperature for gpt-5 models", () => {
+    expect(source).toMatch(/const supportsCustomTemperature = !model\.toLowerCase\(\)\.startsWith\("gpt-5"\);/);
+    expect(source).toMatch(/\.\.\.\(supportsCustomTemperature \? \{ temperature: 0\.2 \} : \{\}\)/);
+  });
+
   it('does not attempt to write unsupported audit statuses', () => {
     const codeOnly = withoutStringLiterals(source);
     const unsupportedStatuses = ["pending", `fail${"ed"}`, "started"];
