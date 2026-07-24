@@ -37,8 +37,9 @@ export const IntelligenceOverview = ({ summary }: IntelligenceOverviewProps) => 
 
 const Metric = ({ icon: Icon, label, value }: { icon: typeof ClipboardCheck; label: string; value: string | number }) => (
   <div className="rounded-2xl border border-white/[0.06] bg-[#080d15] p-4">
-    <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
-      <Icon className="h-3.5 w-3.5 text-blue-300" aria-hidden="true" /> {label}
+    <div className="flex items-start gap-2 text-[10px] font-bold uppercase tracking-[0.14em] leading-4 text-slate-600">
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-300" aria-hidden="true" />
+      <span className="min-w-0 break-words">{label}</span>
     </div>
     <div className="mt-2 text-2xl font-black text-white">{value}</div>
   </div>
