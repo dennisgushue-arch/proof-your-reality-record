@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,39 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
 
-const schema = z.object({
+type AuthMode = "signin" | "signup" | "forgot" | "reset-password";
+
+const emailSchema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
+});
+
+const passwordSchema = z.string().min(6, "Password must be at least 6 characters").max(72);
+
+const schema = emailSchema.extend({
   password: z.string().min(6, "Password must be at least 6 characters").max(72),
 });
+
+const resetPasswordSchema = z.object({
+  password: passwordSchema,
+  confirmPassword: passwordSchema,
+}).refine((value) => value.password === value.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
+const getAuthModeFromParam = (value: string | null): AuthMode => {
+  if (value === "signup" || value === "forgot" || value === "reset-password") return value;
+  return "signin";
+};
+
+const isRecoveryUrl = () => {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  return window.location.search.includes("type=recovery")
+    || window.location.hash.includes("type=recovery")
+    || hashParams.get("type") === "recovery"
+    || hashParams.has("access_token")
+    || hashParams.has("refresh_token");
+};
 
 const wait = (ms: number) => new Promise<void>((resolve) => {
   globalThis.setTimeout(resolve, ms);
@@ -81,17 +110,135 @@ const getAuthErrorMessage = (error: unknown, fallback: string) => {
 };
 const Auth = () => {
   const [params] = useSearchParams();
-  const [mode, setMode] = useState<"signin" | "signup">(params.get("mode") === "signup" ? "signup" : "signin");
+  const [mode, setMode] = useState<AuthMode>(getAuthModeFromParam(params.get("mode")));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryInvalid, setRecoveryInvalid] = useState(false);
+  const recoveryConfirmedRef = useRef(false);
+  const { user, session, loading: authLoading } = useAuth();
   const nav = useNavigate();
 
-  useEffect(() => { if (user) nav("/dashboard", { replace: true }); }, [user, nav]);
+  useEffect(() => {
+    if (user && mode !== "reset-password") nav("/dashboard", { replace: true });
+  }, [user, mode, nav]);
+
+  useEffect(() => {
+    setMode(getAuthModeFromParam(params.get("mode")));
+  }, [params]);
+
+  useEffect(() => {
+    if (mode !== "reset-password") {
+      setRecoveryLoading(false);
+      setRecoveryInvalid(false);
+      recoveryConfirmedRef.current = false;
+      return;
+    }
+
+    let cancelled = false;
+    const cameFromRecoveryLink = isRecoveryUrl();
+    setRecoveryLoading(cameFromRecoveryLink || authLoading);
+    setRecoveryInvalid(false);
+
+    const cleanRecoveryUrl = () => {
+      if (window.location.search !== "?mode=reset-password" || window.location.hash) {
+        nav("/auth?mode=reset-password", { replace: true });
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "PASSWORD_RECOVERY") {
+        recoveryConfirmedRef.current = true;
+        cleanRecoveryUrl();
+        setRecoveryLoading(false);
+        setRecoveryInvalid(false);
+        return;
+      }
+
+      if (nextSession && mode === "reset-password") {
+        recoveryConfirmedRef.current = true;
+        cleanRecoveryUrl();
+        setRecoveryLoading(false);
+        setRecoveryInvalid(false);
+      }
+    });
+
+    const verifyRecoverySession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (data.session || session || recoveryConfirmedRef.current) {
+          cleanRecoveryUrl();
+          setRecoveryInvalid(false);
+        } else if (!authLoading && !recoveryConfirmedRef.current) {
+          setRecoveryInvalid(true);
+        }
+      } catch {
+        if (!cancelled) setRecoveryInvalid(true);
+      } finally {
+        if (!cancelled) setRecoveryLoading(false);
+      }
+    };
+
+    void verifyRecoverySession();
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [authLoading, mode, nav, params, session]);
+
+  const switchMode = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    setPassword("");
+    setConfirmPassword("");
+    setRecoveryInvalid(false);
+    setRecoveryLoading(false);
+    recoveryConfirmedRef.current = false;
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (mode === "forgot") {
+      const parsed = emailSchema.safeParse({ email });
+      if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
+      setLoading(true);
+      try {
+        const { error } = await withJsonParseRetry(() => supabase.auth.resetPasswordForEmail(parsed.data.email, {
+          redirectTo: `${window.location.origin}/auth?mode=reset-password`,
+        }));
+        if (error) throw error;
+        toast.success("If an account exists for that email, a password reset link has been sent.");
+        switchMode("signin");
+      } catch (e: unknown) {
+        toast.error(getAuthErrorMessage(e, "Could not send password reset email"));
+      } finally { setLoading(false); }
+      return;
+    }
+
+    if (mode === "reset-password") {
+      const parsed = resetPasswordSchema.safeParse({ password, confirmPassword });
+      if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
+      setLoading(true);
+      try {
+        const { error } = await withJsonParseRetry(() => supabase.auth.updateUser({
+          password: parsed.data.password,
+        }));
+        if (error) throw error;
+        toast.success("Password updated", {
+          description: "You can continue to your dashboard.",
+        });
+        const { data } = await supabase.auth.getSession();
+        nav(data.session || session || user ? "/dashboard" : "/auth", { replace: true });
+      } catch (e: unknown) {
+        toast.error(getAuthErrorMessage(e, "Could not update password"));
+      } finally { setLoading(false); }
+      return;
+    }
+
     const parsed = schema.safeParse({ email, password });
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     setLoading(true);
@@ -145,6 +292,35 @@ const Auth = () => {
       toast.error(getAuthErrorMessage(e, "Something went wrong"));
     } finally { setLoading(false); }
   };
+
+  const title = mode === "signup"
+    ? "Create your account"
+    : mode === "forgot"
+      ? "Reset your password"
+      : mode === "reset-password"
+        ? "Choose a new password"
+        : "Welcome back";
+
+  const subtitle = mode === "signup"
+    ? "Start your private evidence timeline."
+    : mode === "forgot"
+      ? "Enter your email and we’ll send a secure reset link."
+      : mode === "reset-password"
+        ? "Enter a new password for your Proof account."
+        : "Sign in to continue documenting.";
+
+  const submitLabel = loading
+    ? "Please wait…"
+    : mode === "signup"
+      ? "Create account"
+      : mode === "forgot"
+        ? "Send reset link"
+        : mode === "reset-password"
+          ? "Update password"
+          : "Sign in";
+
+  const disableSubmit = loading || recoveryLoading || (mode === "reset-password" && recoveryInvalid);
+
   return (
     <div className="min-h-screen flex flex-col bg-subtle">
       <header className="container py-4 sm:py-6">
@@ -160,27 +336,58 @@ const Auth = () => {
       </header>
       <main className="flex-1 flex items-center justify-center py-6 sm:py-10 px-4">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-elevated">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-balance">{mode === "signup" ? "Create your account" : "Welcome back"}</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-balance">{title}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {mode === "signup" ? "Start your private evidence timeline." : "Sign in to continue documenting."}
+            {subtitle}
           </p>
+          {mode === "reset-password" && recoveryLoading && (
+            <div className="mt-5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground" role="status" aria-live="polite">
+              Preparing your secure reset form…
+            </div>
+          )}
+          {mode === "reset-password" && recoveryInvalid && (
+            <div className="mt-5 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3" role="alert">
+              <p className="text-sm font-medium text-destructive">This reset link is invalid or has expired.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Request a new password reset email to continue.</p>
+              <Button type="button" variant="outline" className="mt-3 h-9" onClick={() => switchMode("forgot")}>
+                Request another reset link
+              </Button>
+            </div>
+          )}
           <form onSubmit={submit} className="mt-6 space-y-4">
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="mt-1.5" />
-            </div>
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1.5" />
-            </div>
-            <Button type="submit" className="w-full h-11" disabled={loading}>
-              {loading ? "Please wait…" : mode === "signup" ? "Create account" : "Sign in"}
+            {mode !== "reset-password" && (
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="mt-1.5" />
+              </div>
+            )}
+            {mode !== "forgot" && (
+              <div>
+                <Label htmlFor="password">{mode === "reset-password" ? "New password" : "Password"}</Label>
+                <Input id="password" type="password" autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} required className="mt-1.5" />
+              </div>
+            )}
+            {mode === "reset-password" && (
+              <div>
+                <Label htmlFor="confirm-password">Confirm new password</Label>
+                <Input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="mt-1.5" />
+              </div>
+            )}
+            <Button type="submit" className="w-full h-11" disabled={disableSubmit}>
+              {submitLabel}
             </Button>
           </form>
+          {mode === "signin" && (
+            <div className="mt-4 text-center">
+              <button type="button" className="text-sm text-accent font-medium underline-offset-2 hover:underline" onClick={() => switchMode("forgot")}>
+                Forgot password?
+              </button>
+            </div>
+          )}
           <p className="mt-6 text-sm text-center text-muted-foreground">
-            {mode === "signup" ? "Already have an account? " : "New here? "}
-            <button type="button" className="text-accent font-medium underline-offset-2 hover:underline" onClick={() => setMode(mode === "signup" ? "signin" : "signup")}>
-              {mode === "signup" ? "Sign in" : "Create account"}
+            {mode === "signup" ? "Already have an account? " : mode === "signin" ? "New here? " : "Remembered your password? "}
+            <button type="button" className="text-accent font-medium underline-offset-2 hover:underline" onClick={() => switchMode(mode === "signin" ? "signup" : "signin")}>
+              {mode === "signup" ? "Sign in" : mode === "signin" ? "Create account" : "Back to sign in"}
             </button>
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground leading-5">

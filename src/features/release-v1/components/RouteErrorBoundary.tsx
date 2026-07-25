@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { normalizeSafeError } from "../releaseUtils";
+import { isDynamicImportLoadError, normalizeSafeError } from "../releaseUtils";
 import { GlobalErrorState } from "./GlobalErrorState";
 
 type RouteErrorBoundaryProps = {
@@ -28,9 +28,13 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
   render() {
     if (this.state.error) {
       const safe = normalizeSafeError(this.state.error, "This page could not be displayed. Try reloading the app.");
+      const retry = isDynamicImportLoadError(this.state.error)
+        ? () => window.location.reload()
+        : () => this.setState({ error: null });
+
       return (
         <main className="min-h-screen bg-background px-4 py-10 text-foreground sm:px-6 lg:px-10">
-          <GlobalErrorState title={safe.title} message={safe.message} onRetry={safe.retryable ? () => this.setState({ error: null }) : undefined} />
+          <GlobalErrorState title={safe.title} message={safe.message} onRetry={safe.retryable ? retry : undefined} />
         </main>
       );
     }

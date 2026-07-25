@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Sparkles, MapPin, Users, Tag, AlertTriangle, FileWarning, ListChecks, Paperclip, X, Clock } from "lucide-react";
+import { ArrowLeft, Sparkles, MapPin, Users, Tag, AlertTriangle, FileWarning, ListChecks, Paperclip, X, Clock, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { Disclaimer } from "@/components/Disclaimer";
@@ -138,6 +138,7 @@ const IncidentDetail = () => {
   const [signedEvidenceUrls, setSignedEvidenceUrls] = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisStepIndex, setAnalysisStepIndex] = useState(0);
+  const [extractingEntities, setExtractingEntities] = useState(false);
   const [showContradictionWow, setShowContradictionWow] = useState(false);
 
   const load = async () => {
@@ -251,6 +252,35 @@ const IncidentDetail = () => {
     load();
   };
 
+  const extractEntities = async () => {
+    if (!inc) return;
+    setExtractingEntities(true);
+    playUiTone("intelligence");
+    triggerHaptic("light");
+
+    try {
+      const { data, error } = await supabase.functions.invoke("extract-entities", {
+        body: { caseId: inc.case_id, incidentId: inc.id },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Edge function error");
+      }
+
+      const savedEntityCount = typeof data?.savedEntityCount === "number" ? data.savedEntityCount : null;
+      toast.success("Entity analysis complete", {
+        description: savedEntityCount === null ? undefined : `${savedEntityCount} entities saved.`,
+      });
+      playUiTone("success");
+      triggerHaptic("success");
+      load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Entity analysis failed");
+    } finally {
+      setExtractingEntities(false);
+    }
+  };
+
   const removeEvidence = async (evidenceId: string) => {
     const confirmDelete = window.confirm("Remove this evidence item?");
     if (!confirmDelete) return;
@@ -344,9 +374,21 @@ const IncidentDetail = () => {
               </div>
             )}
           </div>
-          {typeof inc.evidence_quality_score === "number" && (
-            <ScoreBadge score={inc.evidence_quality_score} />
-          )}
+          <div className="flex flex-col items-start sm:items-end gap-3">
+            {typeof inc.evidence_quality_score === "number" && (
+              <ScoreBadge score={inc.evidence_quality_score} />
+            )}
+            <Button
+              type="button"
+              onClick={extractEntities}
+              disabled={extractingEntities}
+              className="bg-accent hover:bg-accent/90 text-white font-semibold"
+              aria-label="Analyze entities for this incident"
+            >
+              {extractingEntities ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
+              {extractingEntities ? "Analyzing Entities..." : "Analyze Entities"}
+            </Button>
+          </div>
         </div>
 
         {isLiveSessionFinalized && liveSessionSnippet.length > 0 && (
@@ -421,10 +463,12 @@ const IncidentDetail = () => {
             >
               {backendStyle.label}
             </div>
-            <Button onClick={analyze} disabled={analyzing} className="bg-accent hover:bg-accent/90 text-white font-semibold">
-              <Sparkles className="mr-2 h-4 w-4" />
-              {analyzing ? ANALYSIS_LOADING_STEPS[analysisStepIndex] : "Analyze with AI"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={analyze} disabled={analyzing} className="bg-accent hover:bg-accent/90 text-white font-semibold">
+                <Sparkles className="mr-2 h-4 w-4" />
+                {analyzing ? ANALYSIS_LOADING_STEPS[analysisStepIndex] : "Analyze with AI"}
+              </Button>
+            </div>
             {analyzing && (
               <p className="mt-2 text-xs text-muted-foreground animate-pulse">
                 {ANALYSIS_LOADING_STEPS[analysisStepIndex]}

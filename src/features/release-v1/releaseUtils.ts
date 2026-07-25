@@ -245,7 +245,22 @@ export function normalizeOfflineState(isOnline: boolean): { offline: boolean; me
     : { offline: true, message: "You appear to be offline. Changes that require the network may fail until the connection returns." };
 }
 
+const DYNAMIC_IMPORT_ERROR_PATTERN = /failed to fetch dynamically imported module|loading chunk \d+ failed|importing a module script failed/i;
+
+export function isDynamicImportLoadError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return DYNAMIC_IMPORT_ERROR_PATTERN.test(message);
+}
+
 export function normalizeSafeError(error: unknown, fallback = "Something went wrong. Please try again."): SafeError {
+  if (isDynamicImportLoadError(error)) {
+    return {
+      title: "Page update needed",
+      message: "This page module could not be loaded. Retry will reload the app and fetch the latest version.",
+      retryable: true,
+    };
+  }
+
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : fallback;
   const safeMessage = /apikey|service_role|authorization|bearer|storage_path|internal prompt/i.test(message) ? fallback : message;
   return {
