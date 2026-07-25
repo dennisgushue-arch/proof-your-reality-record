@@ -1,9 +1,8 @@
-import { AlertTriangle, Check, Clock3, FileText, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Check, FileText, ShieldCheck } from "lucide-react";
 import type { ElementType } from "react";
 
 type IntelligenceMetricsProps = {
   evidenceStrength: number;
-  timelineGapCount: number;
   contradictionCount: number;
   evidenceCount: number;
 };
@@ -44,24 +43,16 @@ const MetricCard = ({
 
 export const IntelligenceMetrics = ({
   evidenceStrength,
-  timelineGapCount,
   contradictionCount,
   evidenceCount,
 }: IntelligenceMetricsProps) => {
   return (
-    <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="mt-8 grid gap-4 sm:grid-cols-3">
       <MetricCard
         icon={ShieldCheck}
         label="Evidence strength"
         value={`${evidenceStrength}%`}
         detail="Across all active records"
-      />
-      <MetricCard
-        icon={Clock3}
-        label="Timeline gaps"
-        value={String(timelineGapCount)}
-        detail={timelineGapCount === 0 ? "No major gaps detected" : "Flagged for review"}
-        warning={timelineGapCount > 0}
       />
       <MetricCard
         icon={AlertTriangle}

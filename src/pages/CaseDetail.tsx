@@ -355,7 +355,6 @@ const CaseDetail = () => {
             data={{
               evidenceCount: intelligence.evidenceItemCount,
               inconsistencyCount: intelligence.contradictionCount,
-              timelineGapCount: intelligence.timelineGapCount,
               lastActivityTime: incidents.length > 0 
                 ? new Date(incidents[0].occurred_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                 : 'Never',

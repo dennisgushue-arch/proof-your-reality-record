@@ -21,7 +21,6 @@ export type CaseIntelligence = {
   reasons: string[];
   missing: string[];
   contradictionCount: number;
-  timelineGapCount: number;
   evidenceItemCount: number;
   confidence: "high" | "medium" | "low";
 };
@@ -48,28 +47,17 @@ export function analyzeCase(incidents: IntelligenceIncident[]): CaseIntelligence
       reasons: [],
       missing: ["incident timeline", "supporting evidence", "people and location details"],
       contradictionCount: 0,
-      timelineGapCount: 0,
       evidenceItemCount: 0,
       confidence: "low",
     };
   }
 
-  const ordered = [...incidents].sort(
-    (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
-  );
   const evidenceItemCount = incidents.reduce((sum, incident) => sum + (incident.evidence_items?.length ?? 0), 0);
   const contradictionCount = incidents.reduce((sum, incident) => sum + contradictions(incident.ai_analysis).length, 0);
   const missingNarrative = incidents.filter((incident) => !incident.raw_narrative?.trim() && !incident.neutral_summary?.trim());
   const missingPeople = incidents.filter((incident) => peopleCount(incident.people_involved) === 0);
   const missingLocation = incidents.filter((incident) => !incident.location?.trim());
   const missingEvidence = incidents.filter((incident) => (incident.evidence_items?.length ?? 0) === 0);
-
-  let timelineGapCount = 0;
-  for (let index = 1; index < ordered.length; index += 1) {
-    const prior = new Date(ordered[index - 1].occurred_at).getTime();
-    const current = new Date(ordered[index].occurred_at).getTime();
-    if (current - prior > 7 * 24 * 60 * 60 * 1000) timelineGapCount += 1;
-  }
 
   const scored = incidents.filter((incident) => typeof incident.evidence_quality_score === "number");
   const qualityAverage = scored.length
@@ -90,7 +78,6 @@ export function analyzeCase(incidents: IntelligenceIncident[]): CaseIntelligence
   if (missingNarrative.length) missing.push(`complete narratives for ${missingNarrative.length} incident${missingNarrative.length === 1 ? "" : "s"}`);
   if (missingPeople.length) missing.push(`people involved for ${missingPeople.length} incident${missingPeople.length === 1 ? "" : "s"}`);
   if (missingLocation.length) missing.push(`locations for ${missingLocation.length} incident${missingLocation.length === 1 ? "" : "s"}`);
-  if (timelineGapCount) missing.push(`${timelineGapCount} timeline gap${timelineGapCount === 1 ? "" : "s"} to review`);
 
   const reasons: string[] = [];
   if (incidents.length >= 3) reasons.push(`${incidents.length} incidents establish a chronological record`);
@@ -111,9 +98,8 @@ export function analyzeCase(incidents: IntelligenceIncident[]): CaseIntelligence
 
   const findings: string[] = [];
   findings.push(`${evidenceItemCount} evidence item${evidenceItemCount === 1 ? " is" : "s are"} connected to ${incidents.length} incident${incidents.length === 1 ? "" : "s"}.`);
-  if (timelineGapCount) findings.push(`${timelineGapCount} possible timeline gap${timelineGapCount === 1 ? " needs" : "s need"} review.`);
   if (contradictionCount) findings.push(`${contradictionCount} possible statement difference${contradictionCount === 1 ? " is" : "s are"} flagged for review.`);
-  if (!timelineGapCount && !contradictionCount) findings.push("No timeline gaps or statement differences are currently flagged.");
+  if (!contradictionCount) findings.push("No statement differences are currently flagged.");
   if (missing.length) findings.push(`Documentation may be incomplete: ${missing[0]}.`);
 
   const recommendedAction = target?.penalty
@@ -143,7 +129,6 @@ export function analyzeCase(incidents: IntelligenceIncident[]): CaseIntelligence
     reasons: reasons.slice(0, 3),
     missing: missing.slice(0, 4),
     contradictionCount,
-    timelineGapCount,
     evidenceItemCount,
     confidence: incidents.length >= 6 && evidenceItemCount >= 4 ? "high" : incidents.length >= 3 ? "medium" : "low",
   };

@@ -1,5 +1,3 @@
-const GAP_THRESHOLD_HOURS = 24;
-
 /**
 * Converts an event date into a standardized ISO date.
 */
@@ -46,39 +44,6 @@ return [...events].sort(
 new Date(first.occurredAt).getTime() -
 new Date(second.occurredAt).getTime()
 );
-}
-
-/**
-* Finds large time gaps between timeline events.
-*/
-export function detectTimelineGaps(
-events,
-thresholdHours = GAP_THRESHOLD_HOURS
-) {
-const sortedEvents = sortEventsByTime(events);
-const gaps = [];
-
-for (let index = 1; index < sortedEvents.length; index += 1) {
-const previousEvent = sortedEvents[index - 1];
-const currentEvent = sortedEvents[index];
-
-const previousTime = new Date(previousEvent.occurredAt).getTime();
-const currentTime = new Date(currentEvent.occurredAt).getTime();
-
-const differenceHours =
-(currentTime - previousTime) / (1000 * 60 * 60);
-
-if (differenceHours >= thresholdHours) {
-gaps.push({
-id: `${previousEvent.id}-${currentEvent.id}`,
-previousEvent,
-currentEvent,
-differenceHours: Math.round(differenceHours),
-});
-}
-}
-
-return gaps;
 }
 
 /**
@@ -162,7 +127,6 @@ let score = 100;
 const strengths = [];
 const warnings = [];
 
-const gaps = detectTimelineGaps(events);
 const chronologyIssues = detectChronologyIssues(events);
 
 const eventsWithEvidence = events.filter(
@@ -176,17 +140,6 @@ const eventsWithSources = events.filter(
 const eventsWithLocations = events.filter(
 (event) => event.location
 );
-
-if (gaps.length > 0) {
-score -= Math.min(gaps.length * 8, 24);
-warnings.push(
-`${gaps.length} significant timeline gap${
-gaps.length === 1 ? "" : "s"
-} detected.`
-);
-} else {
-strengths.push("No major timeline gaps detected.");
-}
 
 if (chronologyIssues.length > 0) {
 score -= Math.min(chronologyIssues.length * 10, 30);

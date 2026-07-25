@@ -166,7 +166,6 @@ const DashboardV2Content = () => {
 
         <IntelligenceMetrics
           evidenceStrength={intelligence.evidenceStrength}
-          timelineGapCount={intelligence.timelineGapCount}
           contradictionCount={contradictionCount}
           evidenceCount={evidenceCount}
         />

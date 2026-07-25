@@ -131,26 +131,6 @@ function extractFirstJsonObject(text: string): unknown {
   }
 }
 
-function detectTimelineGapCount(incidents: IncidentRow[], thresholdHours = 24): number {
-  if (incidents.length <= 1) return 0;
-
-  const sorted = [...incidents].sort(
-    (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
-  );
-
-  let gaps = 0;
-  for (let index = 1; index < sorted.length; index += 1) {
-    const previous = new Date(sorted[index - 1].occurred_at).getTime();
-    const current = new Date(sorted[index].occurred_at).getTime();
-    const diffHours = (current - previous) / (1000 * 60 * 60);
-    if (Number.isFinite(diffHours) && diffHours >= thresholdHours) {
-      gaps += 1;
-    }
-  }
-
-  return gaps;
-}
-
 function normalizeProofAIResponse(value: unknown): ProofAIResponse {
   const obj = value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -239,11 +219,9 @@ function buildFallbackResponse(caseRow: CaseRow, incidents: IncidentRow[]): Proo
     const analysis = readAnalysis(incident.ai_analysis);
     return sum + safeStringArray(analysis?.contradictions).length;
   }, 0);
-  const timelineGaps = detectTimelineGapCount(incidents);
-
   return {
     title: "AI case brief",
-    summary: `${caseRow.title} includes ${incidents.length} incident${incidents.length === 1 ? "" : "s"}, ${contradictions} possible contradiction${contradictions === 1 ? "" : "s"}, and ${timelineGaps} timeline gap${timelineGaps === 1 ? "" : "s"}.`,
+    summary: `${caseRow.title} includes ${incidents.length} incident${incidents.length === 1 ? "" : "s"} and ${contradictions} possible contradiction${contradictions === 1 ? "" : "s"}.`,
     findings: [
       {
         label: "Case category",
@@ -255,12 +233,12 @@ function buildFallbackResponse(caseRow: CaseRow, incidents: IncidentRow[]): Proo
       },
       {
         label: "Review focus",
-        value: "Confirm timeline continuity and link supporting records to each incident.",
+        value: "Review chronology and link supporting records to each incident.",
       },
     ],
     recommendations: [
       "Review contradiction flags side-by-side with source records.",
-      "Fill timeline gaps with messages, receipts, or photos.",
+      "Link messages, receipts, or photos to the relevant incidents.",
       "Generate a case summary before export or key interactions.",
     ],
     confidence: inferConfidence(incidents),

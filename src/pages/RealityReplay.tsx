@@ -77,17 +77,6 @@ const RealityReplay = () => {
     ].filter(Boolean).join(" ").toLowerCase().includes(needle));
   }, [incidents, query]);
 
-  const gaps = useMemo(() => {
-    const results: string[] = [];
-    for (let index = 1; index < incidents.length; index += 1) {
-      const previous = new Date(incidents[index - 1].occurred_at).getTime();
-      const current = new Date(incidents[index].occurred_at).getTime();
-      const days = Math.floor((current - previous) / 86_400_000);
-      if (days >= 14) results.push(`${days}-day gap between “${incidents[index - 1].title}” and “${incidents[index].title}”.`);
-    }
-    return results;
-  }, [incidents]);
-
   if (loading || !caseRow) {
     return <AppLayout><div className="px-6 lg:px-10 py-10 text-sm text-muted-foreground">Building Reality Replay…</div></AppLayout>;
   }
@@ -120,15 +109,6 @@ const RealityReplay = () => {
             <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search people, location, evidence, or text" className="sm:ml-auto sm:max-w-md" />
           </div>
         </section>
-
-        {gaps.length > 0 && (
-          <section className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
-            <h2 className="text-sm font-semibold">Possible timeline gaps</h2>
-            <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-              {gaps.map((gap) => <li key={gap}>• {gap}</li>)}
-            </ul>
-          </section>
-        )}
 
         <section className="rounded-xl border border-border bg-card p-5 md:p-7">
           {filtered.length === 0 ? (

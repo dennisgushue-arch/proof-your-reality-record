@@ -126,17 +126,14 @@ export function createDemoResponse(prompt, selectedCase) {
   if (normalizedPrompt.includes("timeline") || normalizedPrompt.includes("chronological")) {
     return {
       title: "Timeline reconstruction",
-      summary: `${selectedCase.incidents} incidents were organized chronologically. Two documentation gaps require review.`,
+      summary: `${selectedCase.incidents} incidents were organized chronologically for review.`,
       findings: [
         { label: "April 12", value: "Completion date documented." },
         { label: "April 13", value: "Payment record added." },
         { label: "April 19", value: "Deadline documented as missed." },
         { label: "April 28", value: "Later statement added to the record." },
       ],
-      recommendations: [
-        "Review activity between April 13 and April 19.",
-        "Add any messages exchanged during the gap.",
-      ],
+      recommendations: ["Review the dated records against the original evidence."],
     };
   }
 
@@ -160,14 +157,13 @@ export function createDemoResponse(prompt, selectedCase) {
 
   return {
     title: "AI case brief",
-    summary: `${selectedCase.title} contains ${selectedCase.incidents} incidents and ${selectedCase.evidenceItems} evidence items. The records include ${selectedCase.contradictions} possible inconsistency and ${selectedCase.timelineGaps} timeline gaps requiring review.`,
+    summary: `${selectedCase.title} contains ${selectedCase.incidents} incidents and ${selectedCase.evidenceItems} evidence items. The records include ${selectedCase.contradictions} possible inconsistency requiring review.`,
     findings: [
       { label: "Current strength", value: "Most incidents contain timestamps." },
       { label: "Needs review", value: "Some records lack supporting documentation." },
       { label: "Recent signal", value: "A later statement differs from an earlier record." },
     ],
     recommendations: [
-      "Review the timeline gaps.",
       "Link supporting screenshots to each incident.",
       "Generate an updated case summary before exporting.",
     ],

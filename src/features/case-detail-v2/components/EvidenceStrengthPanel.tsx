@@ -38,11 +38,10 @@ export const EvidenceStrengthPanel = ({ intelligence, incidents, completionPerce
         <div className="h-full rounded-full bg-blue-400" style={{ width: `${intelligence.evidenceStrength}%` }} />
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
+      <div className="mt-5 grid grid-cols-3 gap-3">
         <Metric label="Completion" value={`${completionPercentage || averageCompleteness}%`} />
         <Metric label="Strength" value={`${intelligence.evidenceStrength}%`} />
         <Metric label="Evidence files" value={intelligence.evidenceItemCount.toString()} />
-        <Metric label="Timeline gaps" value={intelligence.timelineGapCount.toString()} />
       </div>
 
       <div className="mt-5 rounded-2xl bg-white/[0.03] p-4">

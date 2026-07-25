@@ -83,17 +83,6 @@ export type AssistantMessage = AIMessageBase & {
 
 export type AIMessage = UserMessage | AssistantMessage;
 
-export type TimelineGap = {
-  id: string;
-  startIncidentId: string;
-  endIncidentId: string;
-  startTitle: string;
-  endTitle: string;
-  gapStart: string;
-  gapEnd: string;
-  durationDays: number;
-};
-
 export type StatementDifference = {
   id: string;
   incidentId: string;
@@ -106,7 +95,7 @@ export type StatementDifference = {
 
 export type WorkspaceFinding = {
   id: string;
-  category: "timeline-gap" | "statement-difference" | "missing-documentation" | "recurring-person" | "recurring-location" | "recurring-topic" | "evidence-strength" | "next-review";
+  category: "statement-difference" | "missing-documentation" | "recurring-person" | "recurring-location" | "recurring-topic" | "evidence-strength" | "next-review";
   title: string;
   description: string;
   incidentId?: string;
@@ -121,7 +110,6 @@ export type CaseContextSummary = {
   completionScore: number;
   intelligence: CaseIntelligence;
   lastUpdatedLabel: string;
-  timelineGaps: TimelineGap[];
   statementDifferences: StatementDifference[];
   findings: WorkspaceFinding[];
 };

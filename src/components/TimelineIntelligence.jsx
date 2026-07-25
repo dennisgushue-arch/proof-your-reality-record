@@ -3,7 +3,6 @@ import {
 analyzeEventFlow,
 calculateTimelineIntegrity,
 detectChronologyIssues,
-detectTimelineGaps,
 formatEventType,
 formatInTimeZone,
 sortEventsByTime,
@@ -14,11 +13,6 @@ events = [],
 defaultTimeZone = "America/Los_Angeles",
 }) {
 const [timeZone, setTimeZone] = useState(defaultTimeZone);
-
-const gaps = useMemo(
-() => detectTimelineGaps(events),
-[events]
-);
 
 const chronologyIssues = useMemo(
 () => detectChronologyIssues(events),
@@ -52,8 +46,7 @@ Timeline Intelligence
 </h1>
 
 <p style={styles.pageDescription}>
-Review timeline gaps, event sequences, chronology,
-and record integrity.
+Review event sequences, chronology, and record integrity.
 </p>
 </div>
 
@@ -109,16 +102,10 @@ TIMELINE INTEGRITY
 
 <p style={styles.cardDescription}>
 Based on chronology, evidence coverage,
-timeline gaps, locations, and source labels.
+locations, and source labels.
 </p>
 </div>
 </article>
-
-<StatCard
-label="Timeline Gaps"
-value={gaps.length}
-tone={gaps.length ? "warning" : "success"}
-/>
 
 <StatCard
 label="Chronology Alerts"
@@ -132,57 +119,6 @@ value={sortedEvents.length}
 tone="primary"
 />
 </section>
-
-<section style={styles.twoColumnGrid}>
-<article style={styles.panel}>
-<SectionHeader
-title="Timeline Gap Detection"
-description="Highlights periods with no documented activity."
-/>
-
-{gaps.length === 0 ? (
-<EmptyState message="No significant timeline gaps detected." />
-) : (
-<div style={styles.stack}>
-{gaps.map((gap) => (
-<div key={gap.id} style={styles.warningCard}>
-<p style={styles.warningTitle}>
-Timeline gap detected
-</p>
-
-<p style={styles.warningText}>
-No documented event for approximately{" "}
-<strong>{gap.differenceHours} hours</strong>.
-</p>
-
-<div style={styles.comparisonGrid}>
-<TimelinePoint
-label="Previous record"
-title={gap.previousEvent.title}
-date={formatInTimeZone(
-gap.previousEvent.occurredAt,
-timeZone
-)}
-/>
-
-<TimelinePoint
-label="Next record"
-title={gap.currentEvent.title}
-date={formatInTimeZone(
-gap.currentEvent.occurredAt,
-timeZone
-)}
-/>
-</div>
-
-<button style={styles.secondaryButton}>
-Add missing event
-</button>
-</div>
-))}
-</div>
-)}
-</article>
 
 <article style={styles.panel}>
 <SectionHeader
@@ -225,7 +161,6 @@ integrity.warnings.map((warning) => (
 )}
 </div>
 </article>
-</section>
 
 <section style={styles.panel}>
 <SectionHeader
@@ -355,16 +290,6 @@ style={{
 <strong style={styles.statValue}>{value}</strong>
 <span style={styles.statLabel}>{label}</span>
 </article>
-);
-}
-
-function TimelinePoint({ label, title, date }) {
-return (
-<div style={styles.timelinePoint}>
-<span style={styles.timelinePointLabel}>{label}</span>
-<strong>{title}</strong>
-<span style={styles.timelinePointDate}>{date}</span>
-</div>
 );
 }
 
@@ -534,13 +459,6 @@ fontSize: "13px",
 fontWeight: 700,
 },
 
-twoColumnGrid: {
-display: "grid",
-gridTemplateColumns: "1fr 1fr",
-gap: "24px",
-marginBottom: "24px",
-},
-
 panel: {
 background: "#111827",
 border: "1px solid #263248",
@@ -570,14 +488,6 @@ flexDirection: "column",
 gap: "14px",
 },
 
-warningCard: {
-background: "#251A08",
-border: "1px solid #B45309",
-borderLeft: "4px solid #F59E0B",
-borderRadius: "12px",
-padding: "18px",
-},
-
 dangerCard: {
 background: "#2A1116",
 border: "1px solid #B91C1C",
@@ -586,44 +496,9 @@ borderRadius: "12px",
 padding: "18px",
 },
 
-warningTitle: {
-color: "#FBBF24",
-fontWeight: 800,
-margin: "0 0 8px",
-},
-
 warningText: {
 color: "#CBD5E1",
 lineHeight: 1.6,
-},
-
-comparisonGrid: {
-display: "grid",
-gridTemplateColumns: "1fr 1fr",
-gap: "12px",
-margin: "16px 0",
-},
-
-timelinePoint: {
-background: "rgba(8, 13, 24, 0.55)",
-border: "1px solid #374151",
-borderRadius: "10px",
-padding: "14px",
-display: "flex",
-flexDirection: "column",
-gap: "6px",
-},
-
-timelinePointLabel: {
-color: "#94A3B8",
-fontSize: "11px",
-textTransform: "uppercase",
-letterSpacing: "0.08em",
-},
-
-timelinePointDate: {
-color: "#94A3B8",
-fontSize: "12px",
 },
 
 secondaryButton: {

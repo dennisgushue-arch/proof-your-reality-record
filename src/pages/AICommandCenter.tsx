@@ -156,15 +156,6 @@ const AICommandCenter = () => {
     return { total, last7, contradictions, missing, noEvidence };
   }, [incidents]);
 
-  const gaps = useMemo(() => {
-    const out: { from: IncidentRow; to: IncidentRow; days: number }[] = [];
-    for (let i = 1; i < incidents.length; i++) {
-      const days = Math.round((new Date(incidents[i].occurred_at).getTime() - new Date(incidents[i - 1].occurred_at).getTime()) / 86400000);
-      if (days > 7) out.push({ from: incidents[i - 1], to: incidents[i], days });
-    }
-    return out;
-  }, [incidents]);
-
   const contradictionsList = useMemo(
     () => incidents.flatMap((i) => readArr(i.ai_analysis, "contradictions").map((text) => ({ text, incident: i }))),
     [incidents],
@@ -244,7 +235,7 @@ const AICommandCenter = () => {
           </p>
           <h1 className="font-serif text-3xl lg:text-4xl leading-tight">Command Center</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-            Review chronology, possible gaps, statement differences, and outstanding documentation for the selected case.
+            Review chronology, statement differences, and outstanding documentation for the selected case.
           </p>
         </div>
         <label className="flex flex-col gap-1 min-w-[240px]">
@@ -304,25 +295,6 @@ const AICommandCenter = () => {
               </li>
             ))}
           </ol>
-        )}
-      </Section>
-
-      {/* Possible timeline gaps */}
-      <Section icon={FileSearch} title="Possible timeline gaps" subtitle="Consecutive incidents more than 7 days apart. Documentation may be incomplete." tone={gaps.length ? "warning" : "neutral"}>
-        {gaps.length === 0 ? (
-          <EmptyLine text="The available records indicate no gaps longer than 7 days between consecutive entries." />
-        ) : (
-          <ul className="space-y-2">
-            {gaps.map((g, idx) => (
-              <li key={idx} className="flex items-center justify-between gap-3 text-sm rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate"><span className="text-muted-foreground">{fmtDate(g.from.occurred_at)}</span> → <span className="text-muted-foreground">{fmtDate(g.to.occurred_at)}</span></p>
-                  <p className="text-xs text-muted-foreground truncate">Between "{g.from.title}" and "{g.to.title}"</p>
-                </div>
-                <Chip tone="warning">{g.days} days</Chip>
-              </li>
-            ))}
-          </ul>
         )}
       </Section>
 

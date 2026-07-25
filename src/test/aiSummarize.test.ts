@@ -12,7 +12,6 @@ const demoCase = {
   incidents: 8,
   evidenceItems: 14,
   contradictions: 1,
-  timelineGaps: 2,
 };
 
 // ─── isSummarizePrompt ────────────────────────────────────────────────────────

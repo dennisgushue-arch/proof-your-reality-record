@@ -445,23 +445,12 @@ const Dashboard = () => {
 
         {cases.length > 0 && (
           <>
-            <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="mt-8 grid gap-4 sm:grid-cols-3">
               <MetricCard
                 icon={ShieldCheck}
                 label="Evidence strength"
                 value={`${intelligence.evidenceStrength}%`}
                 detail="Across all active records"
-              />
-              <MetricCard
-                icon={Clock3}
-                label="Timeline gaps"
-                value={String(intelligence.timelineGapCount)}
-                detail={
-                  intelligence.timelineGapCount === 0
-                    ? "No major gaps detected"
-                    : "Review recommended"
-                }
-                warning={intelligence.timelineGapCount > 0}
               />
               <MetricCard
                 icon={AlertTriangle}

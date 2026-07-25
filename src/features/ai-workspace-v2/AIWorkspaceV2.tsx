@@ -16,7 +16,6 @@ import { ContradictionReview } from "./components/ContradictionReview";
 import { FindingsPanel } from "./components/FindingsPanel";
 import { IntelligenceOverview } from "./components/IntelligenceOverview";
 import { SuggestedPrompts } from "./components/SuggestedPrompts";
-import { TimelineGapReview } from "./components/TimelineGapReview";
 import {
   buildCaseContextSummary,
   buildSuggestedPrompts,
@@ -256,7 +255,6 @@ export const AIWorkspaceV2 = () => {
         <>
           <FindingsPanel findings={summary.findings} />
           <ContradictionReview items={summary.statementDifferences} />
-          <TimelineGapReview gaps={summary.timelineGaps} caseId={selectedCaseId} />
           <BriefBuilder summary={summary} incidents={incidents} />
         </>
       ) : <AIWorkspaceEmptyState variant="no-case-selected" onSelectCase={() => cases[0] && updateSelectedCase(cases[0].id)} />}

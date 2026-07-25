@@ -27,7 +27,6 @@ describe("analyzeCase", () => {
     ]);
 
     expect(result.recommendedIncidentId).toBe("one");
-    expect(result.timelineGapCount).toBe(1);
     expect(result.missing.length).toBeGreaterThan(0);
     expect(result.evidenceStrength).toBeLessThan(75);
   });

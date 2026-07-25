@@ -13,7 +13,6 @@ import type {
   CaseContextSummary,
   StatementDifference,
   SuggestedPrompt,
-  TimelineGap,
   UsageNoticeState,
   WorkspaceFinding,
 } from "./types";
@@ -84,34 +83,9 @@ export function sortIncidentsChronologically(incidents: AIWorkspaceIncidentRow[]
   return [...incidents].sort((first, second) => new Date(first.occurred_at).getTime() - new Date(second.occurred_at).getTime());
 }
 
-export function buildTimelineGaps(incidents: AIWorkspaceIncidentRow[], thresholdDays = 7): TimelineGap[] {
-  const sorted = sortIncidentsChronologically(incidents);
-  const gaps: TimelineGap[] = [];
-  for (let index = 1; index < sorted.length; index += 1) {
-    const previous = sorted[index - 1];
-    const current = sorted[index];
-    const diffMs = new Date(current.occurred_at).getTime() - new Date(previous.occurred_at).getTime();
-    const durationDays = Math.round(diffMs / 86_400_000);
-    if (Number.isFinite(durationDays) && durationDays > thresholdDays) {
-      gaps.push({
-        id: `${previous.id}-${current.id}`,
-        startIncidentId: previous.id,
-        endIncidentId: current.id,
-        startTitle: previous.title,
-        endTitle: current.title,
-        gapStart: previous.occurred_at,
-        gapEnd: current.occurred_at,
-        durationDays,
-      });
-    }
-  }
-  return gaps;
-}
-
 export function buildCaseContextSummary(caseRow: AIWorkspaceCaseRow, incidents: AIWorkspaceIncidentRow[]): CaseContextSummary {
   const completion = calculateOverallCompletion(incidents);
   const intelligence = analyzeCase(incidents);
-  const timelineGaps = buildTimelineGaps(incidents);
   const statementDifferences = incidents.flatMap((incident) => readContradictionEntries(incident.ai_analysis, incident));
   const lastUpdated = incidents.map((incident) => incident.updated_at || incident.occurred_at).concat(caseRow.updated_at).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
@@ -122,29 +96,17 @@ export function buildCaseContextSummary(caseRow: AIWorkspaceCaseRow, incidents: 
     completionScore: completion.score,
     intelligence,
     lastUpdatedLabel: formatDate(lastUpdated),
-    timelineGaps,
     statementDifferences,
-    findings: buildWorkspaceFindings(incidents, timelineGaps, statementDifferences, intelligence.recommendedAction),
+    findings: buildWorkspaceFindings(incidents, statementDifferences, intelligence.recommendedAction),
   };
 }
 
 export function buildWorkspaceFindings(
   incidents: AIWorkspaceIncidentRow[],
-  timelineGaps: TimelineGap[],
   statementDifferences: StatementDifference[],
   recommendedAction: string,
 ): WorkspaceFinding[] {
   const findings: WorkspaceFinding[] = [];
-  timelineGaps.slice(0, 3).forEach((gap) => findings.push({
-    id: `gap-${gap.id}`,
-    category: "timeline-gap",
-    title: "Timeline gap",
-    description: `No documented event appears in this interval between “${gap.startTitle}” and “${gap.endTitle}”.`,
-    incidentId: gap.endIncidentId,
-    href: `/incidents/${gap.endIncidentId}`,
-    priority: gap.durationDays >= 30 ? "high" : "medium",
-  }));
-
   statementDifferences.slice(0, 3).forEach((difference) => findings.push({
     id: `difference-${difference.id}`,
     category: "statement-difference",
@@ -328,7 +290,7 @@ export function buildBriefDraft(summary: CaseContextSummary, incidents: AIWorksp
   if (enabled.has("missing")) lines.push("## Missing documentation", ...(summary.intelligence.missing.length ? summary.intelligence.missing.map((item) => `- ${item}`) : ["- No major missing documentation currently flagged."]), "");
   if (enabled.has("differences")) lines.push("## Possible statement differences", ...(summary.statementDifferences.length ? summary.statementDifferences.map((item) => `- ${item.incidentTitle}: ${item.firstStatement}`) : ["- No possible statement differences currently flagged."]), "");
   if (enabled.has("patterns")) lines.push("## Recurring patterns", ...summary.findings.filter((item) => item.category.includes("recurring")).map((item) => `- ${item.description}`), "");
-  if (enabled.has("questions")) lines.push("## Questions for user review", `- ${summary.intelligence.recommendedAction}`, "- Are there missing records for timeline gaps?", "- Are evidence files linked to the correct incidents?", "");
+  if (enabled.has("questions")) lines.push("## Questions for user review", `- ${summary.intelligence.recommendedAction}`, "- Are evidence files linked to the correct incidents?", "");
 
   return { title: `${summary.caseRow.title} brief`, body: lines.join("\n"), generatedAt: new Date().toISOString() };
 }

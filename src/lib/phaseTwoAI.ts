@@ -46,26 +46,6 @@ function formatDateLabel(value: string) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function detectTimelineGapCount(incidents: PhaseTwoIncident[], thresholdHours = 24) {
-  if (incidents.length <= 1) return 0;
-
-  const sorted = [...incidents].sort(
-    (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
-  );
-
-  let gaps = 0;
-  for (let index = 1; index < sorted.length; index += 1) {
-    const previous = new Date(sorted[index - 1].occurred_at).getTime();
-    const current = new Date(sorted[index].occurred_at).getTime();
-    const diffHours = (current - previous) / (1000 * 60 * 60);
-    if (Number.isFinite(diffHours) && diffHours >= thresholdHours) {
-      gaps += 1;
-    }
-  }
-
-  return gaps;
-}
-
 export function buildTimelineSummary(incidents: PhaseTwoIncident[]): TimelineSummary {
   if (!incidents.length) {
     return {
@@ -87,12 +67,9 @@ export function buildTimelineSummary(incidents: PhaseTwoIncident[]): TimelineSum
     const analysis = readAnalysis(incident.ai_analysis);
     return sum + asStringArray(analysis?.contradictions).length;
   }, 0);
-  const gapCount = detectTimelineGapCount(incidents);
-
   const headline = `${sorted.length} timeline event${sorted.length === 1 ? "" : "s"} from ${formatDateLabel(first.occurred_at)} to ${formatDateLabel(last.occurred_at)}`;
   const lines = [
     `${contradictionCount} potential contradiction${contradictionCount === 1 ? "" : "s"} detected across incident analysis.`,
-    `${gapCount} timeline gap${gapCount === 1 ? "" : "s"} identified where follow-up evidence may be needed.`,
     `Latest recorded event: ${last.title}.`,
   ];
 
@@ -131,15 +108,11 @@ export function buildPrepareTalkingPoints(incidents: PhaseTwoIncident[]): string
   const latest = [...incidents].sort(
     (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
   )[0];
-  const gapCount = detectTimelineGapCount(incidents);
-
   const points = [
     contradictionCards.length
       ? `Clarify contradiction in “${contradictionCards[0].incidentTitle}” before ending the meeting.`
       : "Confirm that prior commitments are still accurate and unchanged.",
-    gapCount > 0
-      ? `Ask what happened during ${gapCount} uncovered timeline gap${gapCount === 1 ? "" : "s"}.`
-      : "Validate that the timeline between incidents is complete.",
+    "Confirm the documented sequence and key dates with the people involved.",
     `Use “${latest.title}” as the anchor event to request concrete next steps.`,
     "Request any promise, date, or payment status in writing before the conversation ends.",
   ];

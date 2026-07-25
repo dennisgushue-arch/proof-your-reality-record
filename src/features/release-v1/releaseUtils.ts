@@ -144,16 +144,6 @@ export function countStatementDifferences(incidents: ReleaseIncident[]): number 
   return incidents.reduce((sum, incident) => sum + readStringArrayFromAI(incident.ai_analysis, "contradictions").length, 0);
 }
 
-export function countTimelineGaps(incidents: ReleaseIncident[], thresholdDays = 7): number {
-  const sorted = [...incidents].sort((first, second) => new Date(first.occurred_at).getTime() - new Date(second.occurred_at).getTime());
-  let gaps = 0;
-  for (let index = 1; index < sorted.length; index += 1) {
-    const diffDays = (new Date(sorted[index].occurred_at).getTime() - new Date(sorted[index - 1].occurred_at).getTime()) / 86_400_000;
-    if (Number.isFinite(diffDays) && diffDays > thresholdDays) gaps += 1;
-  }
-  return gaps;
-}
-
 export function buildExportContext(caseRow: ReleaseCase, incidents: ReleaseIncident[]): { caseRow: ReleaseCase; incidents: ReleaseIncident[] } {
   return {
     caseRow,
@@ -179,7 +169,6 @@ export function buildExportReadiness(caseRow: ReleaseCase, incidents: ReleaseInc
     evidenceCount,
     completionScore: completion.score,
     missingDocumentation: Array.from(missing).slice(0, 6),
-    timelineGapCount: countTimelineGaps(context.incidents),
     statementDifferenceCount: countStatementDifferences(context.incidents),
     selectedSections: filterSupportedExportSections(sections).filter((section) => section.selected),
   };

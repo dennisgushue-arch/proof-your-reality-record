@@ -64,10 +64,9 @@ export const CaseIntelligenceHero = ({ caseId, caseRow, intelligence, summary }:
 
       <p className="max-w-4xl text-xl font-black tracking-[-0.035em] text-white sm:text-2xl">{intelligence.status}</p>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
         <HeroMetric icon={FileText} label="Incidents" value={summary.incidentCount.toString()} />
         <HeroMetric icon={Layers3} label="Evidence items" value={summary.evidenceCount.toString()} />
-        <HeroMetric icon={ShieldCheck} label="Timeline gaps" value={intelligence.timelineGapCount.toString()} />
         <HeroMetric icon={Sparkles} label="Statement differences" value={intelligence.contradictionCount.toString()} />
       </div>
 

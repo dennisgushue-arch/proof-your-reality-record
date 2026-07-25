@@ -2,6 +2,13 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@15.12.0?target=denonext";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  isUsableStripeDiscountId,
+  isValidStripePriceId,
+  isValidStripeSecretKey,
+  resolveAllowPromotionCodes,
+  shouldRetryWithoutCoupon,
+} from "../_shared/billingCheckout.ts";
 import { getBillingOffer, resolveBillingCheckoutMode } from "../../../src/lib/billing.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
@@ -14,6 +21,16 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const earlyAdopterCouponId = Deno.env.get("STRIPE_COUPON_ID_EARLY_ADOPTER_50") ?? "";
 const appLaunchDateIso = Deno.env.get("APP_LAUNCH_DATE_ISO") ?? "";
+
+const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+function getTraceId(req: Request) {
+  return req.headers.get("x-request-id") ?? crypto.randomUUID();
+}
 
 function getEarlyAdopterWindowEnd(launchIso: string) {
   if (!launchIso) return null;
@@ -41,15 +58,23 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const traceId = getTraceId(req);
+
   try {
-    if (!stripe) throw new Error("Stripe not configured");
+    if (!isValidStripeSecretKey(Deno.env.get("STRIPE_SECRET_KEY"))) {
+      return jsonResponse({
+        error: "Missing or invalid STRIPE_SECRET_KEY. Set a real sk_live_... or sk_test_... value in Supabase secrets.",
+        traceId,
+      }, 500);
+    }
+
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+      return jsonResponse({ error: "Supabase function credentials are not configured", traceId }, 500);
+    }
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing Authorization header", traceId }, 401);
     }
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -62,37 +87,33 @@ serve(async (req) => {
     } = await userClient.auth.getUser();
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Unauthorized", traceId }, 401);
     }
 
     const { offerId } = await req.json();
     const offer = typeof offerId === "string" ? getBillingOffer(offerId) : null;
 
     if (!offer) {
-      return new Response(JSON.stringify({ error: "A valid billing offer is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "A valid billing offer is required", traceId }, 400);
     }
 
-    const priceId = Deno.env.get(offer.priceEnvKey);
-    if (!priceId) {
-      return new Response(JSON.stringify({ error: `Missing Stripe price ID for ${offer.title}` }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const priceId = Deno.env.get(offer.priceEnvKey)?.trim();
+    if (!isValidStripePriceId(priceId)) {
+      return jsonResponse({
+        error: `Missing or invalid ${offer.priceEnvKey} for ${offer.title}`,
+        traceId,
+      }, 500);
     }
 
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    const { data: subRow } = await adminClient
+    const { data: subRow, error: subscriptionLookupError } = await adminClient
       .from("subscriptions")
       .select("stripe_customer_id, stripe_subscription_id, status")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (subscriptionLookupError) throw subscriptionLookupError;
 
     let stripeCustomerId = subRow?.stripe_customer_id ?? null;
 
@@ -103,12 +124,14 @@ serve(async (req) => {
       });
       stripeCustomerId = customer.id;
 
-      await adminClient.from("subscriptions").upsert({
+      const { error: customerSaveError } = await adminClient.from("subscriptions").upsert({
         user_id: user.id,
         stripe_customer_id: stripeCustomerId,
         plan: "free",
         status: "inactive",
       });
+
+      if (customerSaveError) throw customerSaveError;
     }
 
     const siteUrl = Deno.env.get("SITE_URL") ?? new URL(req.url).origin;
@@ -119,8 +142,11 @@ serve(async (req) => {
     const shouldApplyTrial = offer.billingMode === "subscription" && !hasExistingSubscription && trialDays > 0;
 
     const earlyAdopterEligible = isEarlyAdopterEligible(user.created_at ?? null);
-    const discounts = offer.billingMode === "subscription" && earlyAdopterEligible && earlyAdopterCouponId
-      ? [{ coupon: earlyAdopterCouponId }]
+    const appliedCouponId = offer.billingMode === "subscription" && earlyAdopterEligible && isUsableStripeDiscountId(earlyAdopterCouponId)
+      ? earlyAdopterCouponId.trim()
+      : null;
+    const discounts = appliedCouponId
+      ? [{ coupon: appliedCouponId }]
       : undefined;
 
     const subscriptionData = shouldApplyTrial
@@ -128,38 +154,42 @@ serve(async (req) => {
       : undefined;
 
     const billingMode = resolveBillingCheckoutMode(offer);
-    const metadata = {
-      user_id: user.id,
-      plan: offer.plan,
-      offer_id: offer.id,
-      billing_mode: billingMode,
-      access_days: String(offer.accessDays),
-      trial_days: shouldApplyTrial ? String(trialDays) : "0",
-      early_adopter_discount_applied: discounts ? "true" : "false",
-    };
-
-    const session = await stripe.checkout.sessions.create({
+    const buildSessionParams = (activeDiscounts?: { coupon: string }[]) => ({
       customer: stripeCustomerId,
       mode: billingMode,
       line_items: [{ price: priceId, quantity: 1 }],
       subscription_data: subscriptionData,
-      discounts,
+      discounts: activeDiscounts,
       success_url: `${siteUrl}/pricing?checkout=success`,
       cancel_url: `${siteUrl}/pricing?checkout=canceled`,
-      allow_promotion_codes: offer.allowPromotionCodes ?? true,
+      allow_promotion_codes: resolveAllowPromotionCodes(Boolean(activeDiscounts), offer.allowPromotionCodes ?? true),
       client_reference_id: user.id,
-      metadata,
+      metadata: {
+        user_id: user.id,
+        plan: offer.plan,
+        offer_id: offer.id,
+        billing_mode: billingMode,
+        access_days: String(offer.accessDays),
+        trial_days: shouldApplyTrial ? String(trialDays) : "0",
+        early_adopter_discount_applied: activeDiscounts ? "true" : "false",
+        price_secret_source: offer.priceEnvKey,
+      },
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create(buildSessionParams(discounts));
+    } catch (error) {
+      if (!discounts || !shouldRetryWithoutCoupon(error)) throw error;
+
+      console.warn(`Retrying checkout without early adopter coupon. Trace: ${traceId}`);
+      session = await stripe.checkout.sessions.create(buildSessionParams());
+    }
+
+    return jsonResponse({ url: session.url, traceId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 500,
-    });
+    console.error(`Checkout session failed. Trace: ${traceId}`, error);
+    return jsonResponse({ error: message, traceId }, 500);
   }
 });

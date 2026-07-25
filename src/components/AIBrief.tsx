@@ -5,7 +5,6 @@ import "./AIBrief.css";
 interface AIBriefData {
   evidenceCount: number;
   inconsistencyCount: number;
-  timelineGapCount: number;
   lastActivityTime: string;
   recommendedAction: string;
   confidence: "high" | "medium" | "low";
@@ -39,11 +38,6 @@ const AIBrief: FC<AIBriefProps> = ({ data, onReview }) => {
             <li>
               <AlertTriangle size={16} className="icon warning" />
               <span>{data.inconsistencyCount} potential inconsistenc{data.inconsistencyCount === 1 ? "y" : "ies"}</span>
-            </li>
-            
-            <li>
-              <Clock3 size={16} className="icon" />
-              <span>{data.timelineGapCount} timeline gap{data.timelineGapCount === 1 ? "" : "s"}</span>
             </li>
             
             <li>

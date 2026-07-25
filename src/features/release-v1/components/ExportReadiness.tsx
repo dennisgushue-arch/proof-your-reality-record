@@ -19,7 +19,6 @@ export const ExportReadiness = ({ readiness }: ExportReadinessProps) => (
       <Stat label="Completion" value={`${readiness.completionScore}%`} />
       <Stat label="Incidents" value={readiness.incidentCount} />
       <Stat label="Evidence" value={readiness.evidenceCount} />
-      <Stat label="Timeline gaps" value={readiness.timelineGapCount} />
       <Stat label="Possible statement differences" value={readiness.statementDifferenceCount} />
     </dl>
     <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-100">

@@ -1,4 +1,4 @@
-import { AlertTriangle, ClipboardCheck, FileSearch, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, ShieldCheck } from "lucide-react";
 import type { CaseContextSummary } from "../types";
 
 type IntelligenceOverviewProps = {
@@ -11,10 +11,9 @@ export const IntelligenceOverview = ({ summary }: IntelligenceOverviewProps) => 
     <h2 id="intelligence-overview-title" className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">Available record overview</h2>
     <p className="mt-2 text-sm leading-6 text-slate-400">{summary.intelligence.status}</p>
 
-    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="mt-5 grid gap-3 sm:grid-cols-3">
       <Metric icon={ClipboardCheck} label="Documentation completion" value={`${summary.completionScore}%`} />
       <Metric icon={ShieldCheck} label="Evidence strength" value={summary.intelligence.strengthLabel} />
-      <Metric icon={FileSearch} label="Timeline gaps" value={summary.timelineGaps.length} />
       <Metric icon={AlertTriangle} label="Possible statement differences" value={summary.statementDifferences.length} />
     </div>
 

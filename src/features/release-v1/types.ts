@@ -65,7 +65,6 @@ export type ExportReadinessModel = {
   evidenceCount: number;
   completionScore: number;
   missingDocumentation: string[];
-  timelineGapCount: number;
   statementDifferenceCount: number;
   selectedSections: ExportSection[];
 };

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildCaseContextSummary,
   buildSuggestedPrompts,
-  buildTimelineGaps,
   countEvidenceItems,
   mapSourceReferences,
   normalizeAIError,
@@ -66,14 +65,13 @@ describe("aiWorkspaceUtils", () => {
     expect(count).toBe(2);
   });
 
-  it("orders incidents chronologically and detects timeline gaps", () => {
+  it("orders incidents chronologically", () => {
     const sorted = sortIncidentsChronologically([
       incident({ id: "later", occurred_at: "2026-08-01T10:00:00.000Z" }),
       incident({ id: "earlier", occurred_at: "2026-07-01T10:00:00.000Z" }),
     ]);
 
     expect(sorted.map((item) => item.id)).toEqual(["earlier", "later"]);
-    expect(buildTimelineGaps(sorted)).toHaveLength(1);
   });
 
   it("rejects malformed contradiction structures", () => {

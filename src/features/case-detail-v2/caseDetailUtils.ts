@@ -207,7 +207,7 @@ export function selectRecommendedCaseAction({
   return {
     type: "review-brief",
     title: "Review the AI brief",
-    description: "The case is documented enough to review timeline gaps, possible statement differences, and export readiness.",
+    description: "The case is documented enough to review possible statement differences and export readiness.",
     href: recommendedIncidentId ? `/incidents/${recommendedIncidentId}` : `/cases/${caseId}/intelligence`,
     ctaLabel: recommendedIncidentId ? "Open recommended incident" : "Open AI brief",
   };
