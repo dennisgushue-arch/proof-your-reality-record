@@ -20,11 +20,30 @@ export function isValidStripePriceId(priceId?: string | null) {
 export function isUsableStripeDiscountId(value?: string | null) {
   if (!value) return false;
   const candidate = value.trim();
-  return Boolean(candidate) && !isRedacted(candidate);
+  return Boolean(candidate)
+    && !isRedacted(candidate)
+    && !isValidStripePriceId(candidate)
+    && !/^prod_[A-Za-z0-9]+$/.test(candidate);
 }
 
 export function shouldRetryWithoutCoupon(error: unknown) {
-  return error instanceof Error && /No such coupon/i.test(error.message);
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "object" && error !== null && "message" in error
+      ? String(error.message)
+      : "";
+  return /coupon|discount|promotion code/i.test(message);
+}
+
+export function isEarlyAdopterEligible(userCreatedAt: string | null | undefined, launchIso: string) {
+  if (!userCreatedAt || !launchIso) return false;
+  const userCreated = new Date(userCreatedAt);
+  const launch = new Date(launchIso);
+  if (Number.isNaN(userCreated.getTime()) || Number.isNaN(launch.getTime())) return false;
+
+  const windowEnd = new Date(launch);
+  windowEnd.setUTCMonth(windowEnd.getUTCMonth() + 3);
+  return userCreated >= launch && userCreated < windowEnd;
 }
 
 export function resolveAllowPromotionCodes(hasAppliedDiscount: boolean, allowPromotionCodes: boolean) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isEarlyAdopterEligible,
   isUsableStripeDiscountId,
   isValidStripePriceId,
   isValidStripeSecretKey,
@@ -29,8 +30,20 @@ describe("billing checkout safeguards", () => {
 
   it("ignores unusable coupons and retries only a missing-coupon Stripe failure", () => {
     expect(isUsableStripeDiscountId("coupon_early_adopter")).toBe(true);
+    expect(isUsableStripeDiscountId("STRIPE_COUPON_ID_EARLY_ADOPTER_50")).toBe(true);
+    expect(isUsableStripeDiscountId("price_abc123")).toBe(false);
+    expect(isUsableStripeDiscountId("prod_abc123")).toBe(false);
     expect(isUsableStripeDiscountId("__REDACTED__")).toBe(false);
     expect(shouldRetryWithoutCoupon(new Error("No such coupon: 'old_coupon'"))).toBe(true);
+    expect(shouldRetryWithoutCoupon({ message: "This promotion code is inactive" })).toBe(true);
     expect(shouldRetryWithoutCoupon(new Error("Card declined"))).toBe(false);
+  });
+
+  it("limits early-adopter eligibility to the configured three-month launch window", () => {
+    const launch = "2026-06-01T00:00:00Z";
+    expect(isEarlyAdopterEligible("2026-05-31T23:59:59Z", launch)).toBe(false);
+    expect(isEarlyAdopterEligible("2026-06-01T00:00:00Z", launch)).toBe(true);
+    expect(isEarlyAdopterEligible("2026-08-31T23:59:59Z", launch)).toBe(true);
+    expect(isEarlyAdopterEligible("2026-09-01T00:00:00Z", launch)).toBe(false);
   });
 });

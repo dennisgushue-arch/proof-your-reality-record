@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@15.12.0?target=denonext";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
+  isEarlyAdopterEligible,
   isUsableStripeDiscountId,
   isValidStripePriceId,
   isValidStripeSecretKey,
@@ -30,27 +31,6 @@ const jsonResponse = (payload: Record<string, unknown>, status = 200) =>
 
 function getTraceId(req: Request) {
   return req.headers.get("x-request-id") ?? crypto.randomUUID();
-}
-
-function getEarlyAdopterWindowEnd(launchIso: string) {
-  if (!launchIso) return null;
-  const launch = new Date(launchIso);
-  if (Number.isNaN(launch.getTime())) return null;
-
-  const windowEnd = new Date(launch);
-  windowEnd.setUTCMonth(windowEnd.getUTCMonth() + 3);
-  return windowEnd;
-}
-
-function isEarlyAdopterEligible(userCreatedAt?: string | null) {
-  if (!userCreatedAt) return false;
-  const userCreated = new Date(userCreatedAt);
-  if (Number.isNaN(userCreated.getTime())) return false;
-
-  const windowEnd = getEarlyAdopterWindowEnd(appLaunchDateIso);
-  if (!windowEnd) return false;
-
-  return userCreated <= windowEnd;
 }
 
 serve(async (req) => {
@@ -105,6 +85,13 @@ serve(async (req) => {
       }, 500);
     }
 
+    if (priceId === earlyAdopterCouponId.trim()) {
+      return jsonResponse({
+        error: `${offer.priceEnvKey} is incorrectly set to the early-adopter coupon. Configure a Stripe price_... ID for ${offer.title}.`,
+        traceId,
+      }, 500);
+    }
+
     const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const { data: subRow, error: subscriptionLookupError } = await adminClient
@@ -141,7 +128,7 @@ serve(async (req) => {
     const trialDays = Number.isFinite(offer.trialDays ?? defaultTrialDays) ? (offer.trialDays ?? defaultTrialDays) : 0;
     const shouldApplyTrial = offer.billingMode === "subscription" && !hasExistingSubscription && trialDays > 0;
 
-    const earlyAdopterEligible = isEarlyAdopterEligible(user.created_at ?? null);
+    const earlyAdopterEligible = isEarlyAdopterEligible(user.created_at ?? null, appLaunchDateIso);
     const appliedCouponId = offer.billingMode === "subscription" && earlyAdopterEligible && isUsableStripeDiscountId(earlyAdopterCouponId)
       ? earlyAdopterCouponId.trim()
       : null;

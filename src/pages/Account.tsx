@@ -11,6 +11,7 @@ import { TrustPanel } from "../features/release-v1/components/TrustPanel.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
 import { AIAnalysisSchema } from "../lib/aiAnalysis.ts";
 import type { BillingSubscription } from "../lib/billing.ts";
+import { getFunctionErrorMessage } from "../lib/functionError.ts";
 import { toast } from "sonner";
 
 const Account = () => {
@@ -50,7 +51,10 @@ const Account = () => {
     setPortalLoading(false);
 
     if (error || !data?.url) {
-      toast.error("Could not open billing portal", { description: error?.message ?? "No Stripe customer found yet." });
+      const message = error
+        ? await getFunctionErrorMessage(error, "Could not create a Stripe billing portal session.")
+        : "No Stripe customer found yet.";
+      toast.error("Could not open billing portal", { description: message });
       return;
     }
 

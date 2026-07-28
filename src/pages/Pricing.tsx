@@ -10,6 +10,7 @@ import { TrustPanel } from "../features/release-v1/components/TrustPanel.tsx";
 import { UpgradePanel } from "../features/release-v1/components/UpgradePanel.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
 import { BILLING_OFFERS, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
+import { getFunctionErrorMessage } from "../lib/functionError.ts";
 
 const freePlanFeatures = [
   "1 incident per month",
@@ -58,7 +59,7 @@ const Pricing = () => {
       });
 
       if (error) {
-        const message = error.message ?? "";
+        const message = await getFunctionErrorMessage(error, "Please verify Stripe configuration and try again.");
         if (/missing authorization|unauthorized|jwt|sign in|signin/i.test(message)) {
           toast.message("Sign in required", { description: "Create an account or sign in to start checkout." });
           navigate("/auth?mode=signup");
@@ -66,7 +67,7 @@ const Pricing = () => {
         }
 
         toast.error("Could not start checkout", {
-          description: message || "Please verify Stripe env vars and try again.",
+          description: message,
         });
         return;
       }
