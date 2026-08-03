@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { CATEGORIES } from "@/lib/categories";
 import { toast } from "sonner";
+import { ContextualLoading } from "@/components/ContextualLoading";
 
 type CaseRow = {
   id: string;
@@ -96,6 +97,10 @@ const Cases = () => {
     setOpen(false);
     setTitle("");
     setDescription("");
+    toast.success("Case created", {
+      description: "Great! Now add your first incident.",
+      action: { label: "Add incident", onClick: () => nav(`/record?caseId=${data.id}`) },
+    });
     nav(`/cases/${data.id}`);
   };
 
@@ -183,14 +188,13 @@ const Cases = () => {
         </div>
 
         {loading ? (
-          <div className="text-sm text-muted-foreground">Loading cases…</div>
+          <ContextualLoading title="Organizing your cases…" detail="Loading incident counts and recent activity." />
         ) : filtered.length === 0 ? (
           <div className="border border-dashed border-white/10 rounded-lg p-12 text-center">
             <FolderKanban className="h-8 w-8 mx-auto text-muted-foreground/60 mb-3" />
-            <p className="text-sm text-muted-foreground mb-4">
-              {cases.length === 0
-                ? "You haven't created any cases yet."
-                : "No cases match your filters."}
+            <h2 className="text-xl font-bold text-foreground">{cases.length === 0 ? "Your first case keeps everything connected" : "No cases match this search"}</h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground mb-4">
+              {cases.length === 0 ? "Create a case to group incidents, evidence, timeline analysis, and exports into one searchable record." : "Try another keyword or clear the category filter to see more cases."}
             </p>
             {cases.length === 0 && (
               <Button onClick={() => setOpen(true)} className="bg-primary hover:bg-primary/90">

@@ -171,16 +171,12 @@ const ProfessionalDashboard: FC<ProfessionalDashboardProps> = ({
   const storyChanges = cases.reduce((sum, item) => sum + (item.alertCount ?? 0), 0);
   const evidenceItems = cases.reduce((sum, item) => sum + (item.incidents ?? 0), 0);
 
-  const handleSaveNote = (note: string) => {
-    // Save note logic here (e.g., send to Supabase, add to activity feed)
-    console.log("Quick note saved:", note);
+  const handleSaveNote = (_note: string) => {
     setShowQuickNote(false);
   };
 
   const handleAIOption = (optionId: string) => {
-    console.log("AI option selected:", optionId);
     const firstCaseId = cases.length > 0 ? cases[0].id : null;
-    // Handle different AI options
     switch (optionId) {
       case "summarize":
         if (firstCaseId) {

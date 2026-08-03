@@ -44,6 +44,152 @@ export type Database = {
         }
         Relationships: []
       }
+      case_entities: {
+        Row: {
+          aliases: string[]
+          canonical_name: string
+          case_id: string
+          created_at: string
+          entity_type: string
+          first_seen_at: string | null
+          id: string
+          last_seen_at: string | null
+          mention_count: number
+          metadata: Json
+          normalized_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          aliases?: string[]
+          canonical_name: string
+          case_id: string
+          created_at?: string
+          entity_type: string
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          mention_count?: number
+          metadata?: Json
+          normalized_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          aliases?: string[]
+          canonical_name?: string
+          case_id?: string
+          created_at?: string
+          entity_type?: string
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          mention_count?: number
+          metadata?: Json
+          normalized_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_entities_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entity_mentions: {
+        Row: {
+          case_id: string
+          confidence: string | null
+          context_excerpt: string | null
+          created_at: string
+          entity_id: string
+          evidence_item_id: string | null
+          id: string
+          incident_id: string
+          matched_text: string
+          occurred_at: string | null
+          source_field: string | null
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          confidence?: string | null
+          context_excerpt?: string | null
+          created_at?: string
+          entity_id: string
+          evidence_item_id?: string | null
+          id?: string
+          incident_id: string
+          matched_text: string
+          occurred_at?: string | null
+          source_field?: string | null
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          confidence?: string | null
+          context_excerpt?: string | null
+          created_at?: string
+          entity_id?: string
+          evidence_item_id?: string | null
+          id?: string
+          incident_id?: string
+          matched_text?: string
+          occurred_at?: string | null
+          source_field?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      entity_relationships: {
+        Row: {
+          case_id: string
+          confidence: string | null
+          created_at: string
+          first_seen_at: string | null
+          id: string
+          last_seen_at: string | null
+          mention_count: number
+          relationship_type: string
+          source_entity_id: string
+          target_entity_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          confidence?: string | null
+          created_at?: string
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          mention_count?: number
+          relationship_type: string
+          source_entity_id: string
+          target_entity_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          confidence?: string | null
+          created_at?: string
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          mention_count?: number
+          relationship_type?: string
+          source_entity_id?: string
+          target_entity_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       evidence_items: {
         Row: {
           created_at: string
@@ -251,7 +397,10 @@ export type Database = {
           cancel_at_period_end: boolean
           created_at: string
           current_period_end: string | null
+          google_play_product_id: string | null
+          google_play_purchase_token_hash: string | null
           plan: string
+          provider: string
           status: string
           stripe_customer_id: string | null
           stripe_subscription_id: string | null
@@ -262,7 +411,10 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          google_play_product_id?: string | null
+          google_play_purchase_token_hash?: string | null
           plan?: string
+          provider?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null
@@ -273,7 +425,10 @@ export type Database = {
           cancel_at_period_end?: boolean
           created_at?: string
           current_period_end?: string | null
+          google_play_product_id?: string | null
+          google_play_purchase_token_hash?: string | null
           plan?: string
+          provider?: string
           status?: string
           stripe_customer_id?: string | null
           stripe_subscription_id?: string | null

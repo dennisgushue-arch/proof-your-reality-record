@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { RotateCcw } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeCase } from "@/lib/caseIntelligence";
 import { calculateOverallCompletion } from "@/lib/evidenceCompletion";
-import { seedDemoIfEmpty } from "@/lib/seedDemo";
+import { ActivationChecklist, type ActivationStep } from "./components/ActivationChecklist";
+import { readActivationProgress } from "@/lib/activationProgress";
 import { AIHero } from "./components/AIHero";
 import { ContinueCases } from "./components/ContinueCases";
 import { DashboardEmptyState } from "./components/DashboardEmptyState";
 import { DashboardHeader } from "./components/DashboardHeader";
 import { DashboardSkeleton } from "./components/DashboardSkeleton";
+import { OnboardingCompletionCard } from "./components/OnboardingCompletionCard";
 import { IntelligenceMetrics } from "./components/IntelligenceMetrics";
 import { MissingDocumentation } from "./components/MissingDocumentation";
 import { QuickRecordCard } from "./components/QuickRecordCard";
@@ -24,6 +29,12 @@ import {
   selectRecommendedAction,
 } from "./dashboardUtils";
 import type { CaseRow, IncidentRow } from "./types";
+import {
+  completeFirstRecordOnboarding,
+  readFirstRecordOnboarding,
+  restartFirstRecordOnboarding,
+  type FirstRecordOnboardingState,
+} from "@/lib/firstRecordOnboarding";
 
 // Route support verified from src/App.tsx route table.
 const ROUTE_SUPPORT = {
@@ -37,6 +48,17 @@ const DashboardV2Content = () => {
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [onboardingState, setOnboardingState] = useState<FirstRecordOnboardingState>(() =>
+    readFirstRecordOnboarding(user?.id ?? ""),
+  );
+  const [skippedForNow, setSkippedForNow] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
+
+  useEffect(() => {
+    setOnboardingState(readFirstRecordOnboarding(user?.id ?? ""));
+    setSkippedForNow(false);
+    setShowCompletion(false);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -45,8 +67,6 @@ const DashboardV2Content = () => {
 
     (async () => {
       setLoading(true);
-      await seedDemoIfEmpty(user.id).catch(() => undefined);
-
       const { data: caseData } = await supabase
         .from("cases")
         .select("id, title, category, updated_at, incidents(count)")
@@ -105,6 +125,31 @@ const DashboardV2Content = () => {
 
   const contradictionCount = useMemo(() => countContradictions(incidents), [incidents]);
   const evidenceCount = useMemo(() => countEvidenceItems(incidents), [incidents]);
+  const firstIncident = incidents[0];
+  const firstCase = cases[0];
+  const hasAIAnalysis = incidents.some((incident) => Boolean(incident.neutral_summary || incident.evidence_quality_score));
+  const activationProgress = readActivationProgress(undefined, user?.id);
+  const activationSteps: ActivationStep[] = [
+    { id: "case", label: "Create your first case", description: "Give related incidents and evidence one organized home.", complete: cases.length > 0, href: "/cases", actionLabel: "Create case" },
+    { id: "incident", label: "Add your first incident", description: "Capture one dated event to start the timeline.", complete: incidents.length > 0, href: firstCase ? `/record?caseId=${firstCase.id}` : "/record", actionLabel: "Add incident" },
+    { id: "evidence", label: "Upload evidence", description: "Attach a photo, audio file, document, or other supporting record.", complete: evidenceCount > 0, href: firstIncident ? `/incidents/${firstIncident.id}` : "/record", actionLabel: "Add evidence" },
+    { id: "ai", label: "Run AI Analysis", description: "Generate a neutral summary and documentation review.", complete: hasAIAnalysis, href: firstIncident ? `/incidents/${firstIncident.id}` : "/record", actionLabel: "Run AI Analysis" },
+    { id: "entities", label: "Run Entity Analysis", description: "Identify recurring people, places, organizations, and connections.", complete: activationProgress["entity-analysis"] === true, href: firstIncident ? `/incidents/${firstIncident.id}` : "/record", actionLabel: "Run Entity Analysis" },
+  ];
+  const allActivationStepsComplete = activationSteps.every((step) => step.complete);
+
+  useEffect(() => {
+    if (loading || !user || onboardingState.completed || !allActivationStepsComplete) return;
+    setOnboardingState(completeFirstRecordOnboarding(user.id));
+    setShowCompletion(true);
+  }, [allActivationStepsComplete, loading, onboardingState.completed, user]);
+
+  const restartOnboarding = () => {
+    if (!user) return;
+    setOnboardingState(restartFirstRecordOnboarding(user.id));
+    setSkippedForNow(false);
+    setShowCompletion(allActivationStepsComplete);
+  };
 
   const greetingName = getGreetingName(user);
   const greeting = getTimeOfDay();
@@ -129,7 +174,18 @@ const DashboardV2Content = () => {
       <AppLayout>
         <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
           <DashboardHeader greeting={greeting} userDisplayName={greetingName} />
-          <DashboardEmptyState recordHref="/record" createCaseHref={ROUTE_SUPPORT.createCase ? "/cases" : undefined} />
+          {!onboardingState.completed && !skippedForNow ? (
+            <DashboardEmptyState createCaseHref="/cases" steps={activationSteps} onSkip={() => setSkippedForNow(true)} />
+          ) : (
+            <section className="rounded-[28px] border border-white/[0.07] bg-[#0D1420] p-6 sm:p-8">
+              <h2 className="text-2xl font-black text-white">Your workspace is ready.</h2>
+              <p className="mt-2 text-sm text-slate-400">Create a case when you&apos;re ready to organize your first record.</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button asChild className="rounded-xl bg-blue-500 font-bold hover:bg-blue-400"><Link to="/cases">Create case</Link></Button>
+                <Button type="button" variant="ghost" onClick={restartOnboarding} className="rounded-xl text-slate-400 hover:text-white"><RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />Restart getting started</Button>
+              </div>
+            </section>
+          )}
 
           <footer className="mt-10 border-t border-white/[0.05] py-6">
             <p className="max-w-3xl text-[11px] leading-relaxed text-slate-700">
@@ -147,7 +203,18 @@ const DashboardV2Content = () => {
       <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
         <DashboardHeader greeting={greeting} userDisplayName={greetingName} />
 
-        <AIHero
+        {showCompletion && firstCase ? (
+          <OnboardingCompletionCard
+            timelineHref={`/cases/${firstCase.id}/intelligence`}
+            exportHref={`/cases/${firstCase.id}/export`}
+            onDismiss={() => setShowCompletion(false)}
+          />
+        ) : !onboardingState.completed ? (
+          <ActivationChecklist steps={activationSteps} />
+        ) : null}
+
+        <div className="mt-6">
+          <AIHero
           loading={loading}
           status={intelligence.status}
           findings={intelligence.findings}
@@ -157,7 +224,8 @@ const DashboardV2Content = () => {
           aiBriefHref={ROUTE_SUPPORT.aiBrief ? "/ai" : undefined}
           replayHref={topCase ? (ROUTE_SUPPORT.replay ? `/cases/${topCase.id}/replay` : `/cases/${topCase.id}`) : undefined}
           replayLabel={ROUTE_SUPPORT.replay ? "Reality Replay" : "Open timeline"}
-        />
+          />
+        </div>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
           <RecommendedAction recommendation={recommendation} />
@@ -183,7 +251,14 @@ const DashboardV2Content = () => {
               Proof organizes information supplied by the user. AI output may contain errors and should be reviewed
               against original records. Proof is not a law firm and does not provide legal advice.
             </p>
-            <div className="font-bold uppercase tracking-[0.12em]">Private by design</div>
+            <div className="flex flex-wrap items-center gap-3">
+              {onboardingState.completed && (
+                <button type="button" onClick={restartOnboarding} className="rounded-lg px-2 py-1 font-bold text-slate-600 hover:text-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+                  Restart getting started
+                </button>
+              )}
+              <div className="font-bold uppercase tracking-[0.12em]">Private by design</div>
+            </div>
           </div>
         </footer>
       </div>

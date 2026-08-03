@@ -11,6 +11,7 @@ type LiveCapturePanelProps = {
   transcriptEvents: TranscriptEvent[];
   isDictating: boolean;
   isSupported: boolean;
+  isAudioFallback?: boolean;
   elapsedLabel: string;
   dictationError?: string | null;
   location: string;
@@ -31,6 +32,7 @@ export const LiveCapturePanel = ({
   transcriptEvents,
   isDictating,
   isSupported,
+  isAudioFallback,
   elapsedLabel,
   dictationError,
   location,
@@ -56,6 +58,7 @@ export const LiveCapturePanel = ({
         <RecordingControls
           isDictating={isDictating}
           isSupported={isSupported}
+          isAudioFallback={isAudioFallback}
           elapsedLabel={elapsedLabel}
           onToggle={onToggleDictation}
           onRetry={onRetryDictation}

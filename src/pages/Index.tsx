@@ -1,8 +1,13 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Mic, FileText, Sparkles, ShieldCheck, Lock, Clock, Users, Home, Hammer, Briefcase, Building, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AppHeader } from "@/components/AppHeader";
 import { Disclaimer } from "@/components/Disclaimer";
+import LandingHeader from "@/components/landing/LandingHeader";
+import Hero from "@/components/landing/Hero";
+import TransformationSection from "@/components/landing/TransformationSection";
+import LivingTimeline from "@/components/landing/LivingTimeline";
+import EntityIntelligenceSection from "@/components/landing/EntityIntelligenceSection";
+import AIIntelligenceSection from "@/components/landing/AIIntelligenceSection";
 
 const useCases = [
   { icon: Users, title: "Co-parenting disputes", body: "Document exchanges, missed pickups, and broken agreements with precision timestamps." },
@@ -14,42 +19,15 @@ const useCases = [
 
 const Index = () => (
   <div className="min-h-screen bg-background">
-    <AppHeader />
-
-    {/* Hero */}
-    <section className="border-b border-border">
-      <div className="container py-24 md:py-36 max-w-5xl">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground mb-8">
-          <Lock className="h-3 w-3 text-accent" /> Private by design, controlled by you
-        </div>
-        <h1 className="text-5xl md:text-7xl leading-[1.05]">
-          Lock the facts before<br />memory changes.
-        </h1>
-        <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl" style={{ fontWeight: 400, lineHeight: 1.6 }}>
-          Proof transforms stressful real-life incidents into structured, timestamped evidence timelines.
-        </p>
-        <div className="mt-10 flex flex-wrap gap-3">
-          <Link to="/auth?mode=signup">
-            <Button size="lg" className="bg-accent text-white hover:bg-accent/90 font-semibold">
-              <Mic className="mr-2 h-4 w-4" /> Start Recording
-            </Button>
-          </Link>
-          <Link to="/example">
-            <Button size="lg" variant="outline" className="border-border text-foreground hover:bg-card">
-              View Sample Private Evidence Packet
-            </Button>
-          </Link>
-        </div>
-        <div className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-accent" /> Account-scoped records</div>
-          <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-accent" /> Timestamped timelines</div>
-          <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-accent" /> Private export packets</div>
-        </div>
-      </div>
-    </section>
+    <LandingHeader />
+    <Hero />
+    <TransformationSection />
+    <LivingTimeline />
+    <EntityIntelligenceSection />
+    <AIIntelligenceSection />
 
     {/* Evidence preview strip */}
-    <section className="border-b border-border bg-card/30">
+    <section id="features" className="border-b border-border bg-card/30 scroll-mt-24">
       <div className="container py-12 max-w-5xl">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-border bg-card px-5 py-4">
@@ -104,7 +82,7 @@ const Index = () => (
     </section>
 
     {/* Use cases */}
-    <section className="border-y border-border bg-card/20">
+    <section id="use-cases" className="border-y border-border bg-card/20 scroll-mt-24">
       <div className="container py-20 md:py-28 max-w-5xl">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold text-accent uppercase tracking-widest">Who it's for</p>
@@ -145,7 +123,7 @@ const Index = () => (
     </section>
 
     {/* Feature list */}
-    <section className="border-t border-border bg-card/20">
+    <section id="security" className="border-t border-border bg-card/20 scroll-mt-24">
       <div className="container py-20 md:py-28 max-w-5xl">
         <div className="grid gap-12 md:grid-cols-2 items-center">
           <div>
@@ -174,7 +152,7 @@ const Index = () => (
     </section>
 
     {/* CTA */}
-    <section className="border-t border-border">
+    <section id="pricing" className="border-t border-border scroll-mt-24">
       <div className="container py-20 text-center max-w-2xl">
         <h2 className="text-3xl md:text-4xl">Personal evidence infrastructure.<br />Yours, when it matters.</h2>
         <p className="mt-4 text-muted-foreground">Free includes 1 incident per month. Pro unlocks AI analysis, PDF export, and unlimited cases.</p>

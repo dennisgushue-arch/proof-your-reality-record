@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, MapPin, Paperclip, Shield, Users } from "lucide-react";
+import { ArrowLeft, FilePlus2, MapPin, Paperclip, Shield, Users } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Disclaimer } from "@/components/Disclaimer";
 import { ExportOptions } from "@/features/release-v1/components/ExportOptions";
@@ -17,6 +17,9 @@ import {
 import type { ExportSection, ReleaseIncident } from "@/features/release-v1/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ContextualLoading } from "@/components/ContextualLoading";
+import { markActivationMilestone } from "@/lib/activationProgress";
+import { useAuth } from "@/contexts/AuthContext";
 
 type CaseRow = {
   id: string;
@@ -35,6 +38,7 @@ function readAnalysisArray(ai: unknown, key: string): string[] {
 }
 
 const ExportPreview = () => {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [caseRow, setCaseRow] = useState<CaseRow | null>(null);
   const [incidents, setIncidents] = useState<IncidentExportRow[]>([]);
@@ -102,6 +106,7 @@ const ExportPreview = () => {
 
   const handlePrint = () => {
     if (!documentRef.current) return;
+    markActivationMilestone("export", undefined, user?.id);
     toast.message("Opening print dialog", {
       description: "Choose “Save as PDF” in your browser/device print options.",
     });
@@ -112,7 +117,8 @@ const ExportPreview = () => {
     if (!caseRow) return;
     try {
       await navigator.clipboard.writeText(buildClipboardExport(caseRow, incidents, sections));
-      toast.success("Prepared export copied", { description: "Review it before sharing outside Proof." });
+      markActivationMilestone("export", undefined, user?.id);
+      toast.success("Export ready", { description: "The prepared record was copied. Review it before sharing outside Proof." });
     } catch (error) {
       const safe = normalizeSafeError(error, "Could not copy the prepared export. Your section selections were preserved.");
       toast.error(safe.title, { description: safe.message });
@@ -122,7 +128,7 @@ const ExportPreview = () => {
   if (loading) {
     return (
       <AppLayout>
-        <div className="px-6 py-10 text-sm text-muted-foreground lg:px-10" role="status" aria-live="polite">Loading export preview…</div>
+        <ContextualLoading title="Preparing export…" detail="Building the selected case sections and checking documentation readiness." />
       </AppLayout>
     );
   }
@@ -158,6 +164,15 @@ const ExportPreview = () => {
             Review included sections before exporting. Browser print is the supported PDF path.
           </p>
         </div>
+
+        {incidents.length === 0 && (
+          <section className="mb-6 rounded-2xl border border-dashed border-border bg-card/60 p-8 text-center print:hidden">
+            <FilePlus2 className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden="true" />
+            <h2 className="mt-3 text-2xl font-semibold">Your export needs its first incident</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Add an incident and supporting evidence before preparing a useful case packet. Your export options will be ready when you return.</p>
+            <Button asChild className="mt-5"><Link to={`/record?caseId=${id}`}>Create first incident</Link></Button>
+          </section>
+        )}
 
         <div className="mb-6 grid gap-4 print:hidden lg:grid-cols-[1fr_0.9fr]">
           <ExportOptions

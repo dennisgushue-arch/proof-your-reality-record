@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 
+type SpeechRecognitionResultEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal: boolean;
+    0?: { transcript?: string };
+  }>;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
 type SpeechRecognitionLike = {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: SpeechRecognitionResultEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
   start: () => void;
   stop: () => void;
@@ -18,6 +30,13 @@ type DictationOptions = {
   onError?: (message: string) => void;
   initialLanguage?: string;
 };
+
+function getStartErrorMessage(error: unknown) {
+  if (error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError")) {
+    return "Microphone permission is blocked. Please allow mic access and try again.";
+  }
+  return "Voice dictation could not start. Check microphone access and try again.";
+}
 
 export const DICTATION_LANGUAGES = [
   { label: "English (US)", value: "en-US" },
@@ -48,14 +67,21 @@ export function useDictation(options: DictationOptions) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const shouldContinueRef = useRef(false);
   const lastFinalTranscriptRef = useRef("");
+  const onTranscriptRef = useRef(onTranscript);
+  const onErrorRef = useRef(onError);
+
+  onTranscriptRef.current = onTranscript;
+  onErrorRef.current = onError;
 
   const isSupported = Boolean(getSpeechRecognitionCtor());
 
   const stop = () => {
     shouldContinueRef.current = false;
     lastFinalTranscriptRef.current = "";
-    recognitionRef.current?.stop();
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
     setIsDictating(false);
+    recognition?.stop();
   };
 
   const start = () => {
@@ -63,7 +89,7 @@ export function useDictation(options: DictationOptions) {
 
     const Ctor = getSpeechRecognitionCtor();
     if (!Ctor) {
-      onError?.("Speech dictation is not supported in this browser.");
+      onErrorRef.current?.("Speech dictation is not supported in this browser.");
       return;
     }
 
@@ -73,7 +99,7 @@ export function useDictation(options: DictationOptions) {
     recognition.lang = language;
     lastFinalTranscriptRef.current = "";
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
         if (!result?.isFinal) continue;
@@ -84,30 +110,62 @@ export function useDictation(options: DictationOptions) {
         if (normalizedTranscript === lastFinalTranscriptRef.current) continue;
 
         lastFinalTranscriptRef.current = normalizedTranscript;
-        onTranscript(transcript);
+        onTranscriptRef.current(transcript);
       }
     };
 
-    recognition.onerror = (event: any) => {
-      const code = event?.error;
+    recognition.onerror = (event) => {
+      if (recognitionRef.current !== recognition) return;
+
+      const code = typeof event?.error === "string" ? event.error : "unknown";
       if (code === "not-allowed" || code === "service-not-allowed") {
         shouldContinueRef.current = false;
         setIsDictating(false);
         recognitionRef.current = null;
-        onError?.("Microphone permission is blocked. Please allow mic access and try again.");
+        onErrorRef.current?.("Microphone permission is blocked. Please allow mic access and try again.");
         return;
       }
 
-      onError?.("Could not continue dictation.");
+      if (code === "aborted") return;
+
+      if (code === "audio-capture") {
+        shouldContinueRef.current = false;
+        setIsDictating(false);
+        recognitionRef.current = null;
+        onErrorRef.current?.("No microphone was available. Check microphone access and try again.");
+        return;
+      }
+
+      if (code === "network" || code === "language-not-supported") {
+        shouldContinueRef.current = false;
+        setIsDictating(false);
+        recognitionRef.current = null;
+        onErrorRef.current?.(
+          code === "network"
+            ? "Dictation could not reach the speech service. Check your connection and try again."
+            : "The selected dictation language is not supported on this device.",
+        );
+        return;
+      }
+
+      if (code !== "no-speech") {
+        shouldContinueRef.current = false;
+        setIsDictating(false);
+        recognitionRef.current = null;
+        onErrorRef.current?.("Could not continue dictation. Please try again.");
+      }
     };
 
     recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+
       if (shouldContinueRef.current) {
         try {
           recognition.start();
           return;
         } catch {
-          onError?.("Could not continue dictation.");
+          shouldContinueRef.current = false;
+          onErrorRef.current?.("Could not continue dictation. Please try again.");
         }
       }
 
@@ -117,12 +175,20 @@ export function useDictation(options: DictationOptions) {
 
     recognitionRef.current = recognition;
     shouldContinueRef.current = true;
-    setIsDictating(true);
-    recognition.start();
+
+    try {
+      recognition.start();
+      setIsDictating(true);
+    } catch (error) {
+      shouldContinueRef.current = false;
+      recognitionRef.current = null;
+      setIsDictating(false);
+      onErrorRef.current?.(getStartErrorMessage(error));
+    }
   };
 
   const toggle = () => {
-    if (isDictating) {
+    if (shouldContinueRef.current || recognitionRef.current) {
       stop();
       return;
     }
@@ -132,7 +198,9 @@ export function useDictation(options: DictationOptions) {
   useEffect(() => {
     return () => {
       shouldContinueRef.current = false;
-      recognitionRef.current?.stop();
+      const recognition = recognitionRef.current;
+      recognitionRef.current = null;
+      recognition?.stop();
     };
   }, []);
 

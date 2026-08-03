@@ -9,9 +9,9 @@ type AIWorkspaceEmptyStateProps = {
 
 export const AIWorkspaceEmptyState = ({ variant, caseId, onSelectCase }: AIWorkspaceEmptyStateProps) => {
   const content = {
-    "no-cases": { title: "Create a case first", body: "Proof AI needs a case before it can ground analysis in your records.", action: "Create a case", href: "/cases" },
+    "no-cases": { title: "AI starts with your first documented case", body: "Create a case and add an incident. Proof AI will then build summaries and findings grounded only in those records.", action: "Create first case", href: "/cases" },
     "no-case-selected": { title: "Select a case", body: "Choose one case so Proof AI can limit analysis to the right records.", action: "Select a case", href: "" },
-    "no-incidents": { title: "Record an incident", body: "This case has no incidents yet. Add one to start building AI-assisted chronology.", action: "Record incident", href: caseId ? `/cases/${caseId}/incidents/new` : "/record" },
+    "no-incidents": { title: "Add the first incident to unlock analysis", body: "Record a conversation, upload evidence, or add notes. Proof AI will organize the case chronology from what you document.", action: "Create first incident", href: caseId ? `/record?caseId=${caseId}` : "/record" },
     "no-evidence": { title: "No evidence attached yet", body: "You can still ask about incidents, but evidence-specific prompts need attached records.", action: "Open case", href: caseId ? `/cases/${caseId}` : "/cases" },
   }[variant];
 

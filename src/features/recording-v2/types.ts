@@ -23,7 +23,7 @@ export type PendingEvidenceItem = {
   filename: string;
   type: string;
   capturedAt: string;
-  source: "camera" | "files";
+  source: "camera" | "files" | "voice";
   status: "pending" | "uploading" | "uploaded" | "failed";
   errorMessage?: string;
 };

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Download, FilePlus2, FileText, Paperclip, PlayCircle, Radio, Sparkles } from "lucide-react";
+import { Download, FilePlus2, FileText, Network, Paperclip, PlayCircle, Radio, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type CaseActionsProps = {
@@ -25,6 +25,7 @@ export const CaseActions = ({ caseId, activeLiveSessionId, recommendedIncidentId
         {liveSessionHref && <ActionLink href={liveSessionHref} icon={Radio} label="Create from live session" />}
         {recommendedIncidentId && <ActionLink href={`/incidents/${recommendedIncidentId}`} icon={FileText} label="Review recommended incident" />}
         <ActionLink href={`/cases/${caseId}/intelligence`} icon={Sparkles} label="Generate AI Brief" />
+        <ActionLink href={`/cases/${caseId}/entities`} icon={Network} label="Entity Intelligence" />
         <ActionLink href={`/cases/${caseId}/replay`} icon={PlayCircle} label="Open Reality Replay" />
         <ActionLink href={`/cases/${caseId}/export`} icon={Download} label="Export Case" />
       </div>

@@ -3,12 +3,14 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Sparkles, MapPin, Users, Tag, AlertTriangle, FileWarning, ListChecks, Paperclip, X, Clock, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
+import { ContextualLoading } from "@/components/ContextualLoading";
 import { Disclaimer } from "@/components/Disclaimer";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { analyzeNarrative } from "@/lib/mockAI";
 import { AIAnalysisSchema, type AIAnalysis } from "@/lib/aiAnalysis";
 import { createEvidenceSignedUrl, removeEvidenceFile } from "@/lib/evidenceStorage";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
+import { markActivationMilestone } from "@/lib/activationProgress";
 import { toast } from "sonner";
 
 type IncidentRow = {
@@ -132,6 +134,7 @@ function getLiveSessionTimelineSnippet(rawNarrative: string) {
 }
 
 const IncidentDetail = () => {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [inc, setInc] = useState<IncidentRow | null>(null);
   const [evidence, setEvidence] = useState<EvidenceItemRow[]>([]);
@@ -198,9 +201,6 @@ const IncidentDetail = () => {
       people: Array.isArray(inc.people_involved) ? inc.people_involved : [],
     };
 
-    let ai: AIAnalysis;
-    let usedFallback = false;
-
     try {
       const { data, error } = await supabase.functions.invoke("analyze-incident", {
         body: analysisInput,
@@ -215,41 +215,36 @@ const IncidentDetail = () => {
         throw new Error("Invalid analyze-incident response shape");
       }
 
-      ai = parsed.data;
-    } catch {
-      ai = analyzeNarrative(analysisInput);
-      usedFallback = true;
-    }
+      const ai = parsed.data;
+      const { error: updateError } = await supabase.from("incidents").update({
+        neutral_summary: ai.neutral_summary,
+        emotional_language_removed: ai.emotional_language_removed,
+        evidence_quality_score: ai.evidence_quality_score,
+        ai_analysis: { ...ai, _backend_used: "live-llm" },
+      }).eq("id", inc.id);
+      if (updateError) throw updateError;
 
-    const { error } = await supabase.from("incidents").update({
-      neutral_summary: ai.neutral_summary,
-      emotional_language_removed: ai.emotional_language_removed,
-      evidence_quality_score: ai.evidence_quality_score,
-      ai_analysis: {
-        ...ai,
-        _backend_used: usedFallback ? "fallback" : "live-llm",
-      },
-    }).eq("id", inc.id);
-    setAnalyzing(false);
-    if (error) { toast.error(error.message); return; }
-    if (usedFallback) {
-      toast.success("Analysis complete (fallback mode)", {
-        description: "Live LLM was unavailable, so local analysis was used.",
+      toast.success("AI analysis complete", {
+        description: "Now analyze relationships between people and evidence.",
+        action: { label: "Analyze entities", onClick: () => void extractEntities() },
       });
-    } else {
-      toast.success("AI analysis complete");
-    }
 
-    if (ai.contradictions.length > 0) {
-      setShowContradictionWow(true);
-      playUiTone("alert");
-      triggerHaptic("alert");
-    } else {
-      playUiTone("success");
-      triggerHaptic("success");
+      if (ai.contradictions.length > 0) {
+        setShowContradictionWow(true);
+        playUiTone("alert");
+        triggerHaptic("alert");
+      } else {
+        playUiTone("success");
+        triggerHaptic("success");
+      }
+      await load();
+    } catch (error) {
+      toast.error("AI analysis could not be completed", {
+        description: error instanceof Error ? error.message : "Check your connection and try again. Your incident was not changed.",
+      });
+    } finally {
+      setAnalyzing(false);
     }
-
-    load();
   };
 
   const extractEntities = async () => {
@@ -268,8 +263,10 @@ const IncidentDetail = () => {
       }
 
       const savedEntityCount = typeof data?.savedEntityCount === "number" ? data.savedEntityCount : null;
-      toast.success("Entity analysis complete", {
-        description: savedEntityCount === null ? undefined : `${savedEntityCount} entities saved.`,
+      markActivationMilestone("entity-analysis", undefined, user?.id);
+      toast.success(savedEntityCount === null ? "Entity analysis complete" : `${savedEntityCount} entities identified`, {
+        description: "Your first Proof record is ready.",
+        action: { label: "View completion", onClick: () => globalThis.location.assign("/dashboard") },
       });
       playUiTone("success");
       triggerHaptic("success");
@@ -304,7 +301,7 @@ const IncidentDetail = () => {
 
   if (!inc) return (
     <AppLayout>
-      <div className="px-6 lg:px-10 py-10 text-muted-foreground text-sm">Loading…</div>
+      <ContextualLoading title="Building incident record…" detail="Connecting narrative, evidence, and analysis results." />
     </AppLayout>
   );
 

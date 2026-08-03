@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeNarrative } from "./mockAI";
+import type { Json } from "@/integrations/supabase/types";
 
 export async function seedDemoIfEmpty(userId: string): Promise<string | null> {
   const { count } = await supabase.from("cases").select("id", { count: "exact", head: true }).eq("user_id", userId);
@@ -149,7 +150,7 @@ export async function seedDemoIfEmpty(userId: string): Promise<string | null> {
         neutral_summary: ai.neutral_summary,
         emotional_language_removed: ai.emotional_language_removed,
         evidence_quality_score: ai.evidence_quality_score,
-        ai_analysis: ai as any,
+        ai_analysis: ai as unknown as Json,
         tags: inc.tags,
       });
     }

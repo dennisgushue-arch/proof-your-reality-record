@@ -5,6 +5,7 @@ export type BillingSubscription = {
   plan: string;
   status: string;
   current_period_end: string | null;
+  provider?: "stripe" | "google_play" | null;
 };
 
 export type BillingOffer = {
@@ -22,6 +23,8 @@ export type BillingOffer = {
   accessDays: number;
   trialDays?: number;
   allowPromotionCodes?: boolean;
+  playProductId: string;
+  playBasePlanId: string;
 };
 
 export const BILLING_OFFERS: BillingOffer[] = [
@@ -46,6 +49,8 @@ export const BILLING_OFFERS: BillingOffer[] = [
     accessDays: 30,
     trialDays: 7,
     allowPromotionCodes: true,
+    playProductId: "proof_premium_monthly",
+    playBasePlanId: "premium-monthly",
   },
   {
     id: "premium-annual",
@@ -66,6 +71,8 @@ export const BILLING_OFFERS: BillingOffer[] = [
     accessDays: 365,
     trialDays: 7,
     allowPromotionCodes: true,
+    playProductId: "proof_premium_annual",
+    playBasePlanId: "premium-annual",
   },
 ];
 

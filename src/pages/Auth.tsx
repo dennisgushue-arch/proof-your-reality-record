@@ -320,6 +320,7 @@ const Auth = () => {
           : "Sign in";
 
   const disableSubmit = loading || recoveryLoading || (mode === "reset-password" && recoveryInvalid);
+  const sessionExpired = params.get("reason") === "session-expired" && mode === "signin";
 
   return (
     <div className="min-h-screen flex flex-col bg-subtle">
@@ -340,6 +341,12 @@ const Auth = () => {
           <p className="mt-2 text-sm text-muted-foreground">
             {subtitle}
           </p>
+          {sessionExpired && (
+            <div className="mt-5 rounded-lg border border-amber-300/25 bg-amber-300/10 px-4 py-3" role="alert">
+              <p className="text-sm font-semibold text-amber-100">Your session expired</p>
+              <p className="mt-1 text-xs leading-5 text-amber-100/75">Sign in again to continue. Your cases, incidents, and evidence remain safely stored.</p>
+            </div>
+          )}
           {mode === "reset-password" && recoveryLoading && (
             <div className="mt-5 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground" role="status" aria-live="polite">
               Preparing your secure reset form…

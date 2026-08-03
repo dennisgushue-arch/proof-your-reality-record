@@ -11,6 +11,12 @@ import { UpgradePanel } from "../features/release-v1/components/UpgradePanel.tsx
 import { supabase } from "../integrations/supabase/client.ts";
 import { BILLING_OFFERS, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
 import { getFunctionErrorMessage } from "../lib/functionError.ts";
+import {
+  isGooglePlayApp,
+  loadGooglePlayProducts,
+  purchaseGooglePlayOffer,
+  type GooglePlayProduct,
+} from "../lib/googlePlayBilling.ts";
 
 const freePlanFeatures = [
   "1 incident per month",
@@ -26,6 +32,17 @@ const Pricing = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loadingOfferId, setLoadingOfferId] = useState<string | null>(null);
+  const [playProducts, setPlayProducts] = useState<GooglePlayProduct[]>([]);
+  const usesGooglePlay = isGooglePlayApp();
+
+  useEffect(() => {
+    if (!usesGooglePlay) return;
+    loadGooglePlayProducts()
+      .then(setPlayProducts)
+      .catch((error) => toast.error("Google Play products unavailable", {
+        description: error instanceof Error ? error.message : "Try again after installing the app from Google Play.",
+      }));
+  }, [usesGooglePlay]);
 
   useEffect(() => {
     const checkout = searchParams.get("checkout");
@@ -54,6 +71,19 @@ const Pricing = () => {
 
     try {
       setLoadingOfferId(offerId);
+
+      if (usesGooglePlay) {
+        if (!user) {
+          toast.message("Sign in required", { description: "Create an account or sign in before subscribing." });
+          navigate("/auth?mode=signup");
+          return;
+        }
+        await purchaseGooglePlayOffer(offer, user.id);
+        toast.success("Subscription active", { description: "Google Play verified your Premium access." });
+        navigate("/account");
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
         body: { offerId },
       });
@@ -120,6 +150,7 @@ const Pricing = () => {
 
           {premiumOffers.map((offer, index) => {
             const highlighted = index === 0;
+            const playProduct = playProducts.find((product) => product.offerId === offer.id);
 
             return (
               <div
@@ -144,7 +175,7 @@ const Pricing = () => {
                     <h2 className="mt-1 text-xl font-semibold">{offer.title}</h2>
                   </div>
                   <div className="text-right">
-                    <div className="text-3xl font-semibold leading-none">{offer.priceText}</div>
+                    <div className="text-3xl font-semibold leading-none">{playProduct?.priceText ?? offer.priceText}</div>
                     <div className="text-sm text-muted-foreground mt-1">{offer.cadenceText}</div>
                   </div>
                 </div>
@@ -161,9 +192,13 @@ const Pricing = () => {
                   className="w-full mt-auto pt-6 h-11"
                   variant={highlighted ? "default" : "outline"}
                   onClick={() => startCheckout(offer.id)}
-                  disabled={loading || loadingOfferId !== null}
+                  disabled={loading || loadingOfferId !== null || (usesGooglePlay && !playProduct)}
                 >
-                  {loading ? "Checking session…" : loadingOfferId === offer.id ? "Redirecting…" : offer.cta}
+                  {loading
+                    ? "Checking session…"
+                    : loadingOfferId === offer.id
+                      ? usesGooglePlay ? "Opening Google Play…" : "Redirecting…"
+                      : usesGooglePlay && !playProduct ? "Unavailable in Play" : offer.cta}
                 </Button>
               </div>
             );
@@ -172,7 +207,9 @@ const Pricing = () => {
         </div>
         <div className="mt-8 max-w-5xl mx-auto grid gap-4 md:grid-cols-[1fr_1fr]">
           <TrustPanel />
-          <UpgradePanel description="Upgrade through the existing Stripe checkout flow when you need supported premium features." />
+          <UpgradePanel description={usesGooglePlay
+            ? "Subscribe securely through Google Play when you need supported premium features."
+            : "Upgrade through the existing Stripe checkout flow when you need supported premium features."} />
         </div>
         <div className="mt-8 max-w-5xl mx-auto rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-card">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

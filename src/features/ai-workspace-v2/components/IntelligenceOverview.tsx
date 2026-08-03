@@ -11,14 +11,14 @@ export const IntelligenceOverview = ({ summary }: IntelligenceOverviewProps) => 
     <h2 id="intelligence-overview-title" className="mt-2 text-2xl font-black tracking-[-0.04em] text-white">Available record overview</h2>
     <p className="mt-2 text-sm leading-6 text-slate-400">{summary.intelligence.status}</p>
 
-    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+    <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-3 xl:grid-cols-1">
       <Metric icon={ClipboardCheck} label="Documentation completion" value={`${summary.completionScore}%`} />
       <Metric icon={ShieldCheck} label="Evidence strength" value={summary.intelligence.strengthLabel} />
       <Metric icon={AlertTriangle} label="Possible statement differences" value={summary.statementDifferences.length} />
     </div>
 
-    <div className="mt-5 grid gap-4 lg:grid-cols-2">
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+    <div className="mt-5 grid min-w-0 gap-4 lg:grid-cols-2 xl:grid-cols-1">
+      <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
         <h3 className="text-sm font-bold text-slate-100">Missing documentation</h3>
         {summary.intelligence.missing.length ? (
           <ul className="mt-3 space-y-2 text-sm text-slate-400">
@@ -26,7 +26,7 @@ export const IntelligenceOverview = ({ summary }: IntelligenceOverviewProps) => 
           </ul>
         ) : <p className="mt-3 text-sm text-slate-500">No major missing documentation currently flagged.</p>}
       </div>
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+      <div className="min-w-0 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
         <h3 className="text-sm font-bold text-slate-100">Available evidence</h3>
         <p className="mt-3 text-sm leading-6 text-slate-400">{summary.evidenceCount} evidence item{summary.evidenceCount === 1 ? "" : "s"} connected to {summary.incidentCount} incident record{summary.incidentCount === 1 ? "" : "s"}.</p>
       </div>
@@ -35,11 +35,11 @@ export const IntelligenceOverview = ({ summary }: IntelligenceOverviewProps) => 
 );
 
 const Metric = ({ icon: Icon, label, value }: { icon: typeof ClipboardCheck; label: string; value: string | number }) => (
-  <div className="rounded-2xl border border-white/[0.06] bg-[#080d15] p-4">
-    <div className="flex items-start gap-2 text-[10px] font-bold uppercase tracking-[0.14em] leading-4 text-slate-600">
+  <div className="min-w-0 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#080d15] p-4">
+    <div className="flex min-w-0 items-start gap-2 text-[10px] font-bold uppercase tracking-[0.14em] leading-4 text-slate-600">
       <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-300" aria-hidden="true" />
-      <span className="min-w-0 break-words">{label}</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
     </div>
-    <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    <div className="mt-2 min-w-0 break-words text-2xl font-black text-white">{value}</div>
   </div>
 );

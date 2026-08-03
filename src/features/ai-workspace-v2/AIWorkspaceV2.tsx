@@ -26,6 +26,7 @@ import {
 } from "./aiWorkspaceUtils";
 import { appendMessage, createConversationState, replaceMessage, resetConversationForCase } from "./aiWorkspaceState";
 import type { AIMessage, AIWorkspaceCaseRow, AIWorkspaceIncidentRow, UsageNoticeState, WorkspaceStatus } from "./types";
+import { toast } from "sonner";
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -201,6 +202,9 @@ export const AIWorkspaceV2 = () => {
         createdAt: loadingMessage.createdAt,
       };
       setConversation((current) => replaceMessage(current, completeMessage));
+      toast.success("AI analysis complete", {
+        description: `${normalized.findings.length} finding${normalized.findings.length === 1 ? "" : "s"} identified. Review sources before relying on the result.`,
+      });
     } catch (error) {
       const normalizedError = normalizeAIError(error);
       setUsageNotice({ state: normalizedError.state, message: normalizedError.message, upgradeHref: normalizedError.state === "limit-reached" ? "/pricing" : undefined });

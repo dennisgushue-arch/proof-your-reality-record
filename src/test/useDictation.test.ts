@@ -100,6 +100,110 @@ describe("useDictation", () => {
     expect(onTranscript).not.toHaveBeenCalled();
   });
 
+  it("can restart immediately after stop without waiting for the old onend event", () => {
+    const instances: MockRecognition[] = [];
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onresult = null;
+      onerror = null;
+      onend = null;
+      start = vi.fn();
+      stop = vi.fn();
+
+      constructor() {
+        instances.push(this as unknown as MockRecognition);
+      }
+    }
+
+    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+
+    const { result } = renderHook(() => useDictation({ onTranscript: vi.fn() }));
+
+    act(() => result.current.toggle());
+    act(() => result.current.stop());
+    act(() => result.current.toggle());
+
+    expect(instances).toHaveLength(2);
+    expect(instances[0].stop).toHaveBeenCalledTimes(1);
+    expect(instances[1].start).toHaveBeenCalledTimes(1);
+    expect(result.current.isDictating).toBe(true);
+
+    act(() => instances[0].onend?.());
+    expect(result.current.isDictating).toBe(true);
+  });
+
+  it("ends the session after an audio-capture error and remains ready to retry", () => {
+    const instances: MockRecognition[] = [];
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onresult = null;
+      onerror = null;
+      onend = null;
+      start = vi.fn();
+      stop = vi.fn();
+
+      constructor() {
+        instances.push(this as unknown as MockRecognition);
+      }
+    }
+
+    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+    const onError = vi.fn();
+    const { result } = renderHook(() => useDictation({ onTranscript: vi.fn(), onError }));
+
+    act(() => result.current.toggle());
+    act(() => instances[0].onerror?.({ error: "audio-capture" }));
+
+    expect(result.current.isDictating).toBe(false);
+    expect(onError).toHaveBeenCalledWith("No microphone was available. Check microphone access and try again.");
+
+    act(() => result.current.toggle());
+    expect(instances).toHaveLength(2);
+    expect(instances[1].start).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a start failure and leaves the control ready to retry", () => {
+    const start = vi.fn(() => {
+      throw new DOMException("Permission denied", "NotAllowedError");
+    });
+
+    class MockSpeechRecognition {
+      continuous = false;
+      interimResults = false;
+      lang = "";
+      onresult = null;
+      onerror = null;
+      onend = null;
+      start = start;
+      stop = vi.fn();
+    }
+
+    (window as any).webkitSpeechRecognition = MockSpeechRecognition;
+
+    const onError = vi.fn();
+    const { result } = renderHook(() => useDictation({ onTranscript: vi.fn(), onError }));
+
+    act(() => {
+      result.current.toggle();
+    });
+
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(result.current.isDictating).toBe(false);
+    expect(onError).toHaveBeenCalledWith("Microphone permission is blocked. Please allow mic access and try again.");
+
+    act(() => {
+      result.current.toggle();
+    });
+
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
   it("forwards only final transcript chunks from recognition results", () => {
     const instances: MockRecognition[] = [];
 

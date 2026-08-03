@@ -1,80 +1,40 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Mic, Plus, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { OnboardingFlow } from "@/features/release-v1/components/OnboardingFlow";
-import {
-  ONBOARDING_STORAGE_KEY,
-  parseOnboardingState,
-  selectFirstRunAction,
-  shouldShowOnboarding,
-} from "@/features/release-v1/releaseUtils";
+import { ActivationChecklist, type ActivationStep } from "./ActivationChecklist";
 
 type DashboardEmptyStateProps = {
-  recordHref: string;
-  createCaseHref?: string;
+  createCaseHref: string;
+  steps: ActivationStep[];
+  onSkip: () => void;
 };
 
-export const DashboardEmptyState = ({ recordHref, createCaseHref }: DashboardEmptyStateProps) => {
-  const [onboardingCompleted, setOnboardingCompleted] = useState(true);
-  const firstRunAction = selectFirstRunAction({ caseCount: 0, incidentCount: 0, hasCreateCaseRoute: Boolean(createCaseHref) });
-
-  useEffect(() => {
-    const state = parseOnboardingState(window.localStorage.getItem(ONBOARDING_STORAGE_KEY));
-    setOnboardingCompleted(!shouldShowOnboarding({ state, caseCount: 0, incidentCount: 0 }));
-  }, []);
-
-  if (!onboardingCompleted) {
-    return <OnboardingFlow firstRunAction={firstRunAction} onComplete={() => setOnboardingCompleted(true)} />;
-  }
-
+export const DashboardEmptyState = ({ createCaseHref, steps, onSkip }: DashboardEmptyStateProps) => {
   return (
-    <section className="rounded-[32px] bg-[#0D1420] p-6 sm:p-8 lg:p-10">
-      <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">
-        <Sparkles className="h-3.5 w-3.5" />
-        New workspace
-      </div>
-
-      <h2 className="max-w-3xl text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
-        Your first Reality Record starts here.
-      </h2>
-      <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-400">
-        Capture what happened, add supporting evidence, and let Proof organize your timeline into review-ready history.
-      </p>
-
-      <ol className="mt-8 grid gap-3 sm:grid-cols-3">
-        <li className="rounded-2xl bg-white/[0.03] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">Step 1</p>
-          <p className="mt-1 text-sm font-semibold text-slate-200">Record an incident</p>
-        </li>
-        <li className="rounded-2xl bg-white/[0.03] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">Step 2</p>
-          <p className="mt-1 text-sm font-semibold text-slate-200">Add evidence</p>
-        </li>
-        <li className="rounded-2xl bg-white/[0.03] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">Step 3</p>
-          <p className="mt-1 text-sm font-semibold text-slate-200">Proof organizes your timeline</p>
-        </li>
-      </ol>
-
-      <div className="mt-7 flex flex-wrap gap-3">
-        {createCaseHref && (
-          <Link to={createCaseHref} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-            <Button className="h-12 rounded-xl bg-blue-500 px-6 font-bold hover:bg-blue-400">
-              <Plus className="mr-2 h-4 w-4" />
-              Create case
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
-        )}
-
-        <Link to={recordHref} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-          <Button variant="outline" className="h-12 rounded-xl border-white/10 bg-white/[0.02] px-6 font-bold hover:bg-white/[0.06]">
-            <Mic className="mr-2 h-4 w-4" />
-            Start recording
+    <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="rounded-[32px] border border-blue-300/15 bg-[linear-gradient(145deg,rgba(59,130,246,0.11),rgba(13,20,32,0.98)_48%)] p-6 shadow-[0_30px_90px_-60px_rgba(59,130,246,0.95)] sm:p-8 lg:p-10" aria-labelledby="welcome-to-proof">
+        <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-blue-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-300">
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Guided setup
+        </div>
+        <h2 id="welcome-to-proof" className="text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">Welcome to Proof</h2>
+        <p className="mt-3 text-lg font-semibold text-blue-100">Let&apos;s build your first organized record.</p>
+        <p className="mt-5 text-sm text-slate-400">In just a few minutes you&apos;ll:</p>
+        <ul className="mt-4 space-y-3">
+          {["Create your first case", "Record your first incident", "Add evidence", "Generate an AI summary", "Build your first entity map"].map((item) => (
+            <li key={item} className="flex items-center gap-3 text-sm font-semibold text-slate-200">
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-400/15 text-emerald-300"><Check className="h-3.5 w-3.5" aria-hidden="true" /></span>
+              {item}
+            </li>
+          ))}
+        </ul>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button asChild className="h-12 rounded-xl bg-blue-500 px-6 font-bold hover:bg-blue-400">
+            <Link to={createCaseHref}>Create My First Case<ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" /></Link>
           </Button>
-        </Link>
-      </div>
-    </section>
+          <Button type="button" variant="ghost" onClick={onSkip} className="h-12 rounded-xl px-5 font-bold text-slate-400 hover:text-white">Skip for now</Button>
+        </div>
+      </section>
+      <ActivationChecklist steps={steps} />
+    </div>
   );
 };

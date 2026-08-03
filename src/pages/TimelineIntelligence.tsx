@@ -7,6 +7,7 @@ import TimelineIntelligencePanel from "@/components/TimelineIntelligence";
 import { supabase } from "@/integrations/supabase/client";
 import { formatEventType } from "@/utils/realityAnalysis";
 import { buildAIReplaySequence, buildContradictionCards, buildTimelineSummary, type PhaseTwoIncident } from "@/lib/phaseTwoAI";
+import { ContextualLoading } from "@/components/ContextualLoading";
 
 type CaseRow = {
   id: string;
@@ -318,9 +319,13 @@ const TimelineIntelligence = () => {
         )}
 
         {loading ? (
-          <div className="rounded-lg border border-dashed border-border bg-card/50 p-12 text-center text-muted-foreground text-sm">
-            Loading case incidents…
-          </div>
+          <ContextualLoading title="Analyzing timeline…" detail="Connecting incidents, dates, locations, and evidence into chronological order." />
+        ) : events.length === 0 ? (
+          <section className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
+            <h2 className="text-2xl font-semibold">Your first incident starts the timeline</h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Record a conversation, upload evidence, or add notes. Proof will organize everything into one chronological record.</p>
+            <Button asChild className="mt-5"><Link to={id ? `/record?caseId=${id}` : "/record"}>Create first incident</Link></Button>
+          </section>
         ) : (
           <TimelineIntelligencePanel events={events} defaultTimeZone="America/Los_Angeles" />
         )}

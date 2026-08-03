@@ -17,6 +17,7 @@ import { buildEvidenceStoragePath, uploadEvidenceFile } from "@/lib/evidenceStor
 import { clearLiveIncidentState, writeLiveIncidentState } from "@/lib/liveIncident";
 import { persistLiveIncidentEvent } from "@/lib/liveIncidentEvents";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
+import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 import { CaptureContextPanel } from "./components/CaptureContextPanel";
 import { CaptureModeSelector } from "./components/CaptureModeSelector";
 import { DocumentationStrength } from "./components/DocumentationStrength";
@@ -84,7 +85,6 @@ export const RecordingV2 = () => {
   const [newCaseDescription, setNewCaseDescription] = useState("");
   const [creatingCase, setCreatingCase] = useState(false);
   const sessionIdRef = useRef(createId("live-session"));
-  const voiceFallbackAppliedRef = useRef(false);
 
   const finalNarrative = useMemo(() => buildNarrativeFromEvents(state.transcriptEvents, state.narrative), [state.narrative, state.transcriptEvents]);
   const selectedCase = useMemo(() => cases.find((caseRow) => caseRow.id === state.caseId), [cases, state.caseId]);
@@ -143,7 +143,12 @@ export const RecordingV2 = () => {
 
   const addTranscriptEvent = async (event: Omit<TranscriptEvent, "id">) => {
     const nextEvent = { ...event, id: createId(event.type) };
-    updateState({ transcriptEvents: [...state.transcriptEvents, nextEvent] });
+    setState((current) => ({
+      ...current,
+      transcriptEvents: [...current.transcriptEvents, nextEvent],
+      title: current.title.trim() || (event.type === "transcript" ? defaultTitleFromNarrative(event.text) : current.title),
+    }));
+    setDraftStatus("unsaved");
     if (user) {
       try {
         await persistLiveIncidentEvent({
@@ -159,30 +164,82 @@ export const RecordingV2 = () => {
     }
   };
 
-  const { isSupported, isDictating, language, setLanguage, toggle, stop } = useDictation({
+  const { isSupported: isDictationSupported, isDictating, language, setLanguage, toggle: toggleDictation, stop: stopDictation } = useDictation({
     onTranscript: (transcript) => {
       setDictationError(null);
       void addTranscriptEvent({ type: "transcript", text: transcript, occurredAt: new Date().toISOString() });
-      if (!state.title.trim()) updateState({ title: defaultTitleFromNarrative(transcript) });
     },
     onError: (message) => setDictationError(message),
   });
 
-  useEffect(() => {
-    if (isSupported || voiceFallbackAppliedRef.current || state.captureMode !== "speak") return;
-    if (state.narrative.trim() || state.transcriptEvents.length > 0) return;
+  const {
+    isSupported: isAudioRecordingSupported,
+    isRecording: isAudioRecording,
+    toggle: toggleAudioRecording,
+    stop: stopAudioRecording,
+  } = useAudioRecorder({
+    onRecordingComplete: (file) => {
+      const capturedAt = new Date().toISOString();
+      const evidenceItem: PendingEvidenceItem = {
+        id: createId("voice"),
+        file,
+        filename: file.name,
+        type: "audio",
+        capturedAt,
+        source: "voice",
+        status: "pending",
+      };
+      const transcriptEvent: TranscriptEvent = {
+        id: createId("note"),
+        type: "note",
+        text: `Voice recording captured: ${file.name}`,
+        occurredAt: capturedAt,
+      };
+      setState((current) => ({
+        ...current,
+        evidenceItems: dedupeEvidenceItems([...current.evidenceItems, evidenceItem]),
+        transcriptEvents: [...current.transcriptEvents, transcriptEvent],
+      }));
+      setDraftStatus("unsaved");
+      setDictationError(null);
+      toast.success("Voice recording attached", { description: "The audio file will upload when you save the incident." });
+      if (user) {
+        void persistLiveIncidentEvent({
+          userId: user.id,
+          sessionId: sessionIdRef.current,
+          type: "note",
+          text: transcriptEvent.text,
+          occurredAt: capturedAt,
+        }).catch((error) => console.warn("Failed to persist voice recording event", error));
+      }
+    },
+    onError: (message) => setDictationError(message),
+  });
 
-    voiceFallbackAppliedRef.current = true;
-    updateState({ captureMode: "type" });
-    setDictationError("Voice dictation is not available here. Type mode is ready so you can still record and save the incident.");
-  }, [isSupported, state.captureMode, state.narrative, state.transcriptEvents.length]);
+  const isVoiceRecording = isDictating || isAudioRecording;
+  const isVoiceCaptureSupported = isDictationSupported || isAudioRecordingSupported;
+  const isAudioFallback = !isDictationSupported && isAudioRecordingSupported;
+
+  const toggleVoiceCapture = () => {
+    setDictationError(null);
+    if (!isVoiceRecording) setElapsedSeconds(0);
+    if (isDictationSupported) {
+      toggleDictation();
+      return;
+    }
+    if (isAudioRecordingSupported) {
+      toggleAudioRecording();
+      return;
+    }
+    setDictationError("Voice capture is not supported in this browser. Use Type mode to capture the incident.");
+  };
 
   useEffect(() => {
-    if (!isDictating) return;
+    if (!isVoiceRecording) return;
     const startedAt = Date.now() - elapsedSeconds * 1000;
     const interval = window.setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
     return () => window.clearInterval(interval);
-  }, [elapsedSeconds, isDictating]);
+  }, [elapsedSeconds, isVoiceRecording]);
 
   useEffect(() => {
     if (!user) return;
@@ -393,7 +450,12 @@ export const RecordingV2 = () => {
       globalThis.localStorage?.removeItem(RECORDING_DRAFT_STORAGE_KEY);
       clearLiveIncidentState();
       setDraftStatus("saved");
-      toast.success(summary.message);
+      toast.success("Incident saved", {
+        description: uploadResult.successful.length > 0
+          ? "Evidence uploaded. Run AI Analysis to organize your timeline."
+          : "Nice work. Add a photo, message, or document.",
+        action: { label: "View case", onClick: () => navigate(`/cases/${selectedSaveCase.id}`) },
+      });
       navigate(`/incidents/${incidentId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error while saving incident.";
@@ -482,12 +544,13 @@ export const RecordingV2 = () => {
           <div className="mt-6 space-y-6">
             <CaptureModeSelector
               mode={state.captureMode}
-              onChange={(captureMode) => updateState({ captureMode })}
-              disabledModes={
-                isSupported
-                  ? undefined
-                  : { speak: "Voice unavailable here. Use Type mode." }
-              }
+              onChange={(captureMode) => {
+                if (captureMode !== "speak") {
+                  stopDictation();
+                  stopAudioRecording();
+                }
+                updateState({ captureMode, stage: "capture" });
+              }}
             />
 
             {state.stage === "capture" && (
@@ -495,8 +558,9 @@ export const RecordingV2 = () => {
                 mode={state.captureMode}
                 narrative={state.narrative}
                 transcriptEvents={state.transcriptEvents}
-                isDictating={isDictating}
-                isSupported={isSupported}
+                isDictating={isVoiceRecording}
+                isSupported={isVoiceCaptureSupported}
+                isAudioFallback={isAudioFallback}
                 elapsedLabel={formatElapsed(elapsedSeconds)}
                 dictationError={dictationError}
                 location={state.location}
@@ -505,12 +569,10 @@ export const RecordingV2 = () => {
                 evidenceTray={<EvidenceCaptureTray items={state.evidenceItems} onFiles={handleFiles} onRemove={(id) => updateState({ evidenceItems: state.evidenceItems.filter((item) => item.id !== id) })} />}
                 onNarrativeChange={(narrative) => updateState({ narrative, title: state.title || defaultTitleFromNarrative(narrative) })}
                 onToggleDictation={() => {
-                  setDictationError(null);
-                  toggle();
+                  toggleVoiceCapture();
                 }}
                 onRetryDictation={() => {
-                  setDictationError(null);
-                  toggle();
+                  toggleVoiceCapture();
                 }}
                 onEditTranscriptEvent={(eventId, text) => updateState({ transcriptEvents: state.transcriptEvents.map((event) => event.id === eventId ? { ...event, text } : event) })}
                 onCaptureLocation={captureLocation}
@@ -592,7 +654,8 @@ export const RecordingV2 = () => {
         </div>
 
         <RecordingExitDialog open={showExitDialog} onOpenChange={setShowExitDialog} onConfirm={() => {
-          stop();
+          stopDictation();
+          stopAudioRecording();
           navigate("/dashboard");
         }} />
       </main>

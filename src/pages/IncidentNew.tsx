@@ -203,7 +203,10 @@ const IncidentNew = () => {
         }
       }
 
-      toast.success("Incident saved");
+      toast.success("Incident saved", {
+        description: "Timeline updated. Review the record or run AI analysis next.",
+        action: { label: "View case", onClick: () => nav(`/cases/${caseId}`) },
+      });
       nav(`/incidents/${data.id}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unexpected error while saving incident.";

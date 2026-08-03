@@ -44,7 +44,12 @@ function readArr(ai: unknown, key: string): string[] {
 
 function readPeople(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
-  return v.map((x) => (typeof x === "string" ? x : typeof x === "object" && x && "name" in x ? String((x as any).name) : "")).filter(Boolean);
+  return v.map((item) => {
+    if (typeof item === "string") return item;
+    if (!item || typeof item !== "object" || !("name" in item)) return "";
+    const name = (item as { name?: unknown }).name;
+    return typeof name === "string" ? name : "";
+  }).filter(Boolean);
 }
 
 function fmtDate(iso: string) {
@@ -201,7 +206,12 @@ const AICommandCenter = () => {
         body: { action: "summarize_case", prompt: q, caseId },
       });
       if (error) throw error;
-      const summary = (data && typeof data === "object" && "summary" in data ? String((data as any).summary) : null) ?? "Proof AI reviewed the available records but did not return a summary.";
+      const summaryValue = data && typeof data === "object" && "summary" in data
+        ? (data as { summary?: unknown }).summary
+        : null;
+      const summary = typeof summaryValue === "string" && summaryValue.trim()
+        ? summaryValue
+        : "Proof AI reviewed the available records but did not return a summary.";
       setAnswer(summary);
     } catch (e) {
       setAnswer("Proof AI could not complete that request. Free-form questions are limited in this preview — try 'Summarize this case' or review the sections below.");

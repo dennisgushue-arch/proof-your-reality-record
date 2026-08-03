@@ -52,7 +52,8 @@ describe("ProtectedRoute runtime behavior", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByText("Verifying your secure session…")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Keeping your private records scoped to your account.");
   });
 
   it("renders protected content for authenticated users", () => {
