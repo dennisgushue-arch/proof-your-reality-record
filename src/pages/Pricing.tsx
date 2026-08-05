@@ -26,14 +26,44 @@ const freePlanFeatures = [
 ];
 
 const premiumOffers = BILLING_OFFERS.filter((offer) => offer.billingMode === "subscription");
+const POST_UPGRADE_REDIRECT_STORAGE_KEY = "proof.post-upgrade-redirect";
+
+function sanitizeRedirectTarget(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith("/")) return null;
+  if (value.startsWith("//")) return null;
+  return value;
+}
 
 const Pricing = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, hasPaidAccess, subscriptionLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const checkoutStatus = searchParams.get("checkout");
+  const subscriptionRequired = searchParams.get("reason") === "subscription-required";
+  const queryRedirectAfterUpgrade = sanitizeRedirectTarget(searchParams.get("redirect"));
+  const [storedRedirectAfterUpgrade, setStoredRedirectAfterUpgrade] = useState<string | null>(null);
   const [loadingOfferId, setLoadingOfferId] = useState<string | null>(null);
   const [playProducts, setPlayProducts] = useState<GooglePlayProduct[]>([]);
   const usesGooglePlay = isGooglePlayApp();
+  const redirectAfterUpgrade = queryRedirectAfterUpgrade ?? storedRedirectAfterUpgrade;
+
+  useEffect(() => {
+    const stored = sanitizeRedirectTarget(globalThis.sessionStorage?.getItem(POST_UPGRADE_REDIRECT_STORAGE_KEY) ?? null);
+    if (stored) setStoredRedirectAfterUpgrade(stored);
+  }, []);
+
+  useEffect(() => {
+    if (!subscriptionRequired || !queryRedirectAfterUpgrade) return;
+    globalThis.sessionStorage?.setItem(POST_UPGRADE_REDIRECT_STORAGE_KEY, queryRedirectAfterUpgrade);
+    setStoredRedirectAfterUpgrade(queryRedirectAfterUpgrade);
+  }, [queryRedirectAfterUpgrade, subscriptionRequired]);
+
+  useEffect(() => {
+    if (subscriptionRequired || checkoutStatus || queryRedirectAfterUpgrade) return;
+    globalThis.sessionStorage?.removeItem(POST_UPGRADE_REDIRECT_STORAGE_KEY);
+    setStoredRedirectAfterUpgrade(null);
+  }, [checkoutStatus, queryRedirectAfterUpgrade, subscriptionRequired]);
 
   useEffect(() => {
     if (!usesGooglePlay) return;
@@ -45,14 +75,13 @@ const Pricing = () => {
   }, [usesGooglePlay]);
 
   useEffect(() => {
-    const checkout = searchParams.get("checkout");
-    if (!checkout) return;
+    if (!checkoutStatus) return;
 
-    if (checkout === "success") {
+    if (checkoutStatus === "success") {
       toast.success("Purchase complete", { description: "Your access is being updated. Refresh the account page if it does not appear immediately." });
     }
 
-    if (checkout === "canceled") {
+    if (checkoutStatus === "canceled") {
       toast.message("Checkout canceled", { description: "No changes were made to your subscription." });
     }
 
@@ -60,7 +89,25 @@ const Pricing = () => {
       prev.delete("checkout");
       return prev;
     }, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [checkoutStatus, setSearchParams]);
+
+  useEffect(() => {
+    if (!subscriptionRequired || !redirectAfterUpgrade) return;
+    if (subscriptionLoading) return;
+    if (!hasPaidAccess) return;
+
+    toast.success("Subscription active", {
+      description: "Taking you back to your previous page.",
+    });
+    globalThis.sessionStorage?.removeItem(POST_UPGRADE_REDIRECT_STORAGE_KEY);
+    setStoredRedirectAfterUpgrade(null);
+    navigate(redirectAfterUpgrade, { replace: true });
+  }, [hasPaidAccess, navigate, redirectAfterUpgrade, subscriptionLoading, subscriptionRequired]);
+
+  const goBackAfterUpgrade = () => {
+    if (!redirectAfterUpgrade) return;
+    navigate(redirectAfterUpgrade);
+  };
 
   const startCheckout = async (offerId: string) => {
     const offer = getBillingOffer(offerId);
@@ -78,10 +125,19 @@ const Pricing = () => {
           navigate("/auth?mode=signup");
           return;
         }
+        if (redirectAfterUpgrade) {
+          globalThis.sessionStorage?.setItem(POST_UPGRADE_REDIRECT_STORAGE_KEY, redirectAfterUpgrade);
+          setStoredRedirectAfterUpgrade(redirectAfterUpgrade);
+        }
         await purchaseGooglePlayOffer(offer, user.id);
         toast.success("Subscription active", { description: "Google Play verified your Premium access." });
-        navigate("/account");
+        navigate(redirectAfterUpgrade ?? "/account");
         return;
+      }
+
+      if (redirectAfterUpgrade) {
+        globalThis.sessionStorage?.setItem(POST_UPGRADE_REDIRECT_STORAGE_KEY, redirectAfterUpgrade);
+        setStoredRedirectAfterUpgrade(redirectAfterUpgrade);
       }
 
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
@@ -129,6 +185,31 @@ const Pricing = () => {
             Choose the plan that fits your workflow with two premium subscription options.
           </p>
         </div>
+        {subscriptionRequired && (
+          <div className="mt-6 max-w-3xl mx-auto rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
+            <p className="font-medium text-foreground">Subscription required to continue.</p>
+            <p className="mt-1 text-muted-foreground">
+              This feature is part of Premium. Choose a plan to unlock full access.
+              {redirectAfterUpgrade ? " You can return to your previous page after subscribing." : ""}
+            </p>
+            {redirectAfterUpgrade && (
+              <div className="mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={goBackAfterUpgrade}
+                  disabled={subscriptionLoading || !hasPaidAccess}
+                >
+                  {subscriptionLoading
+                    ? "Checking subscription…"
+                    : hasPaidAccess
+                      ? "Return after upgrade"
+                      : "Return after upgrade (available once active)"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         <p className="mt-4 text-center text-xs text-muted-foreground">Private by default. No public sharing, and no hidden fees.</p>
         <p className="mt-2 text-center text-xs text-muted-foreground">Early user discount applies to accounts created during the first 3 months after launch.</p>
         <div className="mt-10 sm:mt-12 grid gap-5 sm:gap-6 md:grid-cols-3 max-w-6xl mx-auto items-stretch">

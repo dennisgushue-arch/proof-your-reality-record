@@ -57,7 +57,7 @@ const App = () => (
               <Route path="/dashboard" element={<ProtectedRoute><DashboardV2Page /></ProtectedRoute>} />
               <Route path="/cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
               <Route path="/record" element={<ProtectedRoute><RecordingV2Page /></ProtectedRoute>} />
-              <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+              <Route path="/account" element={<ProtectedRoute requireSubscription={false}><Account /></ProtectedRoute>} />
               <Route path="/cases/:id" element={<ProtectedRoute><CaseDetailV2Page /></ProtectedRoute>} />
               <Route path="/cases/:id/intelligence" element={<ProtectedRoute><TimelineIntelligence /></ProtectedRoute>} />
               <Route path="/cases/:id/entities" element={<ProtectedRoute><EntityIntelligence /></ProtectedRoute>} />
