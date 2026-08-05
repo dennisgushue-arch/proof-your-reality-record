@@ -20,4 +20,43 @@ describe("getFunctionErrorMessage", () => {
 
     await expect(getFunctionErrorMessage(error, "Fallback")).resolves.toBe("Network failed");
   });
+
+  it("returns a friendlier message for a missing LLM key", async () => {
+    const error = Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      context: new Response(JSON.stringify({ error: "LLM_API_KEY is not configured" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    });
+
+    await expect(getFunctionErrorMessage(error, "Fallback")).resolves.toBe(
+      "AI analysis is temporarily unavailable because the server AI key is not configured.",
+    );
+  });
+
+  it("returns a friendlier message for upstream 401 failures", async () => {
+    const error = Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      context: new Response(JSON.stringify({ error: "LLM request failed (401): invalid_api_key" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    });
+
+    await expect(getFunctionErrorMessage(error, "Fallback")).resolves.toBe(
+      "AI analysis is temporarily unavailable because the server AI provider rejected its credentials.",
+    );
+  });
+
+  it("returns a friendlier message for invalid model failures", async () => {
+    const error = Object.assign(new Error("Edge Function returned a non-2xx status code"), {
+      context: new Response(JSON.stringify({ error: "LLM request failed (404): The model 'bad-model' does not exist" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+    });
+
+    await expect(getFunctionErrorMessage(error, "Fallback")).resolves.toBe(
+      "AI analysis is temporarily unavailable because the configured AI model is invalid or unavailable.",
+    );
+  });
 });

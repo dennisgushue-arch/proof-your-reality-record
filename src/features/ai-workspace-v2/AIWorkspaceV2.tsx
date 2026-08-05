@@ -26,6 +26,7 @@ import {
 } from "./aiWorkspaceUtils";
 import { appendMessage, createConversationState, replaceMessage, resetConversationForCase } from "./aiWorkspaceState";
 import type { AIMessage, AIWorkspaceCaseRow, AIWorkspaceIncidentRow, UsageNoticeState, WorkspaceStatus } from "./types";
+import { getFunctionErrorMessage } from "@/lib/functionError";
 import { toast } from "sonner";
 
 function createId(prefix: string): string {
@@ -206,7 +207,8 @@ export const AIWorkspaceV2 = () => {
         description: `${normalized.findings.length} finding${normalized.findings.length === 1 ? "" : "s"} identified. Review sources before relying on the result.`,
       });
     } catch (error) {
-      const normalizedError = normalizeAIError(error);
+      const message = await getFunctionErrorMessage(error, "Proof AI could not complete that request.");
+      const normalizedError = normalizeAIError(message);
       setUsageNotice({ state: normalizedError.state, message: normalizedError.message, upgradeHref: normalizedError.state === "limit-reached" ? "/pricing" : undefined });
       const errorMessage: AIMessage = {
         id: assistantId,

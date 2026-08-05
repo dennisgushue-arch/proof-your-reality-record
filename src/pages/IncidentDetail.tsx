@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AIAnalysisSchema, type AIAnalysis } from "@/lib/aiAnalysis";
 import { createEvidenceSignedUrl, removeEvidenceFile } from "@/lib/evidenceStorage";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
+import { getFunctionErrorMessage } from "@/lib/functionError";
 import { markActivationMilestone } from "@/lib/activationProgress";
 import { toast } from "sonner";
 
@@ -239,8 +240,12 @@ const IncidentDetail = () => {
       }
       await load();
     } catch (error) {
+      const message = await getFunctionErrorMessage(
+        error,
+        "Check your connection and try again. Your incident was not changed.",
+      );
       toast.error("AI analysis could not be completed", {
-        description: error instanceof Error ? error.message : "Check your connection and try again. Your incident was not changed.",
+        description: message,
       });
     } finally {
       setAnalyzing(false);
@@ -272,7 +277,7 @@ const IncidentDetail = () => {
       triggerHaptic("success");
       load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Entity analysis failed");
+      toast.error(await getFunctionErrorMessage(error, "Entity analysis failed"));
     } finally {
       setExtractingEntities(false);
     }

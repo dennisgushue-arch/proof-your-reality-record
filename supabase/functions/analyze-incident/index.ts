@@ -24,6 +24,13 @@ type AIAnalysis = {
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
+function jsonError(status: number, error: string, traceId?: string) {
+  return new Response(JSON.stringify(traceId ? { error, traceId } : { error }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 function safeString(value: unknown, fallback = ""): string {
   if (typeof value !== "string") return fallback;
   return value.trim() || fallback;
@@ -156,19 +163,13 @@ serve(async (req) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonError(405, "Method not allowed");
   }
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError(401, "Missing Authorization header");
     }
 
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -181,10 +182,7 @@ serve(async (req) => {
     } = await userClient.auth.getUser();
 
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError(401, "Unauthorized");
     }
 
     const body = await req.json() as Partial<AnalyzeIncidentRequest>;
@@ -199,10 +197,7 @@ serve(async (req) => {
     };
 
     if (!input.title || !input.narrative || !input.occurred_at) {
-      return new Response(JSON.stringify({ error: "title, narrative, and occurred_at are required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonError(400, "title, narrative, and occurred_at are required");
     }
 
     const analysis = await runLLMAnalysis(input);
@@ -212,10 +207,9 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
+    const traceId = crypto.randomUUID();
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("analyze-incident failed", { traceId, message });
+    return jsonError(500, message, traceId);
   }
 });
