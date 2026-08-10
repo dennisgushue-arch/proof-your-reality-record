@@ -9,7 +9,7 @@ import { useAuth } from "../contexts/AuthContext.tsx";
 import { TrustPanel } from "../features/release-v1/components/TrustPanel.tsx";
 import { UpgradePanel } from "../features/release-v1/components/UpgradePanel.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
-import { BILLING_OFFERS, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
+import { BILLING_OFFERS, PRO_SUBSCRIPTION_FEATURES, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
 import { getFunctionErrorMessage } from "../lib/functionError.ts";
 import {
   isGooglePlayApp,
@@ -19,10 +19,10 @@ import {
 } from "../lib/googlePlayBilling.ts";
 
 const freePlanFeatures = [
-  "1 incident per month",
-  "Basic timeline view",
-  "Text & photo uploads",
-  "Private account workspace",
+  "Create 1 case",
+  "Record 1 incident per month",
+  "Basic timeline",
+  "View saved records",
 ];
 
 const premiumOffers = BILLING_OFFERS.filter((offer) => offer.billingMode === "subscription");
@@ -36,7 +36,7 @@ function sanitizeRedirectTarget(value: string | null): string | null {
 }
 
 const Pricing = () => {
-  const { user, loading, hasPaidAccess, subscriptionLoading } = useAuth();
+  const { user, loading, hasPaidAccess, subscriptionLoading, refreshSubscription } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const checkoutStatus = searchParams.get("checkout");
@@ -130,6 +130,7 @@ const Pricing = () => {
           setStoredRedirectAfterUpgrade(redirectAfterUpgrade);
         }
         await purchaseGooglePlayOffer(offer, user.id);
+        await refreshSubscription();
         toast.success("Subscription active", { description: "Google Play verified your Premium access." });
         navigate(redirectAfterUpgrade ?? "/account");
         return;
@@ -212,9 +213,30 @@ const Pricing = () => {
         )}
         <p className="mt-4 text-center text-xs text-muted-foreground">Private by default. No public sharing, and no hidden fees.</p>
         <p className="mt-2 text-center text-xs text-muted-foreground">Early user discount applies to accounts created during the first 3 months after launch.</p>
+        <div className="mt-10 grid gap-5 md:grid-cols-2 max-w-6xl mx-auto items-stretch">
+          <section className="rounded-2xl border border-border bg-card p-5 sm:p-7 shadow-card h-full flex flex-col">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Free Plan</p>
+            <p className="mt-3 text-sm text-muted-foreground">Keep enough functionality that people can experience the product.</p>
+            <ul className="mt-5 space-y-2.5 text-sm">
+              {freePlanFeatures.map((feature) => (
+                <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="rounded-2xl border border-accent/40 bg-accent/5 p-5 sm:p-7 shadow-card h-full flex flex-col">
+            <p className="text-xs font-semibold uppercase tracking-wider text-accent">Pro Subscription</p>
+            <p className="mt-3 text-sm text-muted-foreground">Unlock the features that make Proof truly valuable.</p>
+            <ul className="mt-5 space-y-2.5 text-sm">
+              {PRO_SUBSCRIPTION_FEATURES.map((feature) => (
+                <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
+              ))}
+            </ul>
+          </section>
+        </div>
         <div className="mt-10 sm:mt-12 grid gap-5 sm:gap-6 md:grid-cols-3 max-w-6xl mx-auto items-stretch">
           <div className="rounded-2xl border border-border bg-card p-5 sm:p-7 shadow-card h-full flex flex-col">
-            <h2 className="text-xl font-semibold">Free</h2>
+            <h2 className="text-xl font-semibold">Free Plan</h2>
             <div className="mt-3 flex items-baseline gap-1">
               <span className="text-4xl font-semibold">$0</span>
               <span className="text-muted-foreground text-sm">forever</span>

@@ -49,6 +49,13 @@ import {
   serializeRecordingDraft,
 } from "./recordingState";
 import type { PendingEvidenceItem, RecordingCaseRow, RecordingFormState, SaveProgress, TranscriptEvent } from "./types";
+import {
+  canCreateCase,
+  canCreateIncident,
+  currentUtcMonthRange,
+  FREE_CASE_LIMIT_MESSAGE,
+  FREE_INCIDENT_LIMIT_MESSAGE,
+} from "@/lib/planLimits";
 
 const STAGES: RecordingFormState["stage"][] = ["capture", "context", "review", "save"];
 const submissionGuard = createSubmissionGuard();
@@ -64,7 +71,7 @@ function formatElapsed(seconds: number) {
 }
 
 export const RecordingV2 = () => {
-  const { user } = useAuth();
+  const { user, hasPaidAccess } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const queryCaseId = parseRecordQuery(location.search).caseId;
@@ -114,6 +121,10 @@ export const RecordingV2 = () => {
 
   const createCaseForRecording = async () => {
     if (!user || !newCaseTitle.trim()) return;
+    if (!canCreateCase(cases.length, hasPaidAccess)) {
+      toast.error("Free plan case limit reached", { description: FREE_CASE_LIMIT_MESSAGE });
+      return;
+    }
     setCreatingCase(true);
     const { data, error } = await supabase
       .from("cases")
@@ -367,6 +378,23 @@ export const RecordingV2 = () => {
     }
 
     try {
+      if (!hasPaidAccess) {
+        const { start, end } = currentUtcMonthRange();
+        const { count, error: countError } = await supabase
+          .from("incidents")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("created_at", start)
+          .lt("created_at", end);
+        if (countError) throw new Error("Your Free plan usage could not be verified. Please try again.");
+        if (!canCreateIncident(count ?? 0, false)) {
+          updateState({ stage: "review" });
+          setSaveProgress({ state: "failed", message: FREE_INCIDENT_LIMIT_MESSAGE });
+          toast.error("Free plan monthly limit reached", { description: FREE_INCIDENT_LIMIT_MESSAGE });
+          return;
+        }
+      }
+
       updateState({ stage: "save" });
       setSaveProgress({ state: "creating", message: "Creating incident…" });
       const tags = Array.from(new Set([state.category, "live-capture"].filter(Boolean)));

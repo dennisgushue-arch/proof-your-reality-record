@@ -127,7 +127,7 @@ serve(async (req) => {
       new Date(b.expiryTime!).getTime() - new Date(a.expiryTime!).getTime()
     )[0];
     const state = purchase.subscriptionState ?? "SUBSCRIPTION_STATE_UNSPECIFIED";
-    if (!currentItem?.expiryTime || !grantsGooglePlayAccess(state, currentItem.expiryTime)) {
+    if (!currentItem?.expiryTime) {
       return jsonResponse({ error: "Google Play reports that this subscription is not active" }, 402);
     }
 
@@ -145,7 +145,8 @@ serve(async (req) => {
     const { error: saveError } = await adminClient.from("subscriptions").upsert(subscription);
     if (saveError) throw saveError;
 
-    if (purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
+    const grantsAccess = grantsGooglePlayAccess(state, currentItem.expiryTime);
+    if (grantsAccess && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
       const acknowledgeUrl = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(GOOGLE_PLAY_PACKAGE_NAME)}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}:acknowledge`;
       const acknowledgeResponse = await fetch(acknowledgeUrl, {
         method: "POST",
@@ -160,7 +161,7 @@ serve(async (req) => {
       status: subscription.status,
       current_period_end: subscription.current_period_end,
       provider: subscription.provider,
-    } });
+    }, grantsAccess });
   } catch (error) {
     console.error("Google Play purchase verification failed", error);
     return jsonResponse({ error: error instanceof Error ? error.message : "Purchase verification failed" }, 500);

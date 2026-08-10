@@ -27,6 +27,18 @@ export type BillingOffer = {
   playBasePlanId: string;
 };
 
+export const PRO_SUBSCRIPTION_FEATURES = [
+  "Unlimited cases",
+  "Unlimited incidents",
+  "AI Incident Analysis",
+  "Entity Intelligence",
+  "Timeline Intelligence",
+  "Professional PDF exports",
+  "Unlimited evidence uploads",
+  "Priority support",
+  "Future AI features",
+];
+
 export const BILLING_OFFERS: BillingOffer[] = [
   {
     id: "premium-monthly",
@@ -34,13 +46,7 @@ export const BILLING_OFFERS: BillingOffer[] = [
     title: "Premium Monthly",
     badge: "7-day trial",
     shortCopy: "Full access with automatic monthly renewal and launch discount eligibility.",
-    features: [
-      "Unlimited cases & incidents",
-      "AI structuring & summaries",
-      "PDF evidence export",
-      "Prepare Me access",
-      "7-day free trial for new users",
-    ],
+    features: PRO_SUBSCRIPTION_FEATURES,
     priceText: "$7.99",
     cadenceText: "/month",
     cta: "Start 7-day trial",
@@ -59,7 +65,7 @@ export const BILLING_OFFERS: BillingOffer[] = [
     badge: "Best value",
     shortCopy: "A lower-maintenance annual subscription for long-running documentation needs.",
     features: [
-      "Everything in Premium Monthly",
+      "Everything in Pro Subscription",
       "Lower effective monthly cost",
       "Longer uninterrupted access",
     ],
@@ -93,7 +99,7 @@ function hasFutureAccess(currentPeriodEnd: string | null | undefined) {
 export function hasBillingAccess(subscription: BillingSubscription | null | undefined) {
   if (!subscription) return false;
   if (subscription.plan !== "pro" && subscription.plan !== "premium") return false;
-  if (hasFutureAccess(subscription.current_period_end)) return true;
+  if (subscription.current_period_end) return hasFutureAccess(subscription.current_period_end);
   return subscription.status === "active" || subscription.status === "trialing";
 }
 
@@ -112,7 +118,7 @@ export function describeBillingAccess(subscription: BillingSubscription | null |
     return `Paid access through ${dateLabel}`;
   }
 
-  if (subscription.status === "active" || subscription.status === "trialing") {
+  if (!subscription.current_period_end && (subscription.status === "active" || subscription.status === "trialing")) {
     return "Paid access active";
   }
 

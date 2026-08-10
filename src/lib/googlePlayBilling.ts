@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { NativePurchases, PURCHASE_TYPE, type Product, type Transaction } from "@capgo/native-purchases";
 import { supabase } from "../integrations/supabase/client.ts";
-import { BILLING_OFFERS, type BillingOffer, type BillingSubscription } from "./billing.ts";
+import { BILLING_OFFERS, hasBillingAccess, type BillingOffer, type BillingSubscription } from "./billing.ts";
 import { getFunctionErrorMessage } from "./functionError.ts";
 
 export type GooglePlayProduct = {
@@ -73,7 +73,11 @@ export async function purchaseGooglePlayOffer(offer: BillingOffer, userId: strin
   if (transaction.purchaseState !== "1") {
     throw new Error("The purchase is pending. Access will activate after Google Play confirms payment.");
   }
-  return verifyTransaction(transaction);
+  const subscription = await verifyTransaction(transaction);
+  if (!hasBillingAccess(subscription)) {
+    throw new Error("Google Play reports that this subscription is not active.");
+  }
+  return subscription;
 }
 
 export async function restoreGooglePlayPurchases(userId: string) {
@@ -87,8 +91,13 @@ export async function restoreGooglePlayPurchases(userId: string) {
   );
 
   let latest: BillingSubscription | null = null;
-  for (const purchase of eligible) latest = await verifyTransaction(purchase);
-  return latest;
+  for (const purchase of eligible) {
+    const verified = await verifyTransaction(purchase);
+    if (!latest || new Date(verified.current_period_end ?? 0).getTime() > new Date(latest.current_period_end ?? 0).getTime()) {
+      latest = verified;
+    }
+  }
+  return latest && hasBillingAccess(latest) ? latest : null;
 }
 
 export async function manageGooglePlaySubscriptions() {

@@ -19,7 +19,6 @@ import { useAuth } from "../contexts/AuthContext.tsx";
 import { SubscriptionStatus } from "../features/release-v1/components/SubscriptionStatus.tsx";
 import { TrustPanel } from "../features/release-v1/components/TrustPanel.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
-import type { BillingSubscription } from "../lib/billing.ts";
 import { getFunctionErrorMessage } from "../lib/functionError.ts";
 import { toast } from "sonner";
 import {
@@ -29,7 +28,7 @@ import {
 } from "../lib/googlePlayBilling.ts";
 
 const Account = () => {
-  const { user } = useAuth();
+  const { user, subscription, refreshSubscription } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -41,7 +40,6 @@ const Account = () => {
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [portalLoading, setPortalLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
-  const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
   const [feedbackNote, setFeedbackNote] = useState("");
 
   useEffect(() => {
@@ -51,12 +49,6 @@ const Account = () => {
     supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle()
       .then(({ data }) => setDisplayName(data?.display_name ?? ""));
 
-    supabase
-      .from("subscriptions")
-      .select("plan,status,current_period_end,provider")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => setSubscription((data as BillingSubscription | null) ?? null));
   }, [user]);
 
   const save = async () => {
@@ -164,10 +156,11 @@ const Account = () => {
     try {
       const restored = await restoreGooglePlayPurchases(user.id);
       if (!restored) {
+        await refreshSubscription();
         toast.message("No subscription found", { description: "Google Play found no active Proof subscription for this account." });
         return;
       }
-      setSubscription(restored);
+      await refreshSubscription();
       toast.success("Purchases restored", { description: "Your Premium access is up to date." });
     } catch (error) {
       toast.error("Could not restore purchases", {

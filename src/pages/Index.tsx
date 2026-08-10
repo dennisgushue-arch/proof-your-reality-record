@@ -155,7 +155,10 @@ const Index = () => (
     <section id="pricing" className="border-t border-border scroll-mt-24">
       <div className="container py-20 text-center max-w-2xl">
         <h2 className="text-3xl md:text-4xl">Personal evidence infrastructure.<br />Yours, when it matters.</h2>
-        <p className="mt-4 text-muted-foreground">Free includes 1 incident per month. Pro unlocks AI analysis, PDF export, and unlimited cases.</p>
+        <p className="mt-4 text-muted-foreground">
+          Free Plan: Create 1 case, record 1 incident per month, basic timeline, and view saved records.
+          Pro Subscription: Unlock unlimited cases, unlimited incidents, AI Incident Analysis, Entity Intelligence, Timeline Intelligence, professional PDF exports, unlimited evidence uploads, priority support, and future AI features.
+        </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link to="/auth?mode=signup">
             <Button size="lg" className="bg-accent text-white hover:bg-accent/90 font-semibold">

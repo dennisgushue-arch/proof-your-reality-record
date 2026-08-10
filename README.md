@@ -92,6 +92,31 @@ Behavior:
 - Users whose account creation date falls within 3 months of `APP_LAUNCH_DATE_ISO` automatically receive the early adopter coupon at checkout.
 - Subscription offers renew automatically; prepaid and top-up offers use one-time checkout and extend the access date shown in the account page.
 
+### Pricing
+
+#### Free Plan
+
+Keep enough functionality that people can experience the product.
+
+- Create 1 case
+- Record 1 incident per month
+- Basic timeline
+- View saved records
+
+#### Pro Subscription
+
+Unlock the features that make Proof truly valuable.
+
+- Unlimited cases
+- Unlimited incidents
+- AI Incident Analysis
+- Entity Intelligence
+- Timeline Intelligence
+- Professional PDF exports
+- Unlimited evidence uploads
+- Priority support
+- Future AI features
+
 ### Demo case
 
 The dashboard now includes a new advanced multi-evidence demo flow that seeds a case with:

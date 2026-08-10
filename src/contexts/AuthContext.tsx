@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
 import { hasBillingAccess, type BillingSubscription } from "@/lib/billing";
+import { isGooglePlayApp, restoreGooglePlayPurchases } from "@/lib/googlePlayBilling";
 
 type Ctx = {
   user: User | null;
@@ -11,6 +12,7 @@ type Ctx = {
   subscription: BillingSubscription | null;
   subscriptionLoading: boolean;
   hasPaidAccess: boolean;
+  refreshSubscription: () => Promise<BillingSubscription | null>;
   signOut: () => Promise<void>;
 };
 
@@ -21,6 +23,7 @@ const AuthCtx = createContext<Ctx>({
   subscription: null,
   subscriptionLoading: true,
   hasPaidAccess: false,
+  refreshSubscription: async () => null,
   signOut: async () => {},
 });
 
@@ -68,38 +71,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
+  const refreshSubscription = useCallback(async () => {
     if (!user?.id) {
       setSubscription(null);
       setSubscriptionLoading(false);
+      return null;
+    }
+
+    setSubscriptionLoading(true);
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select("plan,status,current_period_end,provider")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Failed to load subscription status", error);
+      setSubscription(null);
+      setSubscriptionLoading(false);
+      return null;
+    }
+
+    const nextSubscription = (data as BillingSubscription | null) ?? null;
+    setSubscription(nextSubscription);
+    setSubscriptionLoading(false);
+    return nextSubscription;
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      void refreshSubscription();
       return;
     }
 
     let cancelled = false;
-    setSubscriptionLoading(true);
+    const syncSubscription = async () => {
+      await refreshSubscription();
+      if (!isGooglePlayApp() || cancelled) return;
+      try {
+        await restoreGooglePlayPurchases(user.id);
+      } catch (error) {
+        console.warn("Google Play subscription sync did not complete", error);
+      }
+      if (!cancelled) await refreshSubscription();
+    };
 
-    supabase
-      .from("subscriptions")
-      .select("plan,status,current_period_end,provider")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          console.warn("Failed to load subscription status", error);
-          setSubscription(null);
-          setSubscriptionLoading(false);
-          return;
-        }
-
-        setSubscription((data as BillingSubscription | null) ?? null);
-        setSubscriptionLoading(false);
-      });
+    void syncSubscription();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") void syncSubscription();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [user?.id]);
+  }, [refreshSubscription, user?.id]);
 
   const signOut = async () => { await supabase.auth.signOut(); };
 
@@ -112,6 +139,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         subscription,
         subscriptionLoading,
         hasPaidAccess: hasBillingAccess(subscription),
+        refreshSubscription,
         signOut,
       }}
     >

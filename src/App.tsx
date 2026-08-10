@@ -54,18 +54,18 @@ const App = () => (
               <Route path="/ai" element={<ProtectedRoute><AIWorkspaceV2Page /></ProtectedRoute>} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/stress-mode" element={<ProtectedRoute><StressMode /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute><DashboardV2Page /></ProtectedRoute>} />
-              <Route path="/cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
-              <Route path="/record" element={<ProtectedRoute><RecordingV2Page /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute requireSubscription={false}><DashboardV2Page /></ProtectedRoute>} />
+              <Route path="/cases" element={<ProtectedRoute requireSubscription={false}><Cases /></ProtectedRoute>} />
+              <Route path="/record" element={<ProtectedRoute requireSubscription={false}><RecordingV2Page /></ProtectedRoute>} />
               <Route path="/account" element={<ProtectedRoute requireSubscription={false}><Account /></ProtectedRoute>} />
-              <Route path="/cases/:id" element={<ProtectedRoute><CaseDetailV2Page /></ProtectedRoute>} />
+              <Route path="/cases/:id" element={<ProtectedRoute requireSubscription={false}><CaseDetailV2Page /></ProtectedRoute>} />
               <Route path="/cases/:id/intelligence" element={<ProtectedRoute><TimelineIntelligence /></ProtectedRoute>} />
               <Route path="/cases/:id/entities" element={<ProtectedRoute><EntityIntelligence /></ProtectedRoute>} />
               <Route path="/cases/:id/replay" element={<ProtectedRoute><RealityReplay /></ProtectedRoute>} />
               <Route path="/cases/:id/prepare" element={<ProtectedRoute><PrepareInteraction /></ProtectedRoute>} />
-              <Route path="/cases/:id/incidents/new" element={<ProtectedRoute><IncidentNew /></ProtectedRoute>} />
+              <Route path="/cases/:id/incidents/new" element={<ProtectedRoute requireSubscription={false}><IncidentNew /></ProtectedRoute>} />
               <Route path="/cases/:id/export" element={<ProtectedRoute><ExportPreview /></ProtectedRoute>} />
-              <Route path="/incidents/:id" element={<ProtectedRoute><IncidentDetail /></ProtectedRoute>} />
+              <Route path="/incidents/:id" element={<ProtectedRoute requireSubscription={false}><IncidentDetail /></ProtectedRoute>} />
 
               <Route path="*" element={<NotFound />} />
               </Routes>

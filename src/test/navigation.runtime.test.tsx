@@ -8,6 +8,10 @@ const authState = {
   user: null as null | { id: string },
   loading: false,
   session: null,
+  subscription: null,
+  subscriptionLoading: false,
+  hasPaidAccess: false,
+  refreshSubscription: vi.fn(async () => null),
   signOut: vi.fn(async () => {}),
 };
 
@@ -19,6 +23,8 @@ describe("ProtectedRoute runtime behavior", () => {
   beforeEach(() => {
     authState.user = null;
     authState.loading = false;
+    authState.subscriptionLoading = false;
+    authState.hasPaidAccess = false;
   });
 
   it("redirects unauthenticated users to /auth", () => {
@@ -56,18 +62,46 @@ describe("ProtectedRoute runtime behavior", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Keeping your private records scoped to your account.");
   });
 
-  it("renders protected content for authenticated users", () => {
+  it("renders basic protected content for authenticated Free users", () => {
     authState.user = { id: "user-1" };
 
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
-        <ProtectedRoute>
+        <ProtectedRoute requireSubscription={false}>
           <div>Secret Area</div>
         </ProtectedRoute>
       </MemoryRouter>,
     );
 
     expect(screen.getByText("Secret Area")).toBeInTheDocument();
+  });
+
+  it("redirects Free users from Pro features to pricing", () => {
+    authState.user = { id: "user-1" };
+
+    render(
+      <MemoryRouter initialEntries={["/ai"]}>
+        <Routes>
+          <Route path="/ai" element={<ProtectedRoute><div>Pro AI</div></ProtectedRoute>} />
+          <Route path="/pricing" element={<div>Pricing Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Pricing Page")).toBeInTheDocument();
+  });
+
+  it("unlocks Pro features for paid users", () => {
+    authState.user = { id: "user-1" };
+    authState.hasPaidAccess = true;
+
+    render(
+      <MemoryRouter initialEntries={["/ai"]}>
+        <ProtectedRoute><div>Pro AI</div></ProtectedRoute>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Pro AI")).toBeInTheDocument();
   });
 });
 

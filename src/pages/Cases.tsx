@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { CATEGORIES } from "@/lib/categories";
 import { toast } from "sonner";
 import { ContextualLoading } from "@/components/ContextualLoading";
+import { canCreateCase, FREE_CASE_LIMIT_MESSAGE } from "@/lib/planLimits";
 
 type CaseRow = {
   id: string;
@@ -34,7 +35,7 @@ function relTime(iso: string) {
 }
 
 const Cases = () => {
-  const { user } = useAuth();
+  const { user, hasPaidAccess } = useAuth();
   const nav = useNavigate();
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [q, setQ] = useState("");
@@ -78,6 +79,10 @@ const Cases = () => {
 
   const createCase = async () => {
     if (!user || !title.trim()) return;
+    if (!canCreateCase(cases.length, hasPaidAccess)) {
+      toast.error("Free plan case limit reached", { description: FREE_CASE_LIMIT_MESSAGE });
+      return;
+    }
     setSaving(true);
     const { data, error } = await supabase
       .from("cases")

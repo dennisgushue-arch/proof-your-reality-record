@@ -17,6 +17,7 @@ import { buildEvidenceStoragePath, uploadEvidenceFile } from "@/lib/evidenceStor
 import { readLiveIncidentState } from "@/lib/liveIncident";
 import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents } from "@/lib/liveIncidentEvents";
 import { toast } from "sonner";
+import { canCreateIncident, currentUtcMonthRange, FREE_INCIDENT_LIMIT_MESSAGE } from "@/lib/planLimits";
 
 function localDT() {
   const d = new Date();
@@ -26,7 +27,7 @@ function localDT() {
 
 const IncidentNew = () => {
   const { id: caseId } = useParams<{ id: string }>();
-  const { user } = useAuth();
+  const { user, hasPaidAccess } = useAuth();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -121,6 +122,21 @@ const IncidentNew = () => {
 
     setSaving(true);
     try {
+      if (!hasPaidAccess) {
+        const { start, end } = currentUtcMonthRange();
+        const { count, error: countError } = await supabase
+          .from("incidents")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("created_at", start)
+          .lt("created_at", end);
+        if (countError) throw new Error("Your Free plan usage could not be verified. Please try again.");
+        if (!canCreateIncident(count ?? 0, false)) {
+          toast.error("Free plan monthly limit reached", { description: FREE_INCIDENT_LIMIT_MESSAGE });
+          return;
+        }
+      }
+
       const people = peopleStr.split(",").map((s) => s.trim()).filter(Boolean);
       const tags = tagsStr.split(",").map((s) => s.trim()).filter(Boolean);
 
