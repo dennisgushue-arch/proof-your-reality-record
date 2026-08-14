@@ -1,8 +1,7 @@
 export const GOOGLE_PLAY_PACKAGE_NAME = "com.proofyourreality.record";
 
 export const GOOGLE_PLAY_PRODUCTS = {
-  proof_premium_monthly: "premium",
-  proof_premium_annual: "premium",
+  proof01: "premium",
 } as const;
 
 export type GoogleSubscriptionState =

@@ -25,7 +25,6 @@ const freePlanFeatures = [
   "View saved records",
 ];
 
-const premiumOffers = BILLING_OFFERS.filter((offer) => offer.billingMode === "subscription");
 const POST_UPGRADE_REDIRECT_STORAGE_KEY = "proof.post-upgrade-redirect";
 
 function sanitizeRedirectTarget(value: string | null): string | null {
@@ -46,6 +45,9 @@ const Pricing = () => {
   const [loadingOfferId, setLoadingOfferId] = useState<string | null>(null);
   const [playProducts, setPlayProducts] = useState<GooglePlayProduct[]>([]);
   const usesGooglePlay = isGooglePlayApp();
+  const premiumOffers = BILLING_OFFERS.filter((offer) =>
+    offer.billingMode === "subscription" && (!usesGooglePlay || Boolean(offer.playProductId && offer.playBasePlanId))
+  );
   const redirectAfterUpgrade = queryRedirectAfterUpgrade ?? storedRedirectAfterUpgrade;
 
   useEffect(() => {

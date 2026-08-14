@@ -55,8 +55,8 @@ export const BILLING_OFFERS: BillingOffer[] = [
     accessDays: 30,
     trialDays: 7,
     allowPromotionCodes: true,
-    playProductId: "proof_premium_monthly",
-    playBasePlanId: "premium-monthly",
+    playProductId: "proof01",
+    playBasePlanId: "proof01",
   },
   {
     id: "premium-annual",
@@ -77,13 +77,19 @@ export const BILLING_OFFERS: BillingOffer[] = [
     accessDays: 365,
     trialDays: 7,
     allowPromotionCodes: true,
-    playProductId: "proof_premium_annual",
-    playBasePlanId: "premium-annual",
+    playProductId: "",
+    playBasePlanId: "",
   },
 ];
 
 export function getBillingOffer(id: string) {
   return BILLING_OFFERS.find((offer) => offer.id === id) ?? null;
+}
+
+export function getGooglePlayProductIds() {
+  return BILLING_OFFERS
+    .filter((offer) => Boolean(offer.playProductId) && Boolean(offer.playBasePlanId))
+    .map((offer) => offer.playProductId);
 }
 
 export function resolveBillingCheckoutMode(offer: BillingOffer): "subscription" | "payment" {
