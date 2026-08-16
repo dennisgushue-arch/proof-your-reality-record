@@ -218,7 +218,7 @@ const Pricing = () => {
         <div className="mt-10 grid gap-5 md:grid-cols-2 max-w-6xl mx-auto items-stretch">
           <section className="rounded-2xl border border-border bg-card p-5 sm:p-7 shadow-card h-full flex flex-col">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Free Plan</p>
-            <p className="mt-3 text-sm text-muted-foreground">Keep enough functionality that people can experience the product.</p>
+            <p className="mt-3 text-sm text-muted-foreground">Start building your first private record for free.</p>
             <ul className="mt-5 space-y-2.5 text-sm">
               {freePlanFeatures.map((feature) => (
                 <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
@@ -228,7 +228,7 @@ const Pricing = () => {
 
           <section className="rounded-2xl border border-accent/40 bg-accent/5 p-5 sm:p-7 shadow-card h-full flex flex-col">
             <p className="text-xs font-semibold uppercase tracking-wider text-accent">Pro Subscription</p>
-            <p className="mt-3 text-sm text-muted-foreground">Unlock the features that make Proof truly valuable.</p>
+            <p className="mt-3 text-sm text-muted-foreground">Unlock patterns, inconsistencies, connections, and professional reports across your complete record..</p>
             <ul className="mt-5 space-y-2.5 text-sm">
               {PRO_SUBSCRIPTION_FEATURES.map((feature) => (
                 <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
