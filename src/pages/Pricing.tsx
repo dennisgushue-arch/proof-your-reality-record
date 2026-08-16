@@ -190,9 +190,9 @@ const Pricing = () => {
         </div>
         {subscriptionRequired && (
           <div className="mt-6 max-w-3xl mx-auto rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
-            <p className="font-medium text-foreground">Subscription required to continue.</p>
+            <p className="font-medium text-foreground">Proof found insights that require Premium.</p>
             <p className="mt-1 text-muted-foreground">
-              This feature is part of Premium. Choose a plan to unlock full access.
+              Your saved records stay exactly where they are. Premium unlocks deeper analysis, patterns, possible statement differences, relationship intelligence, and professional exports across your record.
               {redirectAfterUpgrade ? " You can return to your previous page after subscribing." : ""}
             </p>
             {redirectAfterUpgrade && (
@@ -228,7 +228,7 @@ const Pricing = () => {
 
           <section className="rounded-2xl border border-accent/40 bg-accent/5 p-5 sm:p-7 shadow-card h-full flex flex-col">
             <p className="text-xs font-semibold uppercase tracking-wider text-accent">Pro Subscription</p>
-            <p className="mt-3 text-sm text-muted-foreground">Unlock patterns, inconsistencies, connections, and professional reports across your complete record..</p>
+            <p className="mt-3 text-sm text-muted-foreground">Unlock patterns, inconsistencies, connections, and professional reports across your complete record.</p>
             <ul className="mt-5 space-y-2.5 text-sm">
               {PRO_SUBSCRIPTION_FEATURES.map((feature) => (
                 <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
