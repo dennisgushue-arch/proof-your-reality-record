@@ -52,7 +52,6 @@ import type { PendingEvidenceItem, RecordingCaseRow, RecordingFormState, SavePro
 import {
   canCreateCase,
   canCreateIncident,
-  currentUtcMonthRange,
   FREE_CASE_LIMIT_MESSAGE,
   FREE_INCIDENT_LIMIT_MESSAGE,
 } from "@/lib/planLimits";
@@ -379,18 +378,15 @@ export const RecordingV2 = () => {
 
     try {
       if (!hasPaidAccess) {
-        const { start, end } = currentUtcMonthRange();
         const { count, error: countError } = await supabase
           .from("incidents")
           .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .gte("created_at", start)
-          .lt("created_at", end);
+          .eq("user_id", user.id);
         if (countError) throw new Error("Your Free plan usage could not be verified. Please try again.");
         if (!canCreateIncident(count ?? 0, false)) {
           updateState({ stage: "review" });
           setSaveProgress({ state: "failed", message: FREE_INCIDENT_LIMIT_MESSAGE });
-          toast.error("Free plan monthly limit reached", { description: FREE_INCIDENT_LIMIT_MESSAGE });
+          toast.error("Free plan limit reached", { description: FREE_INCIDENT_LIMIT_MESSAGE });
           return;
         }
       }

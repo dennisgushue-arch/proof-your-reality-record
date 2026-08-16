@@ -20,7 +20,7 @@ import {
 
 const freePlanFeatures = [
   "Create 1 case",
-  "Record 1 incident per month",
+  "Record 10 incidents total",
   "Basic timeline",
   "View saved records",
 ];

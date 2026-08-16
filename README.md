@@ -96,16 +96,16 @@ Behavior:
 
 #### Free Plan
 
-Keep enough functionality that people can experience the product.
+Start building your first private record for free.
 
 - Create 1 case
-- Record 1 incident per month
+- Record 10 incidents total
 - Basic timeline
 - View saved records
 
-#### Pro Subscription
+#### Pro Subscript
 
-Unlock the features that make Proof truly valuable.
+Unlock patterns, inconsistencies, connections, and professional reports across your complete record.
 
 - Unlimited cases
 - Unlimited incidents

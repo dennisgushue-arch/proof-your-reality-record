@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { describeBillingAccess, hasBillingAccess, type BillingSubscription } from "@/lib/billing";
-import { canCreateCase, canCreateIncident, currentUtcMonthRange } from "@/lib/planLimits";
+import { canCreateCase, canCreateIncident } from "@/lib/planLimits";
 
 function subscription(overrides: Partial<BillingSubscription> = {}): BillingSubscription {
   return {
@@ -34,19 +34,12 @@ describe("billing access lifecycle", () => {
 });
 
 describe("Free plan limits", () => {
-  it("allows one case and one monthly incident on Free, while Pro is unlimited", () => {
+  it("allows one case and ten total incidents on Free, while Pro is unlimited", () => {
     expect(canCreateCase(0, false)).toBe(true);
     expect(canCreateCase(1, false)).toBe(false);
     expect(canCreateCase(20, true)).toBe(true);
-    expect(canCreateIncident(0, false)).toBe(true);
-    expect(canCreateIncident(1, false)).toBe(false);
+    expect(canCreateIncident(9, false)).toBe(true);
+    expect(canCreateIncident(10, false)).toBe(false);
     expect(canCreateIncident(20, true)).toBe(true);
-  });
-
-  it("uses UTC calendar-month boundaries", () => {
-    expect(currentUtcMonthRange(new Date("2026-12-31T23:59:59Z"))).toEqual({
-      start: "2026-12-01T00:00:00.000Z",
-      end: "2027-01-01T00:00:00.000Z",
-    });
   });
 });
