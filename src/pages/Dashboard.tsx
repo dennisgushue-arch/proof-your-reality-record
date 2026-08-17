@@ -89,7 +89,7 @@ function getTimeOfDay() {
   return "Good evening";
 }
 
-const Dashboard = () => {
+const DashboardV2Content = () => {
   const { user, hasPaidAccess } = useAuth();
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
@@ -179,7 +179,7 @@ const Dashboard = () => {
       const tracked = await trackProductEvent("premium_prompt_seen", {
         incident_count: incidents.length,
         evidence_count: evidenceCount,
-        source: "dashboard",
+        source: "dashboard_v2",
       });
 
       if (!cancelled && tracked) {
@@ -831,4 +831,5 @@ function MetricCard({
   );
 }
 
-export default Dashboard;
+export const DashboardV2 = DashboardV2Content;
+export default DashboardV2Content;
