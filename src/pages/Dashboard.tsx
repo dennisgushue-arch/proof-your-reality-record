@@ -89,7 +89,7 @@ function getTimeOfDay() {
 }
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, hasPaidAccess } = useAuth();
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -445,6 +445,92 @@ const Dashboard = () => {
 
         {cases.length > 0 && (
           <>
+            {!hasPaidAccess && incidents.length >= 3 && (
+              <section className="relative mt-8 overflow-hidden rounded-[26px] border border-blue-400/20 bg-[#0d1420] p-5 shadow-[0_25px_80px_-45px_rgba(59,130,246,0.8)] sm:p-7">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl"
+                />
+
+                <div className="relative">
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-500/10 ring-1 ring-blue-400/20">
+                      <Sparkles className="h-5 w-5 text-blue-300" />
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300">
+                        Proof Intelligence
+                      </div>
+
+                      <h2 className="mt-1 text-2xl font-black tracking-[-0.035em] text-white">
+                        Proof found more in your record
+                      </h2>
+
+                      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
+                        Your record now contains enough information for deeper analysis.
+                        Unlock Premium to examine patterns, possible statement differences,
+                        missing documentation, and connections across your incidents.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                      <div className="text-2xl font-black text-white">
+                        {incidents.length}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Incidents reviewed
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                      <div className="text-2xl font-black text-white">
+                        {evidenceCount}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Evidence items connected
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-300/10 bg-amber-400/[0.035] p-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-amber-200">
+                        <Lock className="h-4 w-4" />
+                        Analysis locked
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Possible statement differences
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-blue-300/10 bg-blue-400/[0.035] p-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-blue-200">
+                        <Lock className="h-4 w-4" />
+                        Analysis locked
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Missing documentation & patterns
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Link to="/pricing?reason=subscription-required">
+                      <Button className="h-11 rounded-xl bg-blue-500 px-5 font-bold hover:bg-blue-400">
+                        Unlock My Full Record
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+
+                    <span className="text-xs text-slate-600">
+                      Your existing records stay exactly where they are.
+                    </span>
+                  </div>
+                </div>
+              </section>
+            )}
+
             <section className="mt-8 grid gap-4 sm:grid-cols-3">
               <MetricCard
                 icon={ShieldCheck}
