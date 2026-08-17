@@ -1,1247 +1,825 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, Siren, Settings, CreditCard, UserPlus, Bot, FolderPlus, ListPlus, Sparkles, ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  AlertTriangle,
+  ArrowRight,
+  BrainCircuit,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CircleDot,
+  Clock3,
+  FileText,
+  FolderKanban,
+  Lock,
+  MapPin,
+  Mic,
+  Play,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { CATEGORIES } from "@/lib/categories";
-import { relabelCapturedPhotos } from "@/lib/capturedPhotoNaming";
-import { LIVE_INCIDENT_EVENT, readLiveIncidentState, type LiveIncidentState } from "@/lib/liveIncident";
 import { seedDemoIfEmpty } from "@/lib/seedDemo";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { WhatsNewCard } from "@/components/WhatsNewCard";
-import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
-import { playUiTone, triggerHaptic } from "@/lib/feedback";
-import { hasBillingAccess, type BillingSubscription } from "../lib/billing.ts";
-import { toast } from "sonner";
-import { trackProductEvent } from "@/lib/productanalytics";
+import { calculateOverallCompletion } from "@/lib/evidenceCompletion";
+import { analyzeCase } from "@/lib/caseIntelligence";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 type CaseRow = {
   id: string;
   title: string;
   category: string;
-  created_at: string;
   updated_at: string;
-  incident_count?: number;
+  incidents?: { count: number }[] | null;
 };
 
-type IncidentIntelRow = {
+type IncidentRow = {
   id: string;
   case_id: string;
   title: string;
   occurred_at: string;
+  location: string | null;
+  people_involved: unknown;
   raw_narrative: string;
   neutral_summary: string | null;
   evidence_quality_score: number | null;
-  people_involved: unknown;
-  tags: unknown;
   ai_analysis: unknown;
+  evidence_items?: {
+    type: string;
+    filename: string | null;
+    storage_path: string | null;
+  }[] | null;
 };
 
-type BackendUsed = "live-llm" | "fallback" | "mixed" | "unknown";
-
-type ThreatFeedItem = {
-  title: string;
-  timeAgo: string;
-  tone: "danger" | "warning" | "success";
-  aiDerived?: boolean;
-  backendUsed?: BackendUsed;
-};
-
-type ReminderRow = {
-  id: string;
-  case_id: string;
-  title: string;
-  due_at: string | null;
-  completed: boolean;
-};
-
-type SubscriptionRow = {
-  plan: string;
-  status: string;
-  current_period_end: string | null;
-};
-
-type PatternInsight = {
-  title: string;
-  headline: string;
-  body: string;
-};
-
-function useAnimatedNumber(target: number, duration = 900) {
-  const [value, setValue] = useState(target);
-  const previousRef = useRef(target);
-
-  useEffect(() => {
-    const from = previousRef.current;
-    if (from === target) {
-      setValue(target);
-      return;
-    }
-
-    let frame = 0;
-    let startTime: number | null = null;
-
-    const tick = (timestamp: number) => {
-      if (startTime === null) startTime = timestamp;
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.round(from + (target - from) * eased));
-
-      if (progress < 1) {
-        frame = window.requestAnimationFrame(tick);
-      } else {
-        previousRef.current = target;
-      }
-    };
-
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [target, duration]);
-
-  return value;
+function relTime(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const minutes = Math.max(1, Math.round(diff / 60000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
 
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
+function readContradictions(ai: unknown): string[] {
+  if (!ai || typeof ai !== "object" || Array.isArray(ai)) return [];
+  const contradictions = (ai as { contradictions?: unknown }).contradictions;
+  return Array.isArray(contradictions)
+    ? contradictions.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function isMissingFields(incident: IncidentRow) {
+  const people = Array.isArray(incident.people_involved) ? incident.people_involved : [];
+  useEffect(() => {
+    if (!user || hasPaidAccess || incidents.length < 3) return;
+
+    const storageKey = `proof.premium-prompt-seen.${user.id}`;
+
+    if (window.localStorage.getItem(storageKey)) return;
+
+    window.localStorage.setItem(storageKey, "1");
+
+    void trackProductEvent("premium_prompt_seen", {
+      incident_count: incidents.length,
+      evidence_count: evidenceCount,
+      source: "dashboard",
+    });
+  }, [user, hasPaidAccess, incidents.length, evidenceCount]);
+
+  return (
+    !incident.raw_narrative?.trim() ||
+    !incident.location?.trim() ||
+    people.length === 0
+  );
+}
+
+function getTimeOfDay() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
   return "Good evening";
 }
 
-function caseContradictions(incidentCount = 0) {
-  return Math.max(0, Math.min(4, Math.floor(incidentCount / 3)));
-}
-
-function caseMissingEvidenceWarnings(incidentCount = 0) {
-  if (incidentCount >= 8) return 2;
-  if (incidentCount >= 4) return 1;
-  return 0;
-}
-
-function evidenceScore(incidentCount = 0) {
-  const contradictions = caseContradictions(incidentCount);
-  return Math.max(55, Math.min(97, 72 + incidentCount * 4 - contradictions * 6));
-}
-
-function clampScore(score: number) {
-  return Math.round(Math.max(40, Math.min(98, score)));
-}
-
-function caseCategoryLabel(category: string) {
-  if (category === "Contractor") return "Contractor Dispute";
-  return category;
-}
-
-function liveIncidentAgeLabel(startedAt?: string) {
-  if (!startedAt) return "Recording timeline events…";
-  const diffMinutes = Math.max(1, Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000));
-  return `Recording timeline events · started ${diffMinutes} min ago`;
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
-}
-
-function readAnalysis(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function incidentContradictionCount(incident: IncidentIntelRow) {
-  const analysis = readAnalysis(incident.ai_analysis);
-  return asStringArray(analysis?.contradictions).length;
-}
-
-function incidentMissingEvidenceCount(incident: IncidentIntelRow) {
-  const analysis = readAnalysis(incident.ai_analysis);
-  return asStringArray(analysis?.missing_evidence).length;
-}
-
-function incidentBackendUsed(incident: IncidentIntelRow): BackendUsed {
-  const analysis = readAnalysis(incident.ai_analysis);
-  const marker = analysis?._backend_used;
-  if (marker === "live-llm" || marker === "fallback") return marker;
-  return "unknown";
-}
-
-function aggregateBackendUsed(incidents: IncidentIntelRow[]): BackendUsed {
-  if (!incidents.length) return "unknown";
-  let liveCount = 0;
-  let fallbackCount = 0;
-
-  incidents.forEach((incident) => {
-    const backend = incidentBackendUsed(incident);
-    if (backend === "live-llm") liveCount += 1;
-    if (backend === "fallback") fallbackCount += 1;
-  });
-
-  if (liveCount > 0 && fallbackCount > 0) return "mixed";
-  if (liveCount > 0) return "live-llm";
-  if (fallbackCount > 0) return "fallback";
-  return "unknown";
-}
-
-function backendUsedDisplay(backend: BackendUsed) {
-  if (backend === "live-llm") {
-    return {
-      label: "Live LLM",
-      color: "#2ECC71",
-      borderColor: "rgba(46, 204, 113, 0.45)",
-      background: "rgba(46, 204, 113, 0.12)",
-    };
-  }
-  if (backend === "fallback") {
-    return {
-      label: "Fallback",
-      color: "#F2C94C",
-      borderColor: "rgba(242, 201, 76, 0.45)",
-      background: "rgba(242, 201, 76, 0.12)",
-    };
-  }
-  if (backend === "mixed") {
-    return {
-      label: "Mixed Sources",
-      color: "#4F8CFF",
-      borderColor: "rgba(79, 140, 255, 0.45)",
-      background: "rgba(79, 140, 255, 0.12)",
-    };
-  }
-  return {
-    label: "Source Unknown",
-    color: "#94A3B8",
-    borderColor: "rgba(148, 163, 184, 0.35)",
-    background: "rgba(148, 163, 184, 0.10)",
-  };
-}
-
-function incidentAIConfidenceWeight(incident: IncidentIntelRow) {
-  const analysis = readAnalysis(incident.ai_analysis);
-  if (!analysis) return 0.75;
-
-  const timelineCount = asStringArray(analysis.timeline).length;
-  const keyClaimsCount = asStringArray(analysis.key_claims).length;
-  const followUpsCount = asStringArray(analysis.follow_ups).length;
-  const contradictionsCount = asStringArray(analysis.contradictions).length;
-  const missingEvidenceCount = asStringArray(analysis.missing_evidence).length;
-  const hasNeutralSummary = typeof incident.neutral_summary === "string" && incident.neutral_summary.trim().length > 0;
-  const narrativeLength = incident.raw_narrative.trim().length;
-
-  let weight = 0.72;
-  if (hasNeutralSummary) weight += 0.12;
-  weight += Math.min(0.2, (timelineCount + keyClaimsCount + followUpsCount) * 0.02);
-  weight += Math.min(0.08, contradictionsCount * 0.02);
-  weight += Math.min(0.06, missingEvidenceCount * 0.015);
-  if (narrativeLength > 180) weight += 0.07;
-
-  return Math.max(0.7, Math.min(1.25, weight));
-}
-
-function evidenceScoreFromIncidents(incidents: IncidentIntelRow[], fallbackIncidentCount = 0) {
-  if (!incidents.length) return evidenceScore(fallbackIncidentCount);
-
-  const scored = incidents.filter((incident) => typeof incident.evidence_quality_score === "number");
-  if (!scored.length) {
-    const contradictions = incidents.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0);
-    const missingEvidence = incidents.reduce((sum, incident) => sum + incidentMissingEvidenceCount(incident), 0);
-    const fallback = evidenceScore(Math.max(fallbackIncidentCount, incidents.length));
-    return clampScore(fallback - Math.min(10, contradictions * 2) - Math.min(8, Math.round(missingEvidence * 1.4)));
-  }
-
-  let weightedScoreTotal = 0;
-  let weightTotal = 0;
-  scored.forEach((incident) => {
-    const weight = incidentAIConfidenceWeight(incident);
-    weightedScoreTotal += (incident.evidence_quality_score ?? 0) * weight;
-    weightTotal += weight;
-  });
-
-  const weightedAverage = weightTotal > 0 ? weightedScoreTotal / weightTotal : evidenceScore(fallbackIncidentCount);
-  const contradictions = incidents.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0);
-  const missingEvidence = incidents.reduce((sum, incident) => sum + incidentMissingEvidenceCount(incident), 0);
-  const adjusted = weightedAverage - Math.min(12, contradictions * 2) - Math.min(10, Math.round(missingEvidence * 1.4));
-
-  return clampScore(adjusted);
-}
-
-function timeAgoLabel(dateStr: string) {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
-  if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-  const diffDays = Math.round(diffHours / 24);
-  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-}
-
-function buildThreatFeed(incidents: IncidentIntelRow[]): ThreatFeedItem[] {
-  if (!incidents.length) {
-    return [{ title: "No incidents logged yet", timeAgo: "Awaiting case activity", tone: "warning", aiDerived: false }];
-  }
-
-  const byOccurredAtDesc = [...incidents].sort(
-    (a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime(),
-  );
-  const latest = byOccurredAtDesc[0];
-  const items: ThreatFeedItem[] = [
-    {
-      title: `${latest.title} logged to timeline`,
-      timeAgo: timeAgoLabel(latest.occurred_at),
-      tone: "success",
-      aiDerived: false,
-    },
-  ];
-
-  const contradictionIncident = byOccurredAtDesc.find((incident) => incidentContradictionCount(incident) > 0);
-  if (contradictionIncident) {
-    const contradictionCount = incidentContradictionCount(contradictionIncident);
-    items.push({
-      title: `${contradictionCount} contradiction${contradictionCount === 1 ? "" : "s"} flagged in ${contradictionIncident.title}`,
-      timeAgo: timeAgoLabel(contradictionIncident.occurred_at),
-      tone: "danger",
-      aiDerived: true,
-      backendUsed: incidentBackendUsed(contradictionIncident),
-    });
-  }
-
-  const missingEvidenceIncident = byOccurredAtDesc.find((incident) => incidentMissingEvidenceCount(incident) > 0);
-  if (missingEvidenceIncident) {
-    const missingCount = incidentMissingEvidenceCount(missingEvidenceIncident);
-    items.push({
-      title: `${missingCount} missing evidence request${missingCount === 1 ? "" : "s"} in ${missingEvidenceIncident.title}`,
-      timeAgo: timeAgoLabel(missingEvidenceIncident.occurred_at),
-      tone: "warning",
-      aiDerived: true,
-      backendUsed: incidentBackendUsed(missingEvidenceIncident),
-    });
-  }
-
-  const lowScoreIncident = byOccurredAtDesc.find(
-    (incident) => typeof incident.evidence_quality_score === "number" && incident.evidence_quality_score < 50,
-  );
-  if (lowScoreIncident) {
-    items.push({
-      title: `${lowScoreIncident.title} scored ${lowScoreIncident.evidence_quality_score}/100 evidence quality`,
-      timeAgo: timeAgoLabel(lowScoreIncident.occurred_at),
-      tone: "warning",
-      aiDerived: true,
-      backendUsed: incidentBackendUsed(lowScoreIncident),
-    });
-  } else {
-    const highScoreIncident = byOccurredAtDesc.find(
-      (incident) => typeof incident.evidence_quality_score === "number" && incident.evidence_quality_score >= 75,
-    );
-    if (highScoreIncident) {
-      items.push({
-        title: `${highScoreIncident.title} reached strong evidence quality`,
-        timeAgo: timeAgoLabel(highScoreIncident.occurred_at),
-        tone: "success",
-        aiDerived: true,
-        backendUsed: incidentBackendUsed(highScoreIncident),
-      });
-    }
-  }
-
-  return items.slice(0, 4);
-}
-
-function contradictionStoryLines(incidents: IncidentIntelRow[]) {
-  const contradictionIncidents = incidents.filter((incident) => incidentContradictionCount(incident) > 0);
-  if (!contradictionIncidents.length) return null;
-
-  const ordered = [...contradictionIncidents].sort(
-    (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
-  );
-
-  const first = ordered[0];
-  const last = ordered[ordered.length - 1];
-  const firstDate = new Date(first.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  const lastDate = new Date(last.occurred_at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-  return [
-    `${firstDate}: “${first.title}”`,
-    `${lastDate}: “${last.title}”`,
-  ];
-}
-
-function buildPatternInsight(caseRow: CaseRow, incidents: IncidentIntelRow[]): PatternInsight {
-  if (!incidents.length) {
-    return {
-      title: "Behavior Pattern Detection",
-      headline: "No incident-level signal yet",
-      body: `Add incidents to ${caseRow.title} to unlock recurring phrase, contradiction, and cadence analysis.`,
-    };
-  }
-
-  const contradictionTotal = incidents.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0);
-  if (contradictionTotal >= 2) {
-    const incidentHits = incidents.filter((incident) => incidentContradictionCount(incident) > 0).length;
-    return {
-      title: "Behavior Pattern Detected",
-      headline: "Recurring contradiction cluster",
-      body: `${contradictionTotal} contradiction flags across ${incidentHits} incident${incidentHits === 1 ? "" : "s"} indicate a repeated conflict pattern.`,
-    };
-  }
-
-  const tagCounts = new Map<string, number>();
-  const peopleCounts = new Map<string, number>();
-
-  incidents.forEach((incident) => {
-    asStringArray(incident.tags).forEach((tag) => {
-      const key = tag.trim().toLowerCase();
-      if (!key) return;
-      tagCounts.set(key, (tagCounts.get(key) ?? 0) + 1);
-    });
-    asStringArray(incident.people_involved).forEach((person) => {
-      const key = person.trim();
-      if (!key) return;
-      peopleCounts.set(key, (peopleCounts.get(key) ?? 0) + 1);
-    });
-  });
-
-  const topTag = [...tagCounts.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (topTag && topTag[1] >= 2) {
-    return {
-      title: "Behavior Pattern Detected",
-      headline: `Repeated tag: ${topTag[0]}`,
-      body: `Tag appears in ${topTag[1]} incidents, suggesting a persistent issue stream to prioritize.`,
-    };
-  }
-
-  const topPerson = [...peopleCounts.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (topPerson && topPerson[1] >= 2) {
-    return {
-      title: "Behavior Pattern Detected",
-      headline: `${topPerson[0]} appears repeatedly`,
-      body: `${topPerson[0]} is involved in ${topPerson[1]} incidents, indicating recurring interpersonal exposure.`,
-    };
-  }
-
-  const byOccurredAtAsc = [...incidents].sort(
-    (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
-  );
-
-  if (byOccurredAtAsc.length >= 3) {
-    const first = new Date(byOccurredAtAsc[0].occurred_at).getTime();
-    const last = new Date(byOccurredAtAsc[byOccurredAtAsc.length - 1].occurred_at).getTime();
-    const spanDays = Math.max(1, Math.round((last - first) / (1000 * 60 * 60 * 24)));
-    const cadence = Math.max(1, Math.round(byOccurredAtAsc.length / spanDays));
-
-    return {
-      title: "Behavior Pattern Detected",
-      headline: "Recurring incident cadence",
-      body: `${byOccurredAtAsc.length} incidents over ${spanDays} days (${cadence}/day) point to sustained pressure rather than isolated events.`,
-    };
-  }
-
-  return {
-    title: "Behavior Pattern Detected",
-    headline: "Evidence stream is emerging",
-    body: `${incidents.length} incidents captured. Continue logging detail to improve pattern confidence and trend detection.`,
-  };
-}
-
-const ANALYSIS_LOADING_LINES = [
-  "Analyzing timeline…",
-  "Detecting contradictions…",
-  "Reconstructing incident…",
-] as const;
-
 const Dashboard = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const { user, hasPaidAccess } = useAuth();
   const [cases, setCases] = useState<CaseRow[]>([]);
-  const [incidentsByCase, setIncidentsByCase] = useState<Record<string, IncidentIntelRow[]>>({});
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
-  const [liveIncidentState, setLiveIncidentState] = useState<LiveIncidentState | null>(() => readLiveIncidentState());
+  const [incidents, setIncidents] = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingLineIndex, setLoadingLineIndex] = useState(0);
-  const [seedingDemo, setSeedingDemo] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<string>("Other");
-  const [description, setDescription] = useState("");
-  const [capturedPhotos, setCapturedPhotos] = useState<File[]>([]);
-  const [upcomingReminder, setUpcomingReminder] = useState<ReminderRow | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
 
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const intelligencePanelRef = useRef<HTMLDivElement | null>(null);
-  const contradictionAlertPlayedForCase = useRef<string | null>(null);
-
-  const { isDictating, language, setLanguage, toggle: toggleDictation } = useDictation({
-    onTranscript: (transcript) => {
-      setDescription((prev) => (prev.trim() ? `${prev.trimEnd()} ${transcript}` : transcript));
-    },
-    onError: (message) => toast.error(message),
-  });
-
-  const load = async () => {
+  useEffect(() => {
     if (!user) return;
-    setLoading(true);
-
-    const [{ data }, { data: reminderData }, { data: subscriptionData }] = await Promise.all([
-      supabase
-        .from("cases")
-        .select("id, title, category, created_at, updated_at, incidents(count)")
-        .order("updated_at", { ascending: false }),
-      supabase
-        .from("reminders")
-        .select("id, case_id, title, due_at, completed")
-        .eq("user_id", user.id)
-        .eq("completed", false)
-        .not("due_at", "is", null)
-        .gte("due_at", new Date().toISOString())
-        .order("due_at", { ascending: true })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("subscriptions")
-        .select("plan, status, current_period_end")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-    ]);
-
-    type CaseWithIncidentCount = CaseRow & { incidents?: Array<{ count: number }> | null };
-
-    setCases(
-      ((data as CaseWithIncidentCount[] | null) ?? []).map((c) => ({
-        ...c,
-        incident_count: c.incidents?.[0]?.count ?? 0,
-      })),
-    );
-    setUpcomingReminder((reminderData as ReminderRow | null) ?? null);
-    setSubscription((subscriptionData as SubscriptionRow | null) ?? null);
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line
-  }, [user]);
-
-  useEffect(() => {
-    if (!loading) {
-      setLoadingLineIndex(0);
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setLoadingLineIndex((prev) => (prev + 1) % ANALYSIS_LOADING_LINES.length);
-    }, 1200);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [loading]);
-
-  useEffect(() => {
-    if (!cases.length) {
-      setSelectedCaseId(null);
-      return;
-    }
-
-    setSelectedCaseId((prev) => (prev && cases.some((c) => c.id === prev) ? prev : cases[0].id));
-  }, [cases]);
-
-  useEffect(() => {
-    const syncLiveIncident = () => setLiveIncidentState(readLiveIncidentState());
-
-    syncLiveIncident();
-    window.addEventListener("storage", syncLiveIncident);
-    window.addEventListener(LIVE_INCIDENT_EVENT, syncLiveIncident as EventListener);
-
-    return () => {
-      window.removeEventListener("storage", syncLiveIncident);
-      window.removeEventListener(LIVE_INCIDENT_EVENT, syncLiveIncident as EventListener);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!cases.length) return;
-
-    const missingCaseIds = cases
-      .map((c) => c.id)
-      .filter((caseId) => !incidentsByCase[caseId]);
-
-    if (!missingCaseIds.length) return;
 
     let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("incidents")
-        .select("id, case_id, title, occurred_at, raw_narrative, neutral_summary, evidence_quality_score, people_involved, tags, ai_analysis")
-        .in("case_id", missingCaseIds)
-        .order("occurred_at", { ascending: false })
-        .limit(1000);
 
+    (async () => {
+      setLoading(true);
+      await seedDemoIfEmpty(user.id).catch(() => undefined);
+
+      const { data: caseData } = await supabase
+        .from("cases")
+        .select("id, title, category, updated_at, incidents(count)")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+
+      const caseRows = (caseData as CaseRow[] | null) ?? [];
       if (cancelled) return;
-      if (error) {
-        toast.error(error.message);
-        return;
+
+      setCases(caseRows);
+
+      const caseIds = caseRows.map((item) => item.id);
+      if (caseIds.length > 0) {
+        const { data: incidentData } = await supabase
+          .from("incidents")
+          .select(
+            "id, case_id, title, occurred_at, location, people_involved, raw_narrative, neutral_summary, evidence_quality_score, ai_analysis, evidence_items(type, filename, storage_path)",
+          )
+          .in("case_id", caseIds)
+          .order("occurred_at", { ascending: false })
+          .limit(120);
+
+        if (!cancelled) {
+          setIncidents((incidentData as IncidentRow[] | null) ?? []);
+        }
+      } else {
+        setIncidents([]);
       }
 
-      const grouped: Record<string, IncidentIntelRow[]> = {};
-      missingCaseIds.forEach((caseId) => {
-        grouped[caseId] = [];
-      });
-
-      ((data as IncidentIntelRow[] | null) ?? []).forEach((incident) => {
-        if (!grouped[incident.case_id]) grouped[incident.case_id] = [];
-        grouped[incident.case_id].push(incident);
-      });
-
-      setIncidentsByCase((prev) => ({
-        ...prev,
-        ...grouped,
-      }));
+      if (!cancelled) setLoading(false);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [cases, incidentsByCase]);
+  }, [user]);
 
-  const captureCasePhoto = (incoming: File[]) => {
-    if (!incoming.length) return;
-    const renamed = relabelCapturedPhotos(incoming, {
-      timestamp: new Date(),
-      location: "case-intake",
-      prefix: "case-photo",
-    });
-    setCapturedPhotos((prev) => [...prev, ...renamed]);
-  };
-
-  const removeCapturedPhoto = (index: number) => {
-    setCapturedPhotos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const create = async () => {
-    if (!title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
-
-    const capturedPhotoLines = capturedPhotos.map((f) => `- ${f.name}`);
-    const descriptionWithPhotos = [
-      description.trim(),
-      capturedPhotoLines.length ? `Captured photos:\n${capturedPhotoLines.join("\n")}` : "",
-    ].filter(Boolean).join("\n\n");
-
-    const { error } = await supabase.from("cases").insert({
-      user_id: user!.id,
-      title: title.trim(),
-      category,
-      description: descriptionWithPhotos || null,
-    });
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("Case created");
-
-    if (cases.length === 0) {
-      void trackProductEvent("first_case_created", {
-        category,
-      });
-    }
-
-    setOpen(false);
-    setTitle("");
-    setCategory("Other");
-    setDescription("");
-    setCapturedPhotos([]);
-    load();
-  };
-
-  const firstName = user?.email?.split("@")[0]?.split(".")?.[0] ?? "";
-  const displayName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "";
-  const totalIncidents = cases.reduce((sum, c) => sum + (c.incident_count ?? 0), 0);
-  const totalContradictions = cases.reduce((sum, c) => {
-    const incidents = incidentsByCase[c.id];
-    if (!incidents) return sum + caseContradictions(c.incident_count ?? 0);
-    return sum + incidents.reduce((inner, incident) => inner + incidentContradictionCount(incident), 0);
-  }, 0);
-  const totalMissingWarnings = cases.reduce((sum, c) => {
-    const incidents = incidentsByCase[c.id];
-    if (!incidents) return sum + caseMissingEvidenceWarnings(c.incident_count ?? 0);
-    return sum + incidents.reduce((inner, incident) => inner + incidentMissingEvidenceCount(incident), 0);
-  }, 0);
-  const averageEvidenceStrength = cases.length
-    ? Math.round(cases.reduce((sum, c) => {
-        const incidents = incidentsByCase[c.id];
-        if (incidents === undefined) return sum + evidenceScore(c.incident_count ?? 0);
-        return sum + evidenceScoreFromIncidents(incidents, c.incident_count ?? 0);
-      }, 0) / cases.length)
-    : 82;
-
-  const vaultIncidentCount = totalIncidents;
-  const vaultContradictionCount = totalContradictions;
-  const vaultMissingWarnings = totalMissingWarnings;
-
-  const displayCases = cases;
-
-  const selectedCase = displayCases.find((c) => c.id === selectedCaseId) ?? null;
-  const selectedCaseIncidents = selectedCase?.incident_count ?? 0;
-  const selectedCaseIncidentRows = useMemo(
-    () => (selectedCase ? (incidentsByCase[selectedCase.id] ?? []) : []),
-    [selectedCase, incidentsByCase],
+  const completion = useMemo(
+    () => calculateOverallCompletion(incidents),
+    [incidents],
   );
-  const activeIncidentsDisplay = Math.max(0, selectedCaseIncidentRows.length || selectedCaseIncidents || 0);
-  const selectedCaseContradictions = selectedCaseIncidentRows.length
-    ? selectedCaseIncidentRows.reduce((sum, incident) => sum + incidentContradictionCount(incident), 0)
-    : caseContradictions(selectedCaseIncidents);
-  const selectedCaseBackendUsed = aggregateBackendUsed(selectedCaseIncidentRows);
-  const selectedCaseBackendDisplay = backendUsedDisplay(selectedCaseBackendUsed);
-  const storyShiftLines = contradictionStoryLines(selectedCaseIncidentRows);
-  const firstContradictionIncidentId = selectedCaseIncidentRows.find((incident) => incidentContradictionCount(incident) > 0)?.id ?? null;
 
-  const selectedCaseFeed = selectedCase ? buildThreatFeed(selectedCaseIncidentRows) : [];
-  const selectedCasePattern = selectedCase ? buildPatternInsight(selectedCase, selectedCaseIncidentRows) : null;
-  const liveSessionId = liveIncidentState?.sessionId ?? null;
-  const hasPrepareAccess = hasBillingAccess(subscription as BillingSubscription | null);
-  const nextInteractionCase = upcomingReminder
-    ? displayCases.find((c) => c.id === upcomingReminder.case_id) ?? selectedCase
-    : selectedCase;
-  const resumeLiveLink = liveSessionId
-    ? `/stress-mode?liveSession=${encodeURIComponent(liveSessionId)}${selectedCase ? `&caseId=${encodeURIComponent(selectedCase.id)}` : ""}`
-    : "/stress-mode";
-  const focusCaseId = selectedCase?.id ?? displayCases[0]?.id ?? null;
+  const intelligence = useMemo(
+    () => analyzeCase(incidents),
+    [incidents],
+  );
 
-  const animatedIncidentCount = useAnimatedNumber(vaultIncidentCount);
-  const animatedContradictionCount = useAnimatedNumber(vaultContradictionCount);
-  const animatedMissingWarnings = useAnimatedNumber(vaultMissingWarnings);
-  const animatedAverageStrength = useAnimatedNumber(averageEvidenceStrength);
+  const topCase = cases[0];
+  const topCaseIncidents = topCase
+    ? incidents
+        .filter((incident) => incident.case_id === topCase.id)
+        .sort(
+          (a, b) =>
+            new Date(a.occurred_at).getTime() -
+            new Date(b.occurred_at).getTime(),
+        )
+    : [];
 
-  useEffect(() => {
-    if (!selectedCase || selectedCaseContradictions < 1) return;
-    if (contradictionAlertPlayedForCase.current === selectedCase.id) return;
+  const evidenceCount = incidents.reduce(
+    (sum, incident) => sum + (incident.evidence_items?.length ?? 0),
+    0,
+  );
 
-    contradictionAlertPlayedForCase.current = selectedCase.id;
-    playUiTone("alert");
-    triggerHaptic("alert");
-  }, [selectedCase, selectedCaseContradictions]);
-  
-  const focusCase = (caseId: string) => {
-    setSelectedCaseId(caseId);
-    playUiTone("click");
-    triggerHaptic("light");
+  const contradictionCount = incidents.reduce(
+    (sum, incident) => sum + readContradictions(incident.ai_analysis).length,
+    0,
+  );
 
-    if (typeof window !== "undefined" && window.innerWidth < 1280) {
-      requestAnimationFrame(() => {
-        intelligencePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    }
-  };
+  const missingIncident = incidents.find(isMissingFields);
 
-  const exploreDemoCase = async () => {
-    if (!user) return;
-    setSeedingDemo(true);
-    playUiTone("intelligence");
-
-    const demoCaseId = await seedDemoIfEmpty(user.id);
-    await load();
-
-    setSeedingDemo(false);
-    triggerHaptic("success");
-
-    if (demoCaseId) {
-      toast.success("Demo case ready", {
-        description: "Opening AI intelligence view now. Explore contradiction detection and playback next.",
-      });
-      navigate(`/cases/${demoCaseId}/intelligence?focus=ai`);
-      return;
+  const nextAction = useMemo(() => {
+    if (missingIncident) {
+      return {
+        eyebrow: "Highest-impact action",
+        title: "Complete missing incident details",
+        description:
+          "Add the missing people, location, or narrative details to strengthen your documentation.",
+        href: `/incidents/${missingIncident.id}`,
+        button: "Complete incident",
+        improvement: "+8%",
+      };
     }
 
-    toast.error("Unable to load demo case right now.");
-  };
+    const weakIncident = incidents.find(
+      (incident) => (incident.evidence_quality_score ?? 100) < 60,
+    );
+
+    if (weakIncident) {
+      return {
+        eyebrow: "Evidence opportunity",
+        title: "Strengthen a weak incident",
+        description:
+          "Add supporting evidence or context to improve the reliability of this record.",
+        href: `/incidents/${weakIncident.id}`,
+        button: "Review incident",
+        improvement: "+6%",
+      };
+    }
+
+    if (topCase) {
+      return {
+        eyebrow: "Recommended next step",
+        title: "Review your active case",
+        description:
+          "Open your latest case to review findings, missing documentation, and timeline intelligence.",
+        href: `/cases/${topCase.id}`,
+        button: "Continue case",
+        improvement: "+4%",
+      };
+    }
+
+    return {
+      eyebrow: "Start here",
+      title: "Create your first Reality Record",
+      description:
+        "Capture what happened, attach evidence, and let Proof organize the timeline.",
+      href: "/record",
+      button: "Start recording",
+      improvement: "New",
+    };
+  }, [incidents, missingIncident, topCase]);
+
+  const greetingName =
+    user?.user_metadata?.full_name?.split(" ")[0] ||
+    user?.email?.split("@")[0] ||
+    "there";
+
+  const statusTone =
+    intelligence.evidenceStrength >= 80
+      ? "Strong"
+      : intelligence.evidenceStrength >= 60
+        ? "Developing"
+        : "Needs attention";
 
   return (
     <AppLayout>
-      <main className="px-6 max-[420px]:px-3 lg:px-10 py-10 max-[420px]:py-7 pb-28 lg:pb-10 ios-safe-page-pad" style={{ background: "#050B16" }}>
-        {liveIncidentState?.active && (
-          <div className="sticky ios-safe-sticky-top lg:top-4 z-20 mb-6 rounded-2xl border px-4 py-3 intelligence-glass live-banner-glow" style={{ borderColor: "rgba(231, 76, 60, 0.35)" }}>
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex h-3 w-3 rounded-full bg-[#E74C3C] indicator-pulse" />
-              <span className="font-semibold tracking-[0.08em] text-[#E74C3C]">LIVE INCIDENT ACTIVE</span>
-              <span className="text-sm text-muted-foreground">{liveIncidentAgeLabel(liveIncidentState.startedAt)}</span>
+      <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+        <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-blue-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,0.9)]" />
+              Intelligence briefing
             </div>
-          </div>
-        )}
-        {!loading && cases.length === 0 ? (
-          <section
-            className="mx-auto max-w-5xl overflow-hidden rounded-[30px] border p-6 md:p-10 intelligence-glass"
-            style={{
-              borderColor: "rgba(79, 140, 255, 0.45)",
-              background: "linear-gradient(145deg, rgba(14, 26, 49, 0.96), rgba(8, 16, 30, 0.96))",
-            }}
-          >
-            <div className="mx-auto max-w-3xl text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[#4F8CFF]/30 bg-[#4F8CFF]/10">
-                <ShieldCheck className="h-7 w-7 text-[#8EB6FF]" />
-              </div>
-              <p className="mt-5 text-xs font-bold uppercase tracking-[0.16em] text-[#8EB6FF]">Your private record starts here</p>
-              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-balance md:text-5xl">
-                Start with one situation you want to keep straight.
-              </h1>
-              <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
-                Create a private case for something happening in your life—a custody issue, workplace problem,
-                contractor dispute, neighbor conflict, or anything else you may need to remember accurately later.
-              </p>
-            </div>
-
-            <div className="mt-9 grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border p-5" style={{ borderColor: "#243045", background: "#050B16" }}>
-                <FolderPlus className="h-5 w-5 text-[#4F8CFF]" />
-                <p className="mt-4 text-sm font-semibold text-foreground">1. Create your case</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">Give the situation a simple name so everything stays together.</p>
-              </div>
-              <div className="rounded-2xl border p-5" style={{ borderColor: "#243045", background: "#050B16" }}>
-                <ListPlus className="h-5 w-5 text-[#4F8CFF]" />
-                <p className="mt-4 text-sm font-semibold text-foreground">2. Add incidents as they happen</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">Record what happened while the details are still fresh.</p>
-              </div>
-              <div className="rounded-2xl border p-5" style={{ borderColor: "#243045", background: "#050B16" }}>
-                <Sparkles className="h-5 w-5 text-[#4F8CFF]" />
-                <p className="mt-4 text-sm font-semibold text-foreground">3. Let Proof connect the dots</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">As your record grows, Proof can surface patterns, missing documentation, statement differences, and timeline connections.</p>
-              </div>
-            </div>
-
-            <div className="mt-8 flex flex-col items-center">
-              <Button
-                className="h-12 bg-[#4F8CFF] px-7 text-base font-semibold text-white hover:bg-[#4F8CFF]/90 tactile-button"
-                onClick={() => setOpen(true)}
-              >
-                <Plus className="mr-2 h-5 w-5" />
-                Create My First Case
-              </Button>
-              <p className="mt-3 text-xs text-muted-foreground">Private • Organized • Built over time</p>
-            </div>
-
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle>Create your first case</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="first-case-title">Case name</Label>
-                    <Input
-                      id="first-case-title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g. Custody exchanges 2026"
-                      className="mt-1.5 bg-background border-border"
-                    />
-                  </div>
-                  <div>
-                    <Label>Category</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                      <SelectTrigger className="mt-1.5 bg-background border-border">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-card border-border">
-                        {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="first-case-desc">Short description (optional)</Label>
-                    <Textarea
-                      id="first-case-desc"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="What situation do you want Proof to help you keep organized?"
-                      className="mt-1.5 bg-background border-border"
-                      rows={3}
-                    />
-                  </div>
-                  <Button onClick={create} className="w-full bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white font-semibold tactile-button">
-                    Create My First Case
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </section>
-        ) : (
-          <>
-        <section className="mb-8 rounded-[28px] border p-7 md:p-9 intelligence-glass" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
-          <p className="text-sm font-medium text-[#4F8CFF]">{getGreeting()}{displayName ? `, ${displayName}` : ""}</p>
-          <h1 className="mt-3 text-[2.3rem] md:text-[2.6rem] leading-tight font-semibold tracking-tight text-balance">
-            Capture reality while it&apos;s fresh.
-          </h1>
-          <p className="mt-3 text-base text-muted-foreground">Powered by the Reality Intelligence Center.</p>
-
-          <div className="mt-7">
-            <Link to="/stress-mode" className="inline-flex">
-              <Button className="h-16 px-8 text-lg font-semibold bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white shadow-elevated tactile-button">
-                <Siren className="mr-2 h-5 w-5" /> START LIVE INCIDENT
-              </Button>
-            </Link>
+            <h1 className="text-3xl font-black tracking-[-0.045em] text-white sm:text-4xl lg:text-5xl">
+              {getTimeOfDay()}, {greetingName}.
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500 sm:text-base">
+              Proof analyzed your records and prioritized the action most likely
+              to strengthen your documentation.
+            </p>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/account" className="inline-flex">
-              <Button variant="outline" className="border-border tactile-button">
-                <Settings className="mr-2 h-4 w-4" />
-                Settings
-              </Button>
-            </Link>
-            <Link to="/pricing" className="inline-flex">
-              <Button variant="outline" className="border-border tactile-button">
-                <CreditCard className="mr-2 h-4 w-4" />
-                Billing
-              </Button>
-            </Link>
-            <Link to="/auth?mode=signup" className="inline-flex">
-              <Button variant="outline" className="border-border tactile-button">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Sign up
-              </Button>
-            </Link>
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/10 bg-emerald-400/[0.04] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-300">
+            <Lock className="h-3.5 w-3.5" />
+            Private · Account-scoped
           </div>
+        </header>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border p-4" style={{ borderColor: "#243045", background: "#101826" }}>
-              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Protection Score</p>
-              <p className="mt-2 text-3xl font-semibold text-[#2ECC71]">{animatedAverageStrength}</p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: "#243045", background: "#101826" }}>
-              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Active Cases</p>
-              <p className="mt-2 text-3xl font-semibold text-foreground">{displayCases.length}</p>
-            </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: "rgba(231, 76, 60, 0.45)", background: "rgba(52, 16, 21, 0.9)" }}>
-              <p className="text-xs uppercase tracking-[0.08em] text-[#F7B4AD]">Alerts</p>
-              <p className="mt-2 text-3xl font-semibold text-[#E74C3C]">{vaultContradictionCount}</p>
-            </div>
-          </div>
-        </section>
+        <section className="relative overflow-hidden rounded-[28px] border border-blue-400/15 bg-[#0d1420] p-5 shadow-[0_30px_100px_-45px_rgba(37,99,235,0.7)] sm:p-7 lg:p-9">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-blue-300/70 to-transparent"
+          />
 
-        <section className="mb-8 rounded-[24px] border p-5 md:p-6 intelligence-glass" style={{ borderColor: "rgba(79, 140, 255, 0.5)", background: "linear-gradient(145deg, rgba(14, 26, 49, 0.94), rgba(8, 16, 30, 0.94))" }}>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="relative grid gap-8 xl:grid-cols-[1.5fr_0.8fr] xl:items-center">
             <div>
-              <p className="text-xs uppercase tracking-[0.12em] text-[#8EB6FF]">Proof AI Command Center</p>
-              <h2 className="mt-1 text-xl md:text-2xl font-semibold text-foreground">AI insights are ready now</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Generate case summaries, detect contradictions, and prep timelines in one tap.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button"
-                onClick={() => navigate("/ai")}
-              >
-                <Bot className="mr-2 h-4 w-4" />
-                Open Proof AI
-              </Button>
-              <Button
-                variant="outline"
-                className="border-border tactile-button"
-                onClick={exploreDemoCase}
-                disabled={seedingDemo}
-              >
-                {seedingDemo ? "Loading demo…" : "Add Demo Cases"}
-              </Button>
-              {focusCaseId && (
-                <Button
-                  variant="outline"
-                  className="border-border tactile-button"
-                  onClick={() => navigate(`/cases/${focusCaseId}/intelligence`)}
-                >
-                  Open Intelligence
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr] mb-8">
-          <div className="rounded-[28px] border p-6 md:p-7 intelligence-glass" style={{ borderColor: "#243045" }}>
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-2xl font-semibold">Active Cases</h2>
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button">
-                    <Plus className="mr-1 h-4 w-4" /> New Case
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-card border-border">
-                  <DialogHeader>
-                    <DialogTitle>Create a new case</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="case-title">Title</Label>
-                      <Input
-                        id="case-title"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g. Custody exchanges 2026"
-                        className="mt-1.5 bg-background border-border"
-                      />
-                    </div>
-                    <div>
-                      <Label>Category</Label>
-                      <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger className="mt-1.5 bg-background border-border">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <Label htmlFor="case-desc">Description (optional)</Label>
-                        <div className="flex items-center gap-2">
-                          <Select value={language} onValueChange={setLanguage}>
-                            <SelectTrigger className="h-8 w-[130px] text-xs bg-background border-border">
-                              <SelectValue placeholder="Language" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-card border-border">
-                              {DICTATION_LANGUAGES.map((lang) => (
-                                <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button type="button" variant="outline" size="sm" onClick={toggleDictation} className="border-border tactile-button">
-                            {isDictating ? <Square className="mr-1 h-3.5 w-3.5" /> : <Mic className="mr-1 h-3.5 w-3.5" />}
-                            {isDictating ? "Stop" : "Dictate"}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => cameraInputRef.current?.click()}
-                            className="border-border tactile-button"
-                            aria-label="Take photo"
-                          >
-                            <Camera className="h-3.5 w-3.5" />
-                          </Button>
-                          <input
-                            ref={cameraInputRef}
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            className="hidden"
-                            onChange={(e) => captureCasePhoto(Array.from(e.target.files ?? []))}
-                          />
-                        </div>
-                      </div>
-                      <Textarea
-                        id="case-desc"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="bg-background border-border"
-                        rows={3}
-                      />
-                      {capturedPhotos.length > 0 && (
-                        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                          {capturedPhotos.map((f, i) => (
-                            <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded bg-muted/40 px-2 py-1">
-                              <span className="min-w-0 truncate">{f.name}</span>
-                              <button
-                                type="button"
-                                onClick={() => removeCapturedPhoto(i)}
-                                className="shrink-0 text-muted-foreground hover:text-foreground"
-                                aria-label={`Remove ${f.name}`}
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                    <Button onClick={create} className="w-full bg-accent hover:bg-accent/90 text-white font-semibold tactile-button">
-                      Create Case
-                    </Button>
+              <div className="mb-5 flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-500/12 ring-1 ring-blue-400/20">
+                  <BrainCircuit className="h-5 w-5 text-blue-300" />
+                </span>
+                <div>
+                  <div className="text-sm font-bold text-white">Proof AI</div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-600">
+                    Live case analysis
                   </div>
-                </DialogContent>
-              </Dialog>
-            </div>
+                </div>
+              </div>
 
-            <div className="mt-5 space-y-3">
               {loading ? (
-                <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <p className="text-sm text-muted-foreground animate-pulse">{ANALYSIS_LOADING_LINES[loadingLineIndex]}</p>
+                <div className="py-10 text-sm text-slate-500">
+                  Analyzing your records…
                 </div>
-              ) : displayCases.length === 0 ? (
-                <div className="rounded-xl border p-5" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <p className="text-base font-semibold">No active cases yet.</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Create your first case to start protecting the record.</p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white tactile-button"
-                      onClick={exploreDemoCase}
-                      disabled={seedingDemo}
-                    >
-                      {seedingDemo ? "Loading demo…" : "Load Demo Case"}
+              ) : cases.length === 0 ? (
+                <>
+                  <h2 className="max-w-3xl text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
+                    Your first Reality Record starts here.
+                  </h2>
+                  <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
+                    Record an incident, attach evidence, and let Proof organize
+                    the timeline automatically.
+                  </p>
+                  <Link to="/record" className="mt-7 inline-flex">
+                    <Button className="h-12 rounded-xl bg-blue-500 px-6 font-bold hover:bg-blue-400">
+                      <Mic className="mr-2 h-4 w-4" />
+                      Start recording
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-border tactile-button"
-                      onClick={() => navigate("/ai")}
-                    >
-                      <Bot className="mr-1.5 h-4 w-4" />
-                      Open AI
-                    </Button>
-                  </div>
-                </div>
+                  </Link>
+                </>
               ) : (
-                displayCases.slice(0, 4).map((c) => (
-                  <div
-                    key={c.id}
-                    className="rounded-xl border p-4 md:p-5 cursor-pointer hover:border-[#4F8CFF]/55 transition-colors"
-                    style={{ background: "#050B16", borderColor: c.id === selectedCase?.id ? "#4F8CFF" : "#243045" }}
-                    onClick={() => focusCase(c.id)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[1.05rem] font-semibold leading-snug">{c.title}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{caseCategoryLabel(c.category)}</p>
-                      </div>
-                      <Link to={`/cases/${c.id}`} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-[#4F8CFF] hover:text-white">
-                        Open
-                      </Link>
-                    </div>
+                <>
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-blue-400/15 bg-blue-400/[0.06] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-blue-300">
+                      {statusTone}
+                    </span>
+                    <span className="text-xs text-slate-600">
+                      Updated from {incidents.length} documented{" "}
+                      {incidents.length === 1 ? "incident" : "incidents"}
+                    </span>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
 
-          <div className="rounded-[28px] border p-6 md:p-7 intelligence-glass" style={{ borderColor: "#243045" }}>
-            <h2 className="text-2xl font-semibold">Recent Activity</h2>
+                  <h2 className="max-w-3xl text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl">
+                    {intelligence.status}
+                  </h2>
 
-            {selectedCaseContradictions > 0 && (
-              <div className="mt-5 rounded-xl border p-5 contradiction-wow" style={{ borderColor: "rgba(231, 76, 60, 0.6)", background: "rgba(48, 13, 18, 0.92)" }}>
-                <p className="text-sm uppercase tracking-[0.08em] font-semibold text-[#FF6E63]">⚠ Story Changed</p>
-                <p className="mt-2 text-sm text-[#FFD4D0]">
-                  {selectedCase ? `${selectedCase.title} has contradiction flags in the record.` : "Contradictions detected in recent incidents."}
-                </p>
-                {storyShiftLines && storyShiftLines.length > 0 && (
-                  <div className="mt-3 space-y-2 text-sm text-[#FFD4D0]">
-                    {storyShiftLines.map((line, idx) => (
-                      <p key={`story-shift-${idx}`}>{line}</p>
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                    {intelligence.findings.slice(0, 4).map((finding) => (
+                      <div
+                        key={finding}
+                        className="flex gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4"
+                      >
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-300" />
+                        <span className="text-sm leading-relaxed text-slate-300">
+                          {finding}
+                        </span>
+                      </div>
                     ))}
                   </div>
-                )}
-                {selectedCase && (
-                  <Link
-                    to={firstContradictionIncidentId
-                      ? `/cases/${selectedCase.id}/intelligence?focus=contradiction&incidentId=${encodeURIComponent(firstContradictionIncidentId)}`
-                      : `/cases/${selectedCase.id}/intelligence?focus=ai`}
-                    className="mt-4 inline-flex text-sm font-semibold text-[#FFB3AC] hover:text-white"
-                  >
-                    Review Timeline →
-                  </Link>
-                )}
+
+                  <div className="mt-7 flex flex-wrap gap-3">
+                    <Link to="/ai">
+                      <Button className="h-11 rounded-xl bg-blue-500 px-5 font-bold hover:bg-blue-400">
+                        Open AI brief
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                    {topCase && (
+                      <Link to={`/cases/${topCase.id}/replay`}>
+                        <Button
+                          variant="outline"
+                          className="h-11 rounded-xl border-white/10 bg-white/[0.02] px-5 font-bold hover:bg-white/[0.06]"
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Reality Replay
+                        </Button>
+                      </Link>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="relative mx-auto flex h-[250px] w-[250px] items-center justify-center sm:h-[290px] sm:w-[290px]">
+              <div className="absolute inset-0 rounded-full border border-blue-400/10 bg-blue-500/[0.025]" />
+              <div className="absolute inset-4 rounded-full border border-dashed border-blue-400/15" />
+              <div className="absolute inset-10 rounded-full bg-[#0a101a] shadow-[inset_0_0_45px_rgba(59,130,246,0.08)] ring-1 ring-white/[0.05]" />
+              <div className="relative text-center">
+                <div className="text-6xl font-black tracking-[-0.07em] text-white">
+                  {completion.score}
+                  <span className="ml-1 text-2xl text-blue-300">%</span>
+                </div>
+                <div className="mt-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                  Evidence complete
+                </div>
+                <div className="mx-auto mt-4 h-1.5 w-28 overflow-hidden rounded-full bg-white/[0.05]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-300 transition-all duration-700"
+                    style={{ width: `${completion.score}%` }}
+                  />
+                </div>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+          <section className="rounded-[24px] border border-amber-300/12 bg-[#0c121c] p-5 sm:p-7">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400/10 ring-1 ring-amber-300/15">
+                <Sparkles className="h-5 w-5 text-amber-300" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                  {nextAction.eyebrow}
+                </div>
+                <h3 className="mt-1 text-xl font-black tracking-[-0.025em] text-white">
+                  {nextAction.title}
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+                  {nextAction.description}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-3">
+                <div className="hidden text-right md:block">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
+                    Potential gain
+                  </div>
+                  <div className="text-lg font-black text-emerald-300">
+                    {nextAction.improvement}
+                  </div>
+                </div>
+                <Link to={nextAction.href}>
+                  <Button className="h-11 rounded-xl bg-white px-5 font-bold text-slate-950 hover:bg-slate-200">
+                    {nextAction.button}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </section>
+
+          <Link
+            to="/record"
+            className="group rounded-[24px] border border-blue-400/15 bg-blue-500 p-5 text-white shadow-[0_24px_60px_-30px_rgba(59,130,246,0.95)] transition hover:bg-blue-400 sm:p-7"
+          >
+            <div className="flex h-full items-center gap-5">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20">
+                <Mic className="h-6 w-6" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-100">
+                  Live capture
+                </div>
+                <div className="mt-1 text-xl font-black tracking-[-0.025em]">
+                  Record what happened
+                </div>
+                <div className="mt-1 text-sm text-blue-100/80">
+                  Voice, photos, location, and notes.
+                </div>
+              </div>
+              <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" />
+            </div>
+          </Link>
+        </div>
+
+        {cases.length > 0 && (
+          <>
+            {!hasPaidAccess && incidents.length >= 3 && (
+              <section className="relative mt-8 overflow-hidden rounded-[26px] border border-blue-400/20 bg-[#0d1420] p-5 shadow-[0_25px_80px_-45px_rgba(59,130,246,0.8)] sm:p-7">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl"
+                />
+
+                <div className="relative">
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-500/10 ring-1 ring-blue-400/20">
+                      <Sparkles className="h-5 w-5 text-blue-300" />
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-300">
+                        Proof Intelligence
+                      </div>
+
+                      <h2 className="mt-1 text-2xl font-black tracking-[-0.035em] text-white">
+                        Proof found more in your record
+                      </h2>
+
+                      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
+                        Your record now contains enough information for deeper analysis.
+                        Unlock Premium to examine patterns, possible statement differences,
+                        missing documentation, and connections across your incidents.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                      <div className="text-2xl font-black text-white">
+                        {incidents.length}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Incidents reviewed
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                      <div className="text-2xl font-black text-white">
+                        {evidenceCount}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Evidence items connected
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-amber-300/10 bg-amber-400/[0.035] p-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-amber-200">
+                        <Lock className="h-4 w-4" />
+                        Analysis locked
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Possible statement differences
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-blue-300/10 bg-blue-400/[0.035] p-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-blue-200">
+                        <Lock className="h-4 w-4" />
+                        Analysis locked
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Missing documentation & patterns
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Link to="/pricing?reason=subscription-required">
+                      <Button className="h-11 rounded-xl bg-blue-500 px-5 font-bold hover:bg-blue-400">
+                        Unlock My Full Record
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+
+                    <span className="text-xs text-slate-600">
+                      Your existing records stay exactly where they are.
+                    </span>
+                  </div>
+                </div>
+              </section>
             )}
 
-            <div className="mt-5 space-y-3" ref={intelligencePanelRef}>
-              {selectedCaseFeed.length ? selectedCaseFeed.map((item) => (
+            <section className="mt-8 grid gap-4 sm:grid-cols-3">
+              <MetricCard
+                icon={ShieldCheck}
+                label="Evidence strength"
+                value={`${intelligence.evidenceStrength}%`}
+                detail="Across all active records"
+              />
+              <MetricCard
+                icon={AlertTriangle}
+                label="Statement differences"
+                value={String(contradictionCount)}
+                detail={
+                  contradictionCount === 0
+                    ? "No differences flagged"
+                    : "Possible differences for review"
+                }
+                warning={contradictionCount > 0}
+              />
+              <MetricCard
+                icon={FileText}
+                label="Evidence items"
+                value={String(evidenceCount)}
+                detail="Files attached to incidents"
+              />
+            </section>
+
+            <div className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <section className="rounded-[26px] border border-white/[0.06] bg-[#0b111a] p-5 sm:p-7">
+                <div className="mb-6 flex items-end justify-between gap-4">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                      Continue working
+                    </div>
+                    <h2 className="mt-1 text-2xl font-black tracking-[-0.035em] text-white">
+                      Active cases
+                    </h2>
+                  </div>
+                  <Link
+                    to="/cases"
+                    className="flex items-center gap-1 text-xs font-bold text-blue-300 hover:text-blue-200"
+                  >
+                    View all
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+
+                <div className="space-y-3">
+                  {cases.slice(0, 4).map((caseItem, index) => {
+                    const count = caseItem.incidents?.[0]?.count ?? 0;
+                    return (
+                      <Link
+                        key={caseItem.id}
+                        to={`/cases/${caseItem.id}`}
+                        className="group flex items-center gap-4 rounded-2xl border border-white/[0.055] bg-white/[0.018] p-4 transition hover:border-blue-400/20 hover:bg-blue-400/[0.035]"
+                      >
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-500/8 text-blue-300 ring-1 ring-blue-400/10">
+                          <FolderKanban className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600">
+                              {caseItem.category || "Case"}
+                            </span>
+                            {index === 0 && (
+                              <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-blue-300">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 truncate text-sm font-bold text-slate-100">
+                            {caseItem.title}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-600">
+                            {count} {count === 1 ? "incident" : "incidents"} ·{" "}
+                            {relTime(caseItem.updated_at)}
+                          </div>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-slate-700 transition group-hover:translate-x-0.5 group-hover:text-blue-300" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="relative overflow-hidden rounded-[26px] border border-white/[0.06] bg-[#0b111a] p-5 sm:p-7">
                 <div
-                  key={`${item.title}-${item.timeAgo}`}
-                  className="rounded-lg border p-4"
-                  style={{
-                    background: "#050B16",
-                    borderColor: item.tone === "danger" ? "rgba(231, 76, 60, 0.55)" : item.tone === "warning" ? "rgba(242, 201, 76, 0.45)" : "#243045",
-                  }}
-                >
-                  <p className="text-sm font-semibold" style={{ color: item.tone === "danger" ? "#E74C3C" : item.tone === "warning" ? "#F2C94C" : "#2ECC71" }}>
-                    {item.title}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.timeAgo}</p>
+                  aria-hidden
+                  className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-cyan-400/[0.055] blur-3xl"
+                />
+                <div className="relative">
+                  <div className="mb-6 flex items-end justify-between gap-4">
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                        Signature intelligence
+                      </div>
+                      <h2 className="mt-1 text-2xl font-black tracking-[-0.035em] text-white">
+                        Reality Replay
+                      </h2>
+                    </div>
+                    {topCase && (
+                      <Link
+                        to={`/cases/${topCase.id}/replay`}
+                        className="flex items-center gap-1 text-xs font-bold text-blue-300 hover:text-blue-200"
+                      >
+                        Open replay
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    )}
+                  </div>
+
+                  {topCaseIncidents.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-600">
+                      Add incidents to build a chronological replay.
+                    </div>
+                  ) : (
+                    <div className="relative space-y-0">
+                      <div className="absolute bottom-4 left-[15px] top-4 w-px bg-gradient-to-b from-blue-400/50 via-blue-400/20 to-transparent" />
+                      {topCaseIncidents.slice(0, 5).map((incident, index) => (
+                        <Link
+                          key={incident.id}
+                          to={`/incidents/${incident.id}`}
+                          className="group relative flex gap-4 py-3"
+                        >
+                          <span className="relative z-10 mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-blue-400/20 bg-[#0b111a]">
+                            <CircleDot className="h-3.5 w-3.5 text-blue-300" />
+                          </span>
+                          <div className="min-w-0 flex-1 rounded-2xl border border-white/[0.045] bg-white/[0.018] p-4 transition group-hover:border-blue-400/15 group-hover:bg-blue-400/[0.025]">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-xs font-black text-blue-300">
+                                {new Date(incident.occurred_at).toLocaleTimeString(
+                                  [],
+                                  { hour: "numeric", minute: "2-digit" },
+                                )}
+                              </div>
+                              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-700">
+                                Event {index + 1}
+                              </div>
+                            </div>
+                            <div className="mt-1 truncate text-sm font-bold text-slate-200">
+                              {incident.title}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-slate-600">
+                              {incident.location && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  {incident.location}
+                                </span>
+                              )}
+                              {Array.isArray(incident.people_involved) &&
+                                incident.people_involved.length > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Users className="h-3 w-3" />
+                                    {incident.people_involved.length} people
+                                  </span>
+                                )}
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )) : (
-                <div className="rounded-lg border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <p className="text-sm text-muted-foreground">No recent activity yet.</p>
-                </div>
-              )}
+              </section>
             </div>
-          </div>
-        </section>
 
-        <section className="mb-8">
-          <details className="rounded-2xl border intelligence-glass" style={{ borderColor: "#243045" }}>
-            <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold text-[#4F8CFF]">
-              Open advanced intelligence (one tap)
-            </summary>
-            <div className="px-5 pb-5 pt-1 space-y-4 text-sm">
-              <div className="rounded-xl border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
-                <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Current AI source</p>
-                <p className="mt-2 font-semibold" style={{ color: selectedCaseBackendDisplay.color }}>{selectedCaseBackendDisplay.label}</p>
-              </div>
-              {selectedCasePattern && (
-                <div className="rounded-xl border p-4" style={{ background: "#050B16", borderColor: "#243045" }}>
-                  <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Pattern detection</p>
-                  <p className="mt-2 font-semibold text-foreground">{selectedCasePattern.headline}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">{selectedCasePattern.body}</p>
+            {completion.next && (
+              <section className="mt-8 rounded-[26px] border border-white/[0.06] bg-[#0b111a] p-5 sm:p-7">
+                <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">
+                      Missing documentation
+                    </div>
+                    <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] text-white">
+                      Strengthen “{completion.next.title}”
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                      Proof identified incomplete fields that may reduce the
+                      usefulness of this incident later.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/[0.05] bg-white/[0.018] p-4">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {completion.next.missing.slice(0, 4).map((item) => (
+                        <div
+                          key={item.label}
+                          className="flex items-center gap-3 rounded-xl bg-black/10 p-3"
+                        >
+                          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400/10">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                          </span>
+                          <span className="text-sm font-medium text-slate-300">
+                            {item.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <Link
+                      to={`/incidents/${completion.next.incidentId}`}
+                      className="mt-4 inline-flex"
+                    >
+                      <Button
+                        variant="outline"
+                        className="rounded-xl border-white/10 bg-white/[0.02] font-bold hover:bg-white/[0.06]"
+                      >
+                        Fix missing details
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" className="border-border tactile-button" onClick={exploreDemoCase} disabled={seedingDemo}>
-                  {seedingDemo ? "Loading demo…" : "Explore Demo"}
-                </Button>
-                <Link to="/demo/playback" className="inline-flex">
-                  <Button variant="outline" className="border-border tactile-button">Watch Playback</Button>
-                </Link>
-                {hasPrepareAccess && nextInteractionCase ? (
-                  <Link to={`/cases/${nextInteractionCase.id}/prepare`} className="inline-flex">
-                    <Button variant="outline" className="border-border tactile-button">Prepare Interaction</Button>
-                  </Link>
-                ) : (
-                  <Link to="/pricing" className="inline-flex">
-                    <Button variant="outline" className="border-border tactile-button">Unlock Prepare Me</Button>
-                  </Link>
-                )}
-                {liveSessionId && (
-                  <Link to={resumeLiveLink} className="inline-flex">
-                    <Button variant="outline" className="border-border tactile-button">Resume Live Session</Button>
-                  </Link>
-                )}
-              </div>
-            </div>
-          </details>
-        </section>
-
-        <section className="mb-8">
-          <WhatsNewCard className="intelligence-glass" maxItems={3} />
-        </section>
-
-        {!loading && cases.length > 0 && (
-          <div className="text-xs text-muted-foreground flex items-center gap-2">
-            <FileText className="h-3.5 w-3.5" />
-            <span>{cases.length} active cases · {totalIncidents} incidents tracked</span>
-          </div>
-        )}
-
+              </section>
+            )}
           </>
         )}
 
-        <Link to="/stress-mode" className="lg:hidden fixed bottom-4 right-4 z-50 ios-safe-fab" aria-label="Start live incident">
-          <Button className="h-16 max-[420px]:h-14 w-auto rounded-full px-4 max-[420px]:px-3 text-sm max-[420px]:text-xs font-semibold shadow-elevated justify-center bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white">
-            <Siren className="h-4 w-4 mr-2 max-[420px]:mr-1.5" />
-            <span>Live Now</span>
-          </Button>
-        </Link>
-      </main>
+        <footer className="mt-10 border-t border-white/[0.05] py-6">
+          <div className="flex flex-col gap-3 text-[11px] leading-relaxed text-slate-700 sm:flex-row sm:items-start sm:justify-between">
+            <p className="max-w-3xl">
+              Proof organizes information supplied by the user. AI output may
+              contain errors and should be reviewed against original records.
+              Proof is not a law firm and does not provide legal advice.
+            </p>
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-[0.12em]">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              Private by design
+            </div>
+          </div>
+        </footer>
+      </div>
     </AppLayout>
   );
 };
+
+function MetricCard({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  warning = false,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+  detail: string;
+  warning?: boolean;
+}) {
+  return (
+    <div className="rounded-[22px] border border-white/[0.06] bg-[#0b111a] p-5">
+      <div className="flex items-center justify-between">
+        <span
+          className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+            warning
+              ? "bg-amber-400/10 text-amber-300"
+              : "bg-blue-500/8 text-blue-300"
+          }`}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        {warning ? (
+          <AlertTriangle className="h-4 w-4 text-amber-300" />
+        ) : (
+          <Check className="h-4 w-4 text-emerald-300" />
+        )}
+      </div>
+      <div className="mt-5 text-3xl font-black tracking-[-0.045em] text-white">
+        {value}
+      </div>
+      <div className="mt-1 text-sm font-bold text-slate-300">{label}</div>
+      <div className="mt-1 text-xs text-slate-600">{detail}</div>
+    </div>
+  );
+}
 
 export default Dashboard;

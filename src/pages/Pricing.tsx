@@ -11,6 +11,7 @@ import { UpgradePanel } from "../features/release-v1/components/UpgradePanel.tsx
 import { supabase } from "../integrations/supabase/client.ts";
 import { BILLING_OFFERS, PRO_SUBSCRIPTION_FEATURES, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
 import { getFunctionErrorMessage } from "../lib/functionError.ts";
+import { trackProductEvent } from "@/lib/productAnalytics";
 import {
   isGooglePlayApp,
   loadGooglePlayProducts,
@@ -49,6 +50,14 @@ const Pricing = () => {
     offer.billingMode === "subscription" && (!usesGooglePlay || Boolean(offer.playProductId && offer.playBasePlanId))
   );
   const redirectAfterUpgrade = queryRedirectAfterUpgrade ?? storedRedirectAfterUpgrade;
+
+  useEffect(() => {
+    if (!user) return;
+
+    void trackProductEvent("pricing_viewed", {
+      reason: subscriptionRequired ? "subscription-required" : "direct",
+    });
+  }, [user, subscriptionRequired]);
 
   useEffect(() => {
     const stored = sanitizeRedirectTarget(globalThis.sessionStorage?.getItem(POST_UPGRADE_REDIRECT_STORAGE_KEY) ?? null);
@@ -121,6 +130,15 @@ const Pricing = () => {
     try {
       setLoadingOfferId(offerId);
 
+      if (user) {
+        void trackProductEvent("checkout_started", {
+          offer_id: offer.id,
+          billing_mode: offer.billingMode,
+          provider: usesGooglePlay ? "google_play" : "stripe",
+          source: subscriptionRequired ? "premium_gate" : "pricing_page",
+        });
+      }
+
       if (usesGooglePlay) {
         if (!user) {
           toast.message("Sign in required", { description: "Create an account or sign in before subscribing." });
@@ -190,9 +208,9 @@ const Pricing = () => {
         </div>
         {subscriptionRequired && (
           <div className="mt-6 max-w-3xl mx-auto rounded-xl border border-accent/40 bg-accent/10 p-4 text-sm">
-            <p className="font-medium text-foreground">Proof found insights that require Premium.</p>
+            <p className="font-medium text-foreground">Subscription required to continue.</p>
             <p className="mt-1 text-muted-foreground">
-              Your saved records stay exactly where they are. Premium unlocks deeper analysis, patterns, possible statement differences, relationship intelligence, and professional exports across your record.
+              This feature is part of Premium. Choose a plan to unlock full access.
               {redirectAfterUpgrade ? " You can return to your previous page after subscribing." : ""}
             </p>
             {redirectAfterUpgrade && (
@@ -228,7 +246,7 @@ const Pricing = () => {
 
           <section className="rounded-2xl border border-accent/40 bg-accent/5 p-5 sm:p-7 shadow-card h-full flex flex-col">
             <p className="text-xs font-semibold uppercase tracking-wider text-accent">Pro Subscription</p>
-            <p className="mt-3 text-sm text-muted-foreground">Unlock patterns, inconsistencies, connections, and professional reports across your complete record.</p>
+            <p className="mt-3 text-sm text-muted-foreground">Unlock patterns, inconsistencies, connections, and professional reports across your complete record..</p>
             <ul className="mt-5 space-y-2.5 text-sm">
               {PRO_SUBSCRIPTION_FEATURES.map((feature) => (
                 <li key={feature} className="flex gap-2"><Check className="h-4 w-4 text-accent shrink-0 mt-0.5" /><span>{feature}</span></li>
