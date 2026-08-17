@@ -173,13 +173,23 @@ const Dashboard = () => {
     const storageKey = `proof.premium-prompt-seen.${user.id}`;
     if (window.localStorage.getItem(storageKey)) return;
 
-    window.localStorage.setItem(storageKey, "1");
+    let cancelled = false;
 
-    void trackProductEvent("premium_prompt_seen", {
-      incident_count: incidents.length,
-      evidence_count: evidenceCount,
-      source: "dashboard",
-    });
+    void (async () => {
+      const tracked = await trackProductEvent("premium_prompt_seen", {
+        incident_count: incidents.length,
+        evidence_count: evidenceCount,
+        source: "dashboard",
+      });
+
+      if (!cancelled && tracked) {
+        window.localStorage.setItem(storageKey, "1");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, hasPaidAccess, incidents.length, evidenceCount]);
 
   const contradictionCount = incidents.reduce(
