@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Plus, FileText, Camera, Mic, Square, X, Siren, Settings, CreditCard, UserPlus, Bot } from "lucide-react";
+import { Plus, FileText, Camera, Mic, Square, X, Siren, Settings, CreditCard, UserPlus, Bot, FolderPlus, ListPlus, Sparkles, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppLayout } from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -675,9 +675,9 @@ const Dashboard = () => {
       }, 0) / cases.length)
     : 82;
 
-  const vaultIncidentCount = totalIncidents || 14;
-  const vaultContradictionCount = totalContradictions || 3;
-  const vaultMissingWarnings = totalMissingWarnings || 2;
+  const vaultIncidentCount = totalIncidents;
+  const vaultContradictionCount = totalContradictions;
+  const vaultMissingWarnings = totalMissingWarnings;
 
   const displayCases = cases;
 
@@ -768,6 +768,104 @@ const Dashboard = () => {
             </div>
           </div>
         )}
+        {!loading && cases.length === 0 ? (
+          <section
+            className="mx-auto max-w-5xl overflow-hidden rounded-[30px] border p-6 md:p-10 intelligence-glass"
+            style={{
+              borderColor: "rgba(79, 140, 255, 0.45)",
+              background: "linear-gradient(145deg, rgba(14, 26, 49, 0.96), rgba(8, 16, 30, 0.96))",
+            }}
+          >
+            <div className="mx-auto max-w-3xl text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[#4F8CFF]/30 bg-[#4F8CFF]/10">
+                <ShieldCheck className="h-7 w-7 text-[#8EB6FF]" />
+              </div>
+              <p className="mt-5 text-xs font-bold uppercase tracking-[0.16em] text-[#8EB6FF]">Your private record starts here</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-balance md:text-5xl">
+                Start with one situation you want to keep straight.
+              </h1>
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted-foreground">
+                Create a private case for something happening in your life—a custody issue, workplace problem,
+                contractor dispute, neighbor conflict, or anything else you may need to remember accurately later.
+              </p>
+            </div>
+
+            <div className="mt-9 grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border p-5" style={{ borderColor: "#243045", background: "#050B16" }}>
+                <FolderPlus className="h-5 w-5 text-[#4F8CFF]" />
+                <p className="mt-4 text-sm font-semibold text-foreground">1. Create your case</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Give the situation a simple name so everything stays together.</p>
+              </div>
+              <div className="rounded-2xl border p-5" style={{ borderColor: "#243045", background: "#050B16" }}>
+                <ListPlus className="h-5 w-5 text-[#4F8CFF]" />
+                <p className="mt-4 text-sm font-semibold text-foreground">2. Add incidents as they happen</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">Record what happened while the details are still fresh.</p>
+              </div>
+              <div className="rounded-2xl border p-5" style={{ borderColor: "#243045", background: "#050B16" }}>
+                <Sparkles className="h-5 w-5 text-[#4F8CFF]" />
+                <p className="mt-4 text-sm font-semibold text-foreground">3. Let Proof connect the dots</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">As your record grows, Proof can surface patterns, missing documentation, statement differences, and timeline connections.</p>
+              </div>
+            </div>
+
+            <div className="mt-8 flex flex-col items-center">
+              <Button
+                className="h-12 bg-[#4F8CFF] px-7 text-base font-semibold text-white hover:bg-[#4F8CFF]/90 tactile-button"
+                onClick={() => setOpen(true)}
+              >
+                <Plus className="mr-2 h-5 w-5" />
+                Create My First Case
+              </Button>
+              <p className="mt-3 text-xs text-muted-foreground">Private • Organized • Built over time</p>
+            </div>
+
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogContent className="bg-card border-border">
+                <DialogHeader>
+                  <DialogTitle>Create your first case</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="first-case-title">Case name</Label>
+                    <Input
+                      id="first-case-title"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g. Custody exchanges 2026"
+                      className="mt-1.5 bg-background border-border"
+                    />
+                  </div>
+                  <div>
+                    <Label>Category</Label>
+                    <Select value={category} onValueChange={setCategory}>
+                      <SelectTrigger className="mt-1.5 bg-background border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="first-case-desc">Short description (optional)</Label>
+                    <Textarea
+                      id="first-case-desc"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="What situation do you want Proof to help you keep organized?"
+                      className="mt-1.5 bg-background border-border"
+                      rows={3}
+                    />
+                  </div>
+                  <Button onClick={create} className="w-full bg-[#4F8CFF] hover:bg-[#4F8CFF]/90 text-white font-semibold tactile-button">
+                    Create My First Case
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </section>
+        ) : (
+          <>
         <section className="mb-8 rounded-[28px] border p-7 md:p-9 intelligence-glass" style={{ borderColor: "rgba(79, 140, 255, 0.45)" }}>
           <p className="text-sm font-medium text-[#4F8CFF]">{getGreeting()}{displayName ? `, ${displayName}` : ""}</p>
           <h1 className="mt-3 text-[2.3rem] md:text-[2.6rem] leading-tight font-semibold tracking-tight text-balance">
@@ -1122,6 +1220,9 @@ const Dashboard = () => {
             <FileText className="h-3.5 w-3.5" />
             <span>{cases.length} active cases · {totalIncidents} incidents tracked</span>
           </div>
+        )}
+
+          </>
         )}
 
         <Link to="/stress-mode" className="lg:hidden fixed bottom-4 right-4 z-50 ios-safe-fab" aria-label="Start live incident">
