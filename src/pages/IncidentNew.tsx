@@ -18,6 +18,7 @@ import { readLiveIncidentState } from "@/lib/liveIncident";
 import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents } from "@/lib/liveIncidentEvents";
 import { toast } from "sonner";
 import { canCreateIncident, FREE_INCIDENT_LIMIT_MESSAGE } from "@/lib/planLimits";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 function localDT() {
   const d = new Date();
@@ -157,6 +158,29 @@ const IncidentNew = () => {
       if (error || !data) {
         toast.error(error?.message ?? "Failed to save incident. Check the case and try again.");
         return;
+      }
+
+      const { count: totalIncidentCountAfterSave, error: milestoneCountError } = await supabase
+        .from("incidents")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      if (milestoneCountError) {
+        console.warn("Could not calculate incident milestone", milestoneCountError.message);
+      } else {
+        const total = totalIncidentCountAfterSave ?? 0;
+
+        if (total === 1) {
+          void trackProductEvent("first_incident_created", {
+            case_id: caseId,
+          });
+        }
+
+        if (total === 3) {
+          void trackProductEvent("third_incident_created", {
+            case_id: caseId,
+          });
+        }
       }
 
       if (files.length) {
@@ -452,3 +476,4 @@ const IncidentNew = () => {
 };
 
 export default IncidentNew;
+

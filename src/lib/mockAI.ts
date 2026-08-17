@@ -1,6 +1,6 @@
-import type { AIAnalysis } from "@/lib/aiAnalysis";
+import type { AIAnalysis } from "./analytics.ts";
 
-export type { AIAnalysis } from "@/lib/aiAnalysis";
+export type { AIAnalysis } from "./analytics.ts";
 
 const EMOTIONAL_WORDS = /\b(angry|furious|hate|stupid|awful|terrible|amazing|crazy|insane|ridiculous|outrageous|disgusting|horrible|absolutely|literally|totally|so much|ugh)\b/gi;
 

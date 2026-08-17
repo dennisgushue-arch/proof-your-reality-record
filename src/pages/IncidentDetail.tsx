@@ -7,7 +7,7 @@ import { ContextualLoading } from "@/components/ContextualLoading";
 import { Disclaimer } from "@/components/Disclaimer";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { AIAnalysisSchema, type AIAnalysis } from "@/lib/aiAnalysis";
+import { AIAnalysisSchema, type AIAnalysis } from "../lib/analytics.ts";
 import { createEvidenceSignedUrl, removeEvidenceFile } from "@/lib/evidenceStorage";
 import { playUiTone, triggerHaptic } from "@/lib/feedback";
 import { getFunctionErrorMessage } from "@/lib/functionError";
