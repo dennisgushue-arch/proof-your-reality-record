@@ -167,8 +167,13 @@ const DashboardV2Content = () => {
     0,
   );
 
+  const totalIncidentCount = cases.reduce(
+    (sum, caseItem) => sum + (caseItem.incidents?.[0]?.count ?? 0),
+    0,
+  );
+
   useEffect(() => {
-    if (!user || hasPaidAccess || incidents.length < 3) return;
+    if (!user || hasPaidAccess || totalIncidentCount < 3) return;
 
     const storageKey = `proof.premium-prompt-seen.${user.id}`;
     if (window.localStorage.getItem(storageKey)) return;
@@ -177,9 +182,9 @@ const DashboardV2Content = () => {
 
     void (async () => {
       const tracked = await trackProductEvent("premium_prompt_seen", {
-        incident_count: incidents.length,
+        incident_count: totalIncidentCount,
         evidence_count: evidenceCount,
-        source: "dashboard_v2",
+        source: "dashboard",
       });
 
       if (!cancelled && tracked) {
@@ -190,7 +195,7 @@ const DashboardV2Content = () => {
     return () => {
       cancelled = true;
     };
-  }, [user, hasPaidAccess, incidents.length, evidenceCount]);
+  }, [user, hasPaidAccess, totalIncidentCount, evidenceCount]);
 
   const contradictionCount = incidents.reduce(
     (sum, incident) => sum + readContradictions(incident.ai_analysis).length,
@@ -471,7 +476,7 @@ const DashboardV2Content = () => {
 
         {cases.length > 0 && (
           <>
-            {!hasPaidAccess && incidents.length >= 3 && (
+            {!hasPaidAccess && totalIncidentCount >= 3 && (
               <section className="relative mt-8 overflow-hidden rounded-[26px] border border-blue-400/20 bg-[#0d1420] p-5 shadow-[0_25px_80px_-45px_rgba(59,130,246,0.8)] sm:p-7">
                 <div
                   aria-hidden
@@ -504,7 +509,7 @@ const DashboardV2Content = () => {
                   <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
                       <div className="text-2xl font-black text-white">
-                        {incidents.length}
+                        {totalIncidentCount}
                       </div>
                       <div className="mt-1 text-xs text-slate-500">
                         Incidents reviewed
