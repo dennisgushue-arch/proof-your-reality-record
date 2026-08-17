@@ -75,22 +75,6 @@ function readContradictions(ai: unknown): string[] {
 
 function isMissingFields(incident: IncidentRow) {
   const people = Array.isArray(incident.people_involved) ? incident.people_involved : [];
-  useEffect(() => {
-    if (!user || hasPaidAccess || incidents.length < 3) return;
-
-    const storageKey = `proof.premium-prompt-seen.${user.id}`;
-
-    if (window.localStorage.getItem(storageKey)) return;
-
-    window.localStorage.setItem(storageKey, "1");
-
-    void trackProductEvent("premium_prompt_seen", {
-      incident_count: incidents.length,
-      evidence_count: evidenceCount,
-      source: "dashboard",
-    });
-  }, [user, hasPaidAccess, incidents.length, evidenceCount]);
-
   return (
     !incident.raw_narrative?.trim() ||
     !incident.location?.trim() ||
@@ -182,6 +166,21 @@ const Dashboard = () => {
     (sum, incident) => sum + (incident.evidence_items?.length ?? 0),
     0,
   );
+
+  useEffect(() => {
+    if (!user || hasPaidAccess || incidents.length < 3) return;
+
+    const storageKey = `proof.premium-prompt-seen.${user.id}`;
+    if (window.localStorage.getItem(storageKey)) return;
+
+    window.localStorage.setItem(storageKey, "1");
+
+    void trackProductEvent("premium_prompt_seen", {
+      incident_count: incidents.length,
+      evidence_count: evidenceCount,
+      source: "dashboard",
+    });
+  }, [user, hasPaidAccess, incidents.length, evidenceCount]);
 
   const contradictionCount = incidents.reduce(
     (sum, incident) => sum + readContradictions(incident.ai_analysis).length,

@@ -55,6 +55,7 @@ import {
   FREE_CASE_LIMIT_MESSAGE,
   FREE_INCIDENT_LIMIT_MESSAGE,
 } from "@/lib/planLimits";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 const STAGES: RecordingFormState["stage"][] = ["capture", "context", "review", "save"];
 const submissionGuard = createSubmissionGuard();
@@ -121,6 +122,10 @@ export const RecordingV2 = () => {
   const createCaseForRecording = async () => {
     if (!user || !newCaseTitle.trim()) return;
     if (!canCreateCase(cases.length, hasPaidAccess)) {
+      void trackProductEvent("case_limit_reached", {
+        source: "recording_v2",
+        current_case_count: cases.length,
+      });
       toast.error("Free plan case limit reached", { description: FREE_CASE_LIMIT_MESSAGE });
       return;
     }

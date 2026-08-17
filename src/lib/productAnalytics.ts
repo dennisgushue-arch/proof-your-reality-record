@@ -8,6 +8,7 @@ export type ProductEventName =
   | "premium_prompt_seen"
   | "pricing_viewed"
   | "checkout_started"
+  | "case_limit_reached"
   | "subscription_started";
 
 export async function trackProductEvent(

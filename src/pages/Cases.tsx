@@ -14,6 +14,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { toast } from "sonner";
 import { ContextualLoading } from "@/components/ContextualLoading";
 import { canCreateCase, FREE_CASE_LIMIT_MESSAGE } from "@/lib/planLimits";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 type CaseRow = {
   id: string;
@@ -80,6 +81,10 @@ const Cases = () => {
   const createCase = async () => {
     if (!user || !title.trim()) return;
     if (!canCreateCase(cases.length, hasPaidAccess)) {
+      void trackProductEvent("case_limit_reached", {
+        source: "cases_page",
+        current_case_count: cases.length,
+      });
       toast.error("Free plan case limit reached", { description: FREE_CASE_LIMIT_MESSAGE });
       return;
     }
