@@ -124,7 +124,6 @@ async function runLLMAnalysis(input: AnalyzeIncidentRequest): Promise<AIAnalysis
     },
     body: JSON.stringify({
       model,
-      temperature: 0.2,
       messages: [
         {
           role: "system",
