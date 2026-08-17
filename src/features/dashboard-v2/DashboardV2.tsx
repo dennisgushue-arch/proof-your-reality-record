@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Sparkles, ArrowRight } from "lucide-react";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { trackProductEvent } from "@/lib/productAnalytics";
 import { analyzeCase } from "@/lib/caseIntelligence";
 import { calculateOverallCompletion } from "@/lib/evidenceCompletion";
 import { ActivationChecklist, type ActivationStep } from "./components/ActivationChecklist";
@@ -44,7 +45,7 @@ const ROUTE_SUPPORT = {
 } as const;
 
 const DashboardV2Content = () => {
-  const { user } = useAuth();
+  const { user, hasPaidAccess } = useAuth();
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,6 +126,10 @@ const DashboardV2Content = () => {
 
   const contradictionCount = useMemo(() => countContradictions(incidents), [incidents]);
   const evidenceCount = useMemo(() => countEvidenceItems(incidents), [incidents]);
+  const totalIncidentCount = useMemo(
+    () => cases.reduce((sum, caseItem) => sum + (caseItem.incidents?.[0]?.count ?? 0), 0),
+    [cases],
+  );
   const firstIncident = incidents[0];
   const firstCase = cases[0];
   const hasAIAnalysis = incidents.some((incident) => Boolean(incident.neutral_summary || incident.evidence_quality_score));
@@ -143,6 +148,31 @@ const DashboardV2Content = () => {
     setOnboardingState(completeFirstRecordOnboarding(user.id));
     setShowCompletion(true);
   }, [allActivationStepsComplete, loading, onboardingState.completed, user]);
+
+  useEffect(() => {
+    if (!user || hasPaidAccess || totalIncidentCount < 3) return;
+
+    const storageKey = `proof.premium-prompt-seen.${user.id}`;
+    if (window.localStorage.getItem(storageKey)) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      const tracked = await trackProductEvent("premium_prompt_seen", {
+        incident_count: totalIncidentCount,
+        evidence_count: evidenceCount,
+        source: "dashboard_v2",
+      });
+
+      if (!cancelled && tracked) {
+        window.localStorage.setItem(storageKey, "1");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, hasPaidAccess, totalIncidentCount, evidenceCount]);
 
   const restartOnboarding = () => {
     if (!user) return;
@@ -244,6 +274,32 @@ const DashboardV2Content = () => {
         </div>
 
         {completion.next && completion.next.missing.length > 0 && <MissingDocumentation next={completion.next} />}
+
+        {!hasPaidAccess && totalIncidentCount >= 3 && (
+          <section className="mt-8 overflow-hidden rounded-[28px] border border-blue-400/20 bg-gradient-to-br from-blue-500/10 via-[#0D1420] to-violet-500/10 p-6 sm:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-3xl">
+                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-blue-200">
+                  <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                  Premium
+                </div>
+                <h2 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  Proof found more in your record
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
+                  You&apos;ve documented {totalIncidentCount} incidents. Premium unlocks deeper record intelligence,
+                  expanded case capacity, and more ways to understand what your documentation shows over time.
+                </p>
+              </div>
+              <Button asChild className="h-12 shrink-0 rounded-xl bg-blue-500 px-6 font-black text-white hover:bg-blue-400">
+                <Link to="/pricing">
+                  Unlock My Full Record
+                  <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            </div>
+          </section>
+        )}
 
         <footer className="mt-10 border-t border-white/[0.05] py-6">
           <div className="flex flex-col gap-3 text-[11px] leading-relaxed text-slate-700 sm:flex-row sm:items-start sm:justify-between">

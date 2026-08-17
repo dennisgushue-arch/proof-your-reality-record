@@ -8,19 +8,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { trackProductEvent } from "@/lib/productAnalytics";
 import { analyzeCase } from "@/lib/caseIntelligence";
 import { calculateOverallCompletion } from "@/lib/evidenceCompletion";
-import { ActivationChecklist, type ActivationStep } from "./components/ActivationChecklist";
+import { ActivationChecklist, type ActivationStep } from "@/features/dashboard-v2/components/ActivationChecklist";
 import { readActivationProgress } from "@/lib/activationProgress";
-import { AIHero } from "./components/AIHero";
-import { ContinueCases } from "./components/ContinueCases";
-import { DashboardEmptyState } from "./components/DashboardEmptyState";
-import { DashboardHeader } from "./components/DashboardHeader";
-import { DashboardSkeleton } from "./components/DashboardSkeleton";
-import { OnboardingCompletionCard } from "./components/OnboardingCompletionCard";
-import { IntelligenceMetrics } from "./components/IntelligenceMetrics";
-import { MissingDocumentation } from "./components/MissingDocumentation";
-import { QuickRecordCard } from "./components/QuickRecordCard";
-import { RealityReplayPreview } from "./components/RealityReplayPreview";
-import { RecommendedAction } from "./components/RecommendedAction";
+import { AIHero } from "@/features/dashboard-v2/components/AIHero";
+import { ContinueCases } from "@/features/dashboard-v2/components/ContinueCases";
+import { DashboardEmptyState } from "@/features/dashboard-v2/components/DashboardEmptyState";
+import { DashboardHeader } from "@/features/dashboard-v2/components/DashboardHeader";
+import { DashboardSkeleton } from "@/features/dashboard-v2/components/DashboardSkeleton";
+import { OnboardingCompletionCard } from "@/features/dashboard-v2/components/OnboardingCompletionCard";
+import { IntelligenceMetrics } from "@/features/dashboard-v2/components/IntelligenceMetrics";
+import { MissingDocumentation } from "@/features/dashboard-v2/components/MissingDocumentation";
+import { QuickRecordCard } from "@/features/dashboard-v2/components/QuickRecordCard";
+import { RealityReplayPreview } from "@/features/dashboard-v2/components/RealityReplayPreview";
+import { RecommendedAction } from "@/features/dashboard-v2/components/RecommendedAction";
 import {
   countContradictions,
   countEvidenceItems,
@@ -28,8 +28,8 @@ import {
   getTimeOfDay,
   isMissingIncidentFields,
   selectRecommendedAction,
-} from "./dashboardUtils";
-import type { CaseRow, IncidentRow } from "./types";
+} from "@/features/dashboard-v2/dashboardUtils";
+import type { CaseRow, IncidentRow } from "@/features/dashboard-v2/types";
 import {
   completeFirstRecordOnboarding,
   readFirstRecordOnboarding,
@@ -44,7 +44,7 @@ const ROUTE_SUPPORT = {
   createCase: true,
 } as const;
 
-const DashboardV2Content = () => {
+const Dashboard = () => {
   const { user, hasPaidAccess } = useAuth();
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [incidents, setIncidents] = useState<IncidentRow[]>([]);
@@ -322,4 +322,4 @@ const DashboardV2Content = () => {
   );
 };
 
-export const DashboardV2 = DashboardV2Content;
+export default Dashboard;
