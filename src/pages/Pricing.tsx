@@ -9,6 +9,7 @@ import { useAuth } from "../contexts/AuthContext.tsx";
 import { TrustPanel } from "../features/release-v1/components/TrustPanel.tsx";
 import { UpgradePanel } from "../features/release-v1/components/UpgradePanel.tsx";
 import { supabase } from "../integrations/supabase/client.ts";
+import { trackProductEvent } from "@/lib/productAnalytics";
 import { BILLING_OFFERS, PRO_SUBSCRIPTION_FEATURES, describeBillingAccess, getBillingOffer } from "../lib/billing.ts";
 import { getFunctionErrorMessage } from "../lib/functionError.ts";
 import {
@@ -49,6 +50,15 @@ const Pricing = () => {
     offer.billingMode === "subscription" && (!usesGooglePlay || Boolean(offer.playProductId && offer.playBasePlanId))
   );
   const redirectAfterUpgrade = queryRedirectAfterUpgrade ?? storedRedirectAfterUpgrade;
+
+  useEffect(() => {
+    if (!user) return;
+
+    void trackProductEvent("pricing_viewed", {
+      source: subscriptionRequired ? "upgrade_prompt" : "pricing_page",
+    });
+  }, [user, subscriptionRequired]);
+
 
   useEffect(() => {
     const stored = sanitizeRedirectTarget(globalThis.sessionStorage?.getItem(POST_UPGRADE_REDIRECT_STORAGE_KEY) ?? null);
