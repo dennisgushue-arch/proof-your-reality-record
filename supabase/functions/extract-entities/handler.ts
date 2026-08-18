@@ -1,3 +1,4 @@
+import { checkPaidAccess } from "../_shared/paidAccess.ts";
 import type {
   CaseOwnershipRow,
   EvidenceMetadataRow,
@@ -167,6 +168,26 @@ export function createExtractEntitiesHandler(deps: ExtractEntitiesHandlerDepende
 
     if (authError || !user) {
       return errorResponse("UNAUTHORIZED", "Missing or invalid authentication.", 401, corsHeaders);
+    }
+
+    const paidAccess = await checkPaidAccess(client, user.id);
+
+    if (paidAccess.error) {
+      return errorResponse(
+        "INTERNAL_ERROR",
+        "Unable to verify subscription access.",
+        500,
+        corsHeaders,
+      );
+    }
+
+    if (!paidAccess.allowed) {
+      return errorResponse(
+        "PAYMENT_REQUIRED",
+        "Premium subscription required.",
+        402,
+        corsHeaders,
+      );
     }
 
     const baseLogFields = {

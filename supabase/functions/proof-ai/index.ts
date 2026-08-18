@@ -1,3 +1,4 @@
+import { checkPaidAccess } from "../_shared/paidAccess.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -409,6 +410,22 @@ serve(async (req) => {
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const paidAccess = await checkPaidAccess(userClient, user.id);
+
+    if (paidAccess.error) {
+      return new Response(JSON.stringify({ error: "Unable to verify subscription access" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!paidAccess.allowed) {
+      return new Response(JSON.stringify({ error: "Premium subscription required" }), {
+        status: 402,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -1,24 +1,26 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@15.12.0?target=denonext";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { corsHeaders } from "../_shared/cors.ts";
+import Stripe from "npm:stripe@15.12.0";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
-  apiVersion: "2024-06-20",
-});
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
-const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
-const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+if (!stripeSecretKey) throw new Error("STRIPE_SECRET_KEY is required");
+const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET is required");
+const supabaseUrl = Deno.env.get("SUPABASE_URL");
+if (!supabaseUrl) throw new Error("SUPABASE_URL is required");
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+if (!supabaseServiceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY is required");
 
+const stripe = new Stripe(stripeSecretKey, { apiVersion: "2024-06-20" });
 const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 function planFromPriceId(priceId?: string) {
   if (!priceId) return "free";
-
-  const proPriceIds = [
-    Deno.env.get("STRIPE_PRICE_ID_PRO"),
-  ].filter((value): value is string => Boolean(value));
 
   const premiumPriceIds = [
     Deno.env.get("STRIPE_PRICE_ID_PREMIUM"),
@@ -26,9 +28,42 @@ function planFromPriceId(priceId?: string) {
     Deno.env.get("STRIPE_PRICE_ID_PREMIUM_ANNUAL"),
   ].filter((value): value is string => Boolean(value));
 
-  if (proPriceIds.includes(priceId)) return "pro";
+  const proPriceIds = [
+    Deno.env.get("STRIPE_PRICE_ID_PRO"),
+  ].filter((value): value is string => Boolean(value));
+
   if (premiumPriceIds.includes(priceId)) return "premium";
+  if (proPriceIds.includes(priceId)) return "pro";
   return "free";
+}
+
+function resolveCurrentPeriodEnd(sub: Stripe.Subscription) {
+  const topLevel = (sub as unknown as { current_period_end?: number }).current_period_end;
+  const itemLevel = (sub.items.data[0] as unknown as { current_period_end?: number } | undefined)?.current_period_end;
+  const value = typeof topLevel === "number" ? topLevel : itemLevel;
+
+  return typeof value === "number" && Number.isFinite(value)
+    ? new Date(value * 1000).toISOString()
+    : null;
+}
+
+async function upsertFromSubscription(sub: Stripe.Subscription, userId: string) {
+  const priceId = sub.items.data[0]?.price?.id;
+  const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
+  if (!customerId) throw new Error("Stripe subscription customer id missing");
+
+  const { error } = await adminClient.from("subscriptions").upsert({
+    user_id: userId,
+    stripe_customer_id: customerId,
+    stripe_subscription_id: sub.id,
+    plan: planFromPriceId(priceId),
+    status: sub.status,
+    current_period_end: resolveCurrentPeriodEnd(sub),
+    cancel_at_period_end: sub.cancel_at_period_end,
+    provider: "stripe",
+  });
+
+  if (error) throw new Error(`subscription upsert failed: ${error.message}`);
 }
 
 function addDays(date: Date, days: number) {
@@ -37,79 +72,157 @@ function addDays(date: Date, days: number) {
   return next;
 }
 
-async function upsertFromSubscription(sub: Stripe.Subscription, userId: string) {
-  const priceId = sub.items.data[0]?.price?.id;
-
-  await adminClient.from("subscriptions").upsert({
-    user_id: userId,
-    stripe_customer_id: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
-    stripe_subscription_id: sub.id,
-    plan: planFromPriceId(priceId),
-    status: sub.status,
-    current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-    cancel_at_period_end: sub.cancel_at_period_end,
-  });
-}
-
-async function upsertFromOneTimePurchase(session: Stripe.Checkout.Session, userId: string) {
+async function upsertFromOneTimePurchase(
+  session: Stripe.Checkout.Session,
+  userId: string,
+) {
   const accessDays = Number.parseInt(session.metadata?.access_days ?? "0", 10);
+
   if (!Number.isFinite(accessDays) || accessDays <= 0) {
     throw new Error("Missing access days for prepaid purchase");
   }
 
-  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
-  const { data: existingRow } = await adminClient
+  const customerId =
+    typeof session.customer === "string"
+      ? session.customer
+      : session.customer?.id;
+
+  const { data: existingRow, error: lookupError } = await adminClient
     .from("subscriptions")
     .select("stripe_subscription_id,current_period_end")
     .eq("user_id", userId)
     .maybeSingle();
 
+  if (lookupError) {
+    throw new Error(`subscription lookup failed: ${lookupError.message}`);
+  }
+
   const baseDate = existingRow?.current_period_end
     ? new Date(existingRow.current_period_end)
     : new Date();
-  const hasFutureAccess = !Number.isNaN(baseDate.getTime()) && baseDate.getTime() > Date.now();
+
+  const hasFutureAccess =
+    !Number.isNaN(baseDate.getTime()) && baseDate.getTime() > Date.now();
+
   const nextStart = hasFutureAccess ? baseDate : new Date();
   const currentPeriodEnd = addDays(nextStart, accessDays);
 
-  await adminClient.from("subscriptions").upsert({
+  const { error } = await adminClient.from("subscriptions").upsert({
     user_id: userId,
     stripe_customer_id: customerId,
     stripe_subscription_id: existingRow?.stripe_subscription_id ?? null,
-    plan: (session.metadata?.plan as "pro" | "premium" | undefined) ?? "premium",
+    plan:
+      (session.metadata?.plan as "pro" | "premium" | undefined) ?? "premium",
     status: "active",
     current_period_end: currentPeriodEnd.toISOString(),
     cancel_at_period_end: false,
+    provider: "stripe",
   });
+
+  if (error) {
+    throw new Error(`one-time purchase upsert failed: ${error.message}`);
+  }
 }
 
-serve(async (req) => {
+async function recordSubscriptionStarted(
+  eventId: string,
+  session: Stripe.Checkout.Session,
+  subscription: Stripe.Subscription,
+  userId: string,
+) {
+  const { data: existing, error: lookupError } = await adminClient
+    .from("product_events")
+    .select("id")
+    .eq("event_name", "subscription_started")
+    .eq("event_data->>stripe_event_id", eventId)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(`subscription event lookup failed: ${lookupError.message}`);
+  }
+
+  if (existing) return;
+
+  const priceId = subscription.items.data[0]?.price?.id;
+
+  const { error: insertError } = await adminClient
+    .from("product_events")
+    .insert({
+      user_id: userId,
+      event_name: "subscription_started",
+      event_data: {
+        source: "stripe_webhook",
+        stripe_event_id: eventId,
+        checkout_session_id: session.id,
+        stripe_subscription_id: subscription.id,
+        plan: planFromPriceId(priceId),
+        status: subscription.status,
+        price_id: priceId ?? null,
+        offer_id: session.metadata?.offer_id ?? null,
+        billing_mode: session.metadata?.billing_mode ?? "subscription",
+        trial_days: session.metadata?.trial_days ?? null,
+      },
+    });
+
+  if (insertError) {
+    throw new Error(`subscription event insert failed: ${insertError.message}`);
+  }
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: corsHeaders,
+    });
   }
 
   try {
     const signature = req.headers.get("stripe-signature");
-    if (!signature) throw new Error("Missing stripe-signature header");
+    if (!signature) {
+      throw new Error("Missing stripe-signature header");
+    }
 
     const body = await req.text();
-    const event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
+    const event = await stripe.webhooks.constructEventAsync(
+      body,
+      signature,
+      webhookSecret,
+    );
 
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        let userId = (session.metadata?.user_id ?? session.client_reference_id ?? "").trim();
+
+        let userId = (
+          session.metadata?.user_id ??
+          session.client_reference_id ??
+          ""
+        ).trim();
 
         if (!userId && session.customer) {
-          const customerId = typeof session.customer === "string" ? session.customer : session.customer.id;
-          const { data: subByCustomer } = await adminClient
-            .from("subscriptions")
-            .select("user_id")
-            .eq("stripe_customer_id", customerId)
-            .maybeSingle();
+          const customerId =
+            typeof session.customer === "string"
+              ? session.customer
+              : session.customer.id;
+
+          const { data: subByCustomer, error: customerLookupError } =
+            await adminClient
+              .from("subscriptions")
+              .select("user_id")
+              .eq("stripe_customer_id", customerId)
+              .maybeSingle();
+
+          if (customerLookupError) {
+            throw new Error(
+              `customer lookup failed: ${customerLookupError.message}`,
+            );
+          }
+
           userId = subByCustomer?.user_id ?? "";
         }
 
@@ -120,32 +233,62 @@ serve(async (req) => {
           break;
         }
 
-        if (session.mode !== "subscription" || !session.subscription) break;
+        if (
+          session.mode !== "subscription" ||
+          !session.subscription
+        ) {
+          break;
+        }
 
         const subscriptionId =
           typeof session.subscription === "string"
             ? session.subscription
             : session.subscription.id;
 
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
+
         await upsertFromSubscription(subscription, userId);
+        await recordSubscriptionStarted(
+          event.id,
+          session,
+          subscription,
+          userId,
+        );
+
         break;
       }
 
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const subscription = event.data.object as Stripe.Subscription;
-        const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+        const subscription =
+          event.data.object as Stripe.Subscription;
 
-        const { data: row } = await adminClient
-          .from("subscriptions")
-          .select("user_id")
-          .eq("stripe_customer_id", customerId)
-          .maybeSingle();
+        const customerId =
+          typeof subscription.customer === "string"
+            ? subscription.customer
+            : subscription.customer.id;
+
+        const { data: row, error: rowLookupError } =
+          await adminClient
+            .from("subscriptions")
+            .select("user_id")
+            .eq("stripe_customer_id", customerId)
+            .maybeSingle();
+
+        if (rowLookupError) {
+          throw new Error(
+            `subscription row lookup failed: ${rowLookupError.message}`,
+          );
+        }
 
         if (!row?.user_id) break;
 
-        await upsertFromSubscription(subscription, row.user_id);
+        await upsertFromSubscription(
+          subscription,
+          row.user_id,
+        );
+
         break;
       }
 
@@ -153,15 +296,33 @@ serve(async (req) => {
         break;
     }
 
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ received: true }),
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      },
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown error";
+
+    console.error("Stripe webhook failed", { message });
+
+    return new Response(
+      JSON.stringify({ error: message }),
+      {
+        status: 400,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      },
+    );
   }
 });

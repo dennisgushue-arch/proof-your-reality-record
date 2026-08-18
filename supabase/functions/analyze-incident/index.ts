@@ -1,3 +1,4 @@
+import { checkPaidAccess } from "../_shared/paidAccess.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -182,6 +183,16 @@ serve(async (req) => {
 
     if (authError || !user) {
       return jsonError(401, "Unauthorized");
+    }
+
+    const paidAccess = await checkPaidAccess(userClient, user.id);
+
+    if (paidAccess.error) {
+      return jsonError(500, "Unable to verify subscription access");
+    }
+
+    if (!paidAccess.allowed) {
+      return jsonError(402, "Premium subscription required");
     }
 
     const body = await req.json() as Partial<AnalyzeIncidentRequest>;
