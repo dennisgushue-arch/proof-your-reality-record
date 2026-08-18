@@ -1,4 +1,4 @@
--- Harden cross-parent ownership for incidents, evidence, and reminders.
+-- Strengthen parent-child ownership checks on core user data.
 
 drop policy if exists "incidents own insert" on public.incidents;
 drop policy if exists "incidents own update" on public.incidents;
@@ -136,7 +136,11 @@ with check (
   )
 );
 
--- Defense in depth: anonymous callers do not need this RPC.
 revoke execute
-on function public.replace_incident_entity_extraction(uuid, uuid, jsonb, jsonb)
+on function public.replace_incident_entity_extraction(
+  uuid,
+  uuid,
+  jsonb,
+  jsonb
+)
 from anon;
