@@ -159,8 +159,13 @@ const Pricing = () => {
         source: subscriptionRequired ? "upgrade_prompt" : "pricing_page",
       });
 
+      const checkoutAttemptId = crypto.randomUUID();
+
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
-        body: { offerId },
+        body: {
+          offerId,
+          checkoutAttemptId,
+        },
       });
 
       if (error) {

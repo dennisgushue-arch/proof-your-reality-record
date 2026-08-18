@@ -70,8 +70,21 @@ serve(async (req) => {
       return jsonResponse({ error: "Unauthorized", traceId }, 401);
     }
 
-    const { offerId } = await req.json();
-    const offer = typeof offerId === "string" ? getBillingOffer(offerId) : null;
+    const { offerId, checkoutAttemptId } = await req.json();
+
+    const offer = typeof offerId === "string"
+      ? getBillingOffer(offerId)
+      : null;
+
+    if (
+      typeof checkoutAttemptId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(checkoutAttemptId)
+    ) {
+      return jsonResponse({
+        error: "A valid checkout attempt ID is required",
+        traceId,
+      }, 400);
+    }
 
     if (!offer) {
       return jsonResponse({ error: "A valid billing offer is required", traceId }, 400);
@@ -165,12 +178,22 @@ serve(async (req) => {
 
     let session;
     try {
-      session = await stripe.checkout.sessions.create(buildSessionParams(discounts));
+      session = await stripe.checkout.sessions.create(
+        buildSessionParams(discounts),
+        {
+          idempotencyKey: `proof-checkout:${user.id}:${checkoutAttemptId}:coupon`,
+        },
+      );
     } catch (error) {
       if (!discounts || !shouldRetryWithoutCoupon(error)) throw error;
 
       console.warn(`Retrying checkout without early adopter coupon. Trace: ${traceId}`);
-      session = await stripe.checkout.sessions.create(buildSessionParams());
+      session = await stripe.checkout.sessions.create(
+        buildSessionParams(),
+        {
+          idempotencyKey: `proof-checkout:${user.id}:${checkoutAttemptId}:no-coupon`,
+        },
+      );
     }
 
     return jsonResponse({ url: session.url, traceId });

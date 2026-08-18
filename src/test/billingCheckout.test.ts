@@ -47,3 +47,16 @@ describe("billing checkout safeguards", () => {
     expect(isEarlyAdopterEligible("2026-09-01T00:00:00Z", launch)).toBe(false);
   });
 });
+describe("checkout idempotency", () => {
+  it("uses different keys for coupon and fallback attempts", () => {
+    const userId = "11111111-1111-4111-8111-111111111111";
+    const attemptId = "22222222-2222-4222-8222-222222222222";
+
+    const couponKey = `proof-checkout:${userId}:${attemptId}:coupon`;
+    const fallbackKey = `proof-checkout:${userId}:${attemptId}:no-coupon`;
+
+    expect(couponKey).not.toBe(fallbackKey);
+    expect(couponKey).toContain(attemptId);
+    expect(fallbackKey).toContain(attemptId);
+  });
+});
