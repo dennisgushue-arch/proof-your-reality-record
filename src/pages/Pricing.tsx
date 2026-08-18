@@ -152,6 +152,13 @@ const Pricing = () => {
         setStoredRedirectAfterUpgrade(redirectAfterUpgrade);
       }
 
+      await trackProductEvent("checkout_started", {
+        offer_id: offer.id,
+        plan: offer.plan,
+        billing_mode: offer.billingMode,
+        source: subscriptionRequired ? "upgrade_prompt" : "pricing_page",
+      });
+
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
         body: { offerId },
       });
