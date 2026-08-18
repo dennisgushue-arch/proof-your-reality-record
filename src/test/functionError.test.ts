@@ -59,4 +59,29 @@ describe("getFunctionErrorMessage", () => {
       "AI analysis is temporarily unavailable because the configured AI model is invalid or unavailable.",
     );
   });
+
+  it("returns a friendly message for AI rate limiting", async () => {
+    const error = Object.assign(
+      new Error("Edge Function returned a non-2xx status code"),
+      {
+        context: new Response(
+          JSON.stringify({
+            error: "AI usage limit reached",
+            retryAfterSeconds: 300,
+          }),
+          {
+            status: 429,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      },
+    );
+
+    await expect(
+      getFunctionErrorMessage(error, "Fallback"),
+    ).resolves.toBe(
+      "You've reached the temporary AI usage limit. Please try again in a few minutes.",
+    );
+  });
+
 });

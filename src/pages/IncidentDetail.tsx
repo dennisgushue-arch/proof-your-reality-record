@@ -208,7 +208,7 @@ const IncidentDetail = () => {
       });
 
       if (error) {
-        throw new Error(error.message || "Edge function error");
+        throw error;
       }
 
       const parsed = AIAnalysisSchema.safeParse(data?.analysis);
@@ -264,7 +264,7 @@ const IncidentDetail = () => {
       });
 
       if (error) {
-        throw new Error(error.message || "Edge function error");
+        throw error;
       }
 
       const savedEntityCount = typeof data?.savedEntityCount === "number" ? data.savedEntityCount : null;

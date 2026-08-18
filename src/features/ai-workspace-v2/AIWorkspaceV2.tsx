@@ -185,7 +185,7 @@ export const AIWorkspaceV2 = () => {
       const { data, error } = await supabase.functions.invoke("proof-ai", {
         body: { action: "summarize_case", prompt: text, caseId: selectedCaseId },
       });
-      if (error) throw new Error(error.message || "Proof AI request failed.");
+      if (error) throw error;
 
       const normalized = normalizeAIResponse(data as unknown);
       const mappedSources = mapSourceReferences(normalized.sources, incidents);
