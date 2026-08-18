@@ -50,7 +50,7 @@ type ProofAIResponse = {
 
 type AuditStatus = "success" | "error";
 type AuditConfidence = "high" | "medium" | "low";
-type ProofAIFailurePhase = "request" | "provider" | "response_parsing" | "audit_logging";
+type ProofAIFailurePhase = "request" | "provider" | "timeout" | "response_parsing" | "audit_logging";
 
 class ProofAIError extends Error {
   failurePhase: ProofAIFailurePhase;
@@ -605,9 +605,20 @@ serve(async (req) => {
   } catch (error) {
     const message = getErrorMessage(error);
 
+    const status =
+      error instanceof ProofAIError &&
+      error.providerStatusCode &&
+      [429, 500, 502, 503, 504].includes(error.providerStatusCode)
+        ? error.providerStatusCode
+        : 500;
+
     return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        ...(status === 429 ? { "Retry-After": "30" } : {}),
+      },
     });
   }
 });
