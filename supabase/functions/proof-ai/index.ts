@@ -3,6 +3,7 @@ import { consumeAiRateLimit } from "../_shared/aiRateLimit.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
+import { fetchLLM, LLMTimeoutError } from "../_shared/llmFetch.ts";
 
 type ProofAIRequest = {
   prompt: string;
@@ -282,7 +283,7 @@ async function runProofAI(prompt: string, caseRow: CaseRow, incidents: IncidentR
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
+    response = await fetchLLM(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -309,11 +310,39 @@ async function runProofAI(prompt: string, caseRow: CaseRow, incidents: IncidentR
       }),
     });
   } catch (error) {
-    throw new ProofAIError(`LLM request error: ${getErrorMessage(error)}`, "request");
+    if (error instanceof LLMTimeoutError) {
+      throw new ProofAIError(
+        "AI analysis took too long. Please try again.",
+        "timeout",
+        504,
+      );
+    }
+
+    throw new ProofAIError(
+      `LLM request error: ${getErrorMessage(error)}`,
+      "request",
+    );
   }
 
   if (!response.ok) {
     const errorBody = await response.text();
+
+    if (response.status === 429) {
+      throw new ProofAIError(
+        "AI provider is temporarily busy. Please try again shortly.",
+        "provider",
+        429,
+      );
+    }
+
+    if ([500, 502, 503, 504].includes(response.status)) {
+      throw new ProofAIError(
+        "AI provider is temporarily unavailable. Please try again shortly.",
+        "provider",
+        response.status,
+      );
+    }
+
     throw new ProofAIError(
       `LLM request failed (${response.status}): ${errorBody.slice(0, 300)}`,
       "provider",

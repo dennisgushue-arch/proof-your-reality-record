@@ -3,6 +3,7 @@ import { consumeAiRateLimit } from "../_shared/aiRateLimit.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
+import { fetchLLM, LLMTimeoutError } from "../_shared/llmFetch.ts";
 
 type AnalyzeIncidentRequest = {
   title: string;
@@ -118,7 +119,7 @@ async function runLLMAnalysis(input: AnalyzeIncidentRequest): Promise<AIAnalysis
     narrative: input.narrative,
   };
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetchLLM(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -145,6 +146,15 @@ async function runLLMAnalysis(input: AnalyzeIncidentRequest): Promise<AIAnalysis
 
   if (!response.ok) {
     const text = await response.text();
+
+    if (response.status === 429) {
+      throw new Error("AI provider is temporarily busy. Please try again shortly.");
+    }
+
+    if ([500, 502, 503, 504].includes(response.status)) {
+      throw new Error("AI provider is temporarily unavailable. Please try again shortly.");
+    }
+
     throw new Error(`LLM request failed (${response.status}): ${text.slice(0, 300)}`);
   }
 
@@ -232,6 +242,16 @@ serve(async (req) => {
     });
   } catch (error) {
     const traceId = crypto.randomUUID();
+
+    if (error instanceof LLMTimeoutError) {
+      console.error("analyze-incident timed out", { traceId });
+      return jsonError(
+        504,
+        "AI analysis took too long. Please try again.",
+        traceId,
+      );
+    }
+
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("analyze-incident failed", { traceId, message });
     return jsonError(500, message, traceId);
