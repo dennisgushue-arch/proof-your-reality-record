@@ -1,4 +1,5 @@
 import { checkPaidAccess } from "../_shared/paidAccess.ts";
+import { consumeAiRateLimit } from "../_shared/aiRateLimit.ts";
 import type {
   CaseOwnershipRow,
   EvidenceMetadataRow,
@@ -223,6 +224,44 @@ export function createExtractEntitiesHandler(deps: ExtractEntitiesHandlerDepende
     if (source.truncated) warnings.add("ai_input_truncated");
 
     const deterministicCandidates = runDeterministicExtraction(incident, source);
+
+    const aiLimit = await consumeAiRateLimit(client, user.id);
+
+    if (aiLimit.error) {
+      return safeJsonResponse(
+        {
+          status: "error",
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Unable to verify AI usage limit.",
+          },
+        },
+        500,
+        corsHeaders,
+      );
+    }
+
+    if (!aiLimit.allowed) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: {
+            code: "RATE_LIMITED",
+            message: "AI usage limit reached.",
+          },
+          retryAfterSeconds: aiLimit.retryAfterSeconds ?? 60,
+        }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(aiLimit.retryAfterSeconds ?? 60),
+          },
+        },
+      );
+    }
+
     const provider = await runEntityExtractionProvider({
       config: {
         ...deps.providerConfig,

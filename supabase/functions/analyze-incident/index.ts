@@ -1,4 +1,5 @@
 import { checkPaidAccess } from "../_shared/paidAccess.ts";
+import { consumeAiRateLimit } from "../_shared/aiRateLimit.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -208,6 +209,19 @@ serve(async (req) => {
 
     if (!input.title || !input.narrative || !input.occurred_at) {
       return jsonError(400, "title, narrative, and occurred_at are required");
+    }
+
+    const aiLimit = await consumeAiRateLimit(userClient, user.id);
+
+    if (aiLimit.error) {
+      return jsonError(500, "Unable to verify AI usage limit");
+    }
+
+    if (!aiLimit.allowed) {
+      return jsonError(
+        429,
+        `AI usage limit reached. Try again in ${aiLimit.retryAfterSeconds ?? 60} seconds.`,
+      );
     }
 
     const analysis = await runLLMAnalysis(input);

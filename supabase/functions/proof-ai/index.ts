@@ -1,4 +1,5 @@
 import { checkPaidAccess } from "../_shared/paidAccess.ts";
+import { consumeAiRateLimit } from "../_shared/aiRateLimit.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { corsHeaders } from "../_shared/cors.ts";
@@ -517,6 +518,33 @@ serve(async (req) => {
     }
 
     const incidents = (incidentsData as IncidentRow[] | null) ?? [];
+
+    const aiLimit = await consumeAiRateLimit(userClient, user.id);
+
+    if (aiLimit.error) {
+      return new Response(JSON.stringify({ error: "Unable to verify AI usage limit" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!aiLimit.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: "AI usage limit reached",
+          retryAfterSeconds: aiLimit.retryAfterSeconds ?? 60,
+        }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+            "Retry-After": String(aiLimit.retryAfterSeconds ?? 60),
+          },
+        },
+      );
+    }
+
     let result: ProofAIResponse;
     try {
       result = await runProofAI(prompt, caseRow, incidents);
