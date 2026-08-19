@@ -92,6 +92,7 @@ export const RecordingV2 = () => {
   const [newCaseDescription, setNewCaseDescription] = useState("");
   const [creatingCase, setCreatingCase] = useState(false);
   const sessionIdRef = useRef(createId("live-session"));
+  const incidentIdRef = useRef(crypto.randomUUID());
 
   const finalNarrative = useMemo(() => buildNarrativeFromEvents(state.transcriptEvents, state.narrative), [state.narrative, state.transcriptEvents]);
   const selectedCase = useMemo(() => cases.find((caseRow) => caseRow.id === state.caseId), [cases, state.caseId]);
@@ -399,9 +400,12 @@ export const RecordingV2 = () => {
       updateState({ stage: "save" });
       setSaveProgress({ state: "creating", message: "Creating incident…" });
       const tags = Array.from(new Set([state.category, "live-capture"].filter(Boolean)));
-      const { data, error } = await supabase
+      const incidentId = incidentIdRef.current;
+
+      let { data, error } = await supabase
         .from("incidents")
         .insert({
+          id: incidentId,
           case_id: selectedSaveCase.id,
           user_id: user.id,
           title: state.title.trim(),
@@ -419,15 +423,30 @@ export const RecordingV2 = () => {
         .select("id")
         .single();
 
+      if (error?.code === "23505") {
+        const recovered = await supabase
+          .from("incidents")
+          .select("id")
+          .eq("id", incidentId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!recovered.error && recovered.data) {
+          data = recovered.data;
+          error = null;
+        }
+      }
+
       if (error || !data) {
         console.error("Recording V2 incident creation failed", error);
         updateState({ stage: "review" });
-        setSaveProgress({ state: "failed", message: error?.message ?? "Incident could not be saved. Check the required fields and try again." });
+        setSaveProgress({
+          state: "failed",
+          message: error?.message ?? "Incident could not be saved. Check the required fields and try again.",
+        });
         toast.error(error?.message ?? "Incident could not be saved. Check the required fields and try again.");
         return;
       }
-
-      const incidentId = data.id as string;
       const uploadResult = { successful: [], failed: [] } as { successful: Array<{ filename: string; storagePath: string; type: string }>; failed: Array<{ filename: string; message: string }> };
 
       if (state.evidenceItems.length > 0) {

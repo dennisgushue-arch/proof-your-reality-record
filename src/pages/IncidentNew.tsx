@@ -144,7 +144,10 @@ const IncidentNew = () => {
       const people = peopleStr.split(",").map((s) => s.trim()).filter(Boolean);
       const tags = tagsStr.split(",").map((s) => s.trim()).filter(Boolean);
 
-      const { data, error } = await supabase.from("incidents").insert({
+      const incidentId = incidentIdRef.current;
+
+      let { data, error } = await supabase.from("incidents").insert({
+        id: incidentId,
         case_id: caseId,
         user_id: user.id,
         title: title.trim(),
@@ -160,6 +163,20 @@ const IncidentNew = () => {
           : null,
         raw_narrative: narrative.trim(),
       }).select().single();
+
+      if (error?.code === "23505") {
+        const recovered = await supabase
+          .from("incidents")
+          .select("*")
+          .eq("id", incidentId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (!recovered.error && recovered.data) {
+          data = recovered.data;
+          error = null;
+        }
+      }
 
       if (error || !data) {
         toast.error(error?.message ?? "Failed to save incident. Check the case and try again.");
