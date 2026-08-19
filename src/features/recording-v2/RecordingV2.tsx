@@ -57,6 +57,7 @@ import {
 } from "@/lib/planLimits";
 import { trackProductEvent } from "@/lib/productAnalytics";
 import { MAX_EVIDENCE_ITEMS_PER_INCIDENT } from "@/lib/evidenceLimits";
+import { INCIDENT_LIMITS } from "@/lib/incidentLimits";
 
 const STAGES: RecordingFormState["stage"][] = ["capture", "context", "review", "save"];
 const submissionGuard = createSubmissionGuard();
@@ -399,6 +400,29 @@ export const RecordingV2 = () => {
     if (!submissionGuard.begin()) return;
 
     const selectedSaveCase = cases.find((caseRow) => caseRow.id === state.caseId);
+
+    if (state.title.trim().length > INCIDENT_LIMITS.title) {
+      submissionGuard.reset();
+      updateState({ stage: "review" });
+      setSaveProgress({
+        state: "failed",
+        message: `Title must be ${INCIDENT_LIMITS.title} characters or fewer.`,
+      });
+      toast.error(`Title must be ${INCIDENT_LIMITS.title} characters or fewer`);
+      return;
+    }
+
+    if (finalNarrative.trim().length > INCIDENT_LIMITS.narrative) {
+      submissionGuard.reset();
+      updateState({ stage: "review" });
+      setSaveProgress({
+        state: "failed",
+        message: `Narrative must be ${INCIDENT_LIMITS.narrative.toLocaleString()} characters or fewer.`,
+      });
+      toast.error(`Narrative must be ${INCIDENT_LIMITS.narrative.toLocaleString()} characters or fewer`);
+      return;
+    }
+
     const validation = validateRequiredFields({ caseId: selectedSaveCase?.id ?? "", title: state.title, narrative: state.narrative, transcriptEvents: state.transcriptEvents });
     if (!validation.valid) {
       submissionGuard.reset();

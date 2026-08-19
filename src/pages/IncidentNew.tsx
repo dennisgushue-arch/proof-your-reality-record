@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { canCreateIncident, FREE_INCIDENT_LIMIT_MESSAGE } from "@/lib/planLimits";
 import { trackProductEvent } from "@/lib/productAnalytics";
 import { MAX_EVIDENCE_ITEMS_PER_INCIDENT } from "@/lib/evidenceLimits";
+import { INCIDENT_LIMITS } from "@/lib/incidentLimits";
 import { createSubmissionGuard } from "@/features/recording-v2/recordingUtils";
 
 function localDT() {
@@ -146,6 +147,16 @@ const IncidentNew = () => {
   const submit = async () => {
     if (!title.trim() || !narrative.trim()) {
       toast.error("Title and narrative are required");
+      return;
+    }
+
+    if (title.trim().length > INCIDENT_LIMITS.title) {
+      toast.error(`Title must be ${INCIDENT_LIMITS.title} characters or fewer`);
+      return;
+    }
+
+    if (narrative.trim().length > INCIDENT_LIMITS.narrative) {
+      toast.error(`Narrative must be ${INCIDENT_LIMITS.narrative.toLocaleString()} characters or fewer`);
       return;
     }
     if (!caseId || !user) {
