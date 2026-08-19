@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { relabelCapturedPhotos } from "@/lib/capturedPhotoNaming";
-import { buildEvidenceStoragePath, uploadEvidenceFile } from "@/lib/evidenceStorage";
+import { buildEvidenceStoragePath, removeEvidenceFile, uploadEvidenceFile } from "@/lib/evidenceStorage";
 import { clearLiveIncidentState, writeLiveIncidentState } from "@/lib/liveIncident";
 import { persistLiveIncidentEvent } from "@/lib/liveIncidentEvents";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
@@ -467,7 +467,32 @@ export const RecordingV2 = () => {
           const { error: evidenceInsertError } = await supabase.from("evidence_items").insert(evidenceRows);
           if (evidenceInsertError) {
             console.error("Recording V2 evidence association failed", evidenceInsertError);
-            setSaveProgress({ state: "failed", message: "Incident saved, but evidence association failed. Open the incident to retry evidence attachment." });
+
+            const cleanupResults = await Promise.allSettled(
+              uploadResult.successful.map((item) =>
+                removeEvidenceFile(item.storagePath)
+              ),
+            );
+
+            const cleanupFailures = cleanupResults.filter(
+              (result) => result.status === "rejected",
+            ).length;
+
+            if (cleanupFailures > 0) {
+              console.error("Recording V2 evidence cleanup incomplete", {
+                incidentId,
+                cleanupFailures,
+              });
+            }
+
+            setSaveProgress({
+              state: "failed",
+              message:
+                cleanupFailures > 0
+                  ? "Incident saved, but evidence association failed and some uploaded files could not be cleaned up automatically."
+                  : "Incident saved, but evidence association failed. Uploaded files were safely cleaned up so you can retry.",
+            });
+
             navigate(`/incidents/${incidentId}`);
             return;
           }

@@ -13,12 +13,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DICTATION_LANGUAGES, useDictation } from "@/hooks/useDictation";
 import { DICTATION_HINT_COPY, getDictationHintTone } from "@/lib/dictationHintCopy";
 import { relabelCapturedPhotos } from "@/lib/capturedPhotoNaming";
-import { buildEvidenceStoragePath, uploadEvidenceFile } from "@/lib/evidenceStorage";
+import { buildEvidenceStoragePath, removeEvidenceFile, uploadEvidenceFile } from "@/lib/evidenceStorage";
 import { readLiveIncidentState } from "@/lib/liveIncident";
 import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents } from "@/lib/liveIncidentEvents";
 import { toast } from "sonner";
 import { canCreateIncident, FREE_INCIDENT_LIMIT_MESSAGE } from "@/lib/planLimits";
 import { trackProductEvent } from "@/lib/productAnalytics";
+import { createSubmissionGuard } from "@/features/recording-v2/recordingUtils";
 
 function localDT() {
   const d = new Date();
@@ -45,6 +46,7 @@ const IncidentNew = () => {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const submissionGuardRef = useRef(createSubmissionGuard());
 
   const { isDictating, language, setLanguage, toggle: toggleDictation } = useDictation({
     onTranscript: (transcript) => {
@@ -118,6 +120,10 @@ const IncidentNew = () => {
     }
     if (!caseId || !user) {
       toast.error("Missing case or user context");
+      return;
+    }
+
+    if (!submissionGuardRef.current.begin()) {
       return;
     }
 
@@ -228,7 +234,32 @@ const IncidentNew = () => {
 
         const { error: evidenceInsertError } = await supabase.from("evidence_items").insert(evidenceRows);
         if (evidenceInsertError) {
-          toast.error(`Incident saved but evidence metadata failed: ${evidenceInsertError.message}`);
+          const uploadedPaths = evidenceRows
+            .map((row) => row.storage_path)
+            .filter((path): path is string => Boolean(path));
+
+          const cleanupResults = await Promise.allSettled(
+            uploadedPaths.map((path) => removeEvidenceFile(path)),
+          );
+
+          const cleanupFailures = cleanupResults.filter(
+            (result) => result.status === "rejected",
+          ).length;
+
+          if (cleanupFailures > 0) {
+            console.error("Evidence cleanup incomplete after metadata failure", {
+              incidentId: data.id,
+              cleanupFailures,
+            });
+          }
+
+          toast.error("Incident saved, but evidence could not be attached.", {
+            description:
+              cleanupFailures > 0
+                ? "Some uploaded files could not be cleaned up automatically. Please contact support."
+                : "Uploaded files were safely cleaned up. You can retry attaching them from the incident.",
+          });
+
           nav(`/incidents/${data.id}`);
           return;
         }
@@ -250,6 +281,7 @@ const IncidentNew = () => {
       console.error("Incident save failed unexpectedly", error);
       toast.error("Incident could not be saved", { description: message });
     } finally {
+      submissionGuardRef.current.reset();
       setSaving(false);
     }
   };
