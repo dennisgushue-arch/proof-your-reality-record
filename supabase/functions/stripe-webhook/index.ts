@@ -47,23 +47,44 @@ function resolveCurrentPeriodEnd(sub: Stripe.Subscription) {
     : null;
 }
 
-async function upsertFromSubscription(sub: Stripe.Subscription, userId: string) {
+async function processSubscriptionEvent(
+  event: Stripe.Event,
+  sub: Stripe.Subscription,
+  userId: string,
+) {
   const priceId = sub.items.data[0]?.price?.id;
-  const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
-  if (!customerId) throw new Error("Stripe subscription customer id missing");
+  const customerId =
+    typeof sub.customer === "string"
+      ? sub.customer
+      : sub.customer?.id;
 
-  const { error } = await adminClient.from("subscriptions").upsert({
-    user_id: userId,
-    stripe_customer_id: customerId,
-    stripe_subscription_id: sub.id,
-    plan: planFromPriceId(priceId),
-    status: sub.status,
-    current_period_end: resolveCurrentPeriodEnd(sub),
-    cancel_at_period_end: sub.cancel_at_period_end,
-    provider: "stripe",
-  });
+  if (!customerId) {
+    throw new Error("Stripe subscription customer id missing");
+  }
 
-  if (error) throw new Error(`subscription upsert failed: ${error.message}`);
+  const { data, error } = await adminClient.rpc(
+    "process_stripe_subscription_event",
+    {
+      p_event_id: event.id,
+      p_event_type: event.type,
+      p_event_created: event.created,
+      p_user_id: userId,
+      p_customer_id: customerId,
+      p_subscription_id: sub.id,
+      p_plan: planFromPriceId(priceId),
+      p_status: sub.status,
+      p_current_period_end: resolveCurrentPeriodEnd(sub),
+      p_cancel_at_period_end: sub.cancel_at_period_end,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `subscription event processing failed: ${error.message}`,
+    );
+  }
+
+  return Array.isArray(data) ? data[0] : data;
 }
 
 function addDays(date: Date, days: number) {
@@ -72,11 +93,15 @@ function addDays(date: Date, days: number) {
   return next;
 }
 
-async function upsertFromOneTimePurchase(
+async function processOneTimePurchase(
+  event: Stripe.Event,
   session: Stripe.Checkout.Session,
   userId: string,
 ) {
-  const accessDays = Number.parseInt(session.metadata?.access_days ?? "0", 10);
+  const accessDays = Number.parseInt(
+    session.metadata?.access_days ?? "0",
+    10,
+  );
 
   if (!Number.isFinite(accessDays) || accessDays <= 0) {
     throw new Error("Missing access days for prepaid purchase");
@@ -85,43 +110,32 @@ async function upsertFromOneTimePurchase(
   const customerId =
     typeof session.customer === "string"
       ? session.customer
-      : session.customer?.id;
+      : session.customer?.id ?? "";
 
-  const { data: existingRow, error: lookupError } = await adminClient
-    .from("subscriptions")
-    .select("stripe_subscription_id,current_period_end")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const plan =
+    (session.metadata?.plan as "pro" | "premium" | undefined)
+      ?? "premium";
 
-  if (lookupError) {
-    throw new Error(`subscription lookup failed: ${lookupError.message}`);
-  }
-
-  const baseDate = existingRow?.current_period_end
-    ? new Date(existingRow.current_period_end)
-    : new Date();
-
-  const hasFutureAccess =
-    !Number.isNaN(baseDate.getTime()) && baseDate.getTime() > Date.now();
-
-  const nextStart = hasFutureAccess ? baseDate : new Date();
-  const currentPeriodEnd = addDays(nextStart, accessDays);
-
-  const { error } = await adminClient.from("subscriptions").upsert({
-    user_id: userId,
-    stripe_customer_id: customerId,
-    stripe_subscription_id: existingRow?.stripe_subscription_id ?? null,
-    plan:
-      (session.metadata?.plan as "pro" | "premium" | undefined) ?? "premium",
-    status: "active",
-    current_period_end: currentPeriodEnd.toISOString(),
-    cancel_at_period_end: false,
-    provider: "stripe",
-  });
+  const { data, error } = await adminClient.rpc(
+    "process_stripe_prepaid_event",
+    {
+      p_event_id: event.id,
+      p_event_type: event.type,
+      p_event_created: event.created,
+      p_user_id: userId,
+      p_customer_id: customerId,
+      p_plan: plan,
+      p_access_days: accessDays,
+    },
+  );
 
   if (error) {
-    throw new Error(`one-time purchase upsert failed: ${error.message}`);
+    throw new Error(
+      `prepaid event processing failed: ${error.message}`,
+    );
   }
+
+  return Array.isArray(data) ? data[0] : data;
 }
 
 async function recordSubscriptionStarted(
@@ -229,7 +243,7 @@ Deno.serve(async (req) => {
         if (!userId) break;
 
         if (session.mode === "payment") {
-          await upsertFromOneTimePurchase(session, userId);
+          await processOneTimePurchase(event, session, userId);
           break;
         }
 
@@ -248,7 +262,7 @@ Deno.serve(async (req) => {
         const subscription =
           await stripe.subscriptions.retrieve(subscriptionId);
 
-        await upsertFromSubscription(subscription, userId);
+        await processSubscriptionEvent(event, subscription, userId);
         await recordSubscriptionStarted(
           event.id,
           session,
@@ -284,7 +298,8 @@ Deno.serve(async (req) => {
 
         if (!row?.user_id) break;
 
-        await upsertFromSubscription(
+        await processSubscriptionEvent(
+          event,
           subscription,
           row.user_id,
         );
