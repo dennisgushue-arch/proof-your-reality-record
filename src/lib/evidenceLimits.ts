@@ -1,0 +1,1 @@
+export const MAX_EVIDENCE_ITEMS_PER_INCIDENT = 20;

@@ -56,6 +56,7 @@ import {
   FREE_INCIDENT_LIMIT_MESSAGE,
 } from "@/lib/planLimits";
 import { trackProductEvent } from "@/lib/productAnalytics";
+import { MAX_EVIDENCE_ITEMS_PER_INCIDENT } from "@/lib/evidenceLimits";
 
 const STAGES: RecordingFormState["stage"][] = ["capture", "context", "review", "save"];
 const submissionGuard = createSubmissionGuard();
@@ -334,10 +335,37 @@ export const RecordingV2 = () => {
       status: "pending",
     }));
     const deduped = dedupeEvidenceItems([...state.evidenceItems, ...nextItems]);
-    updateState({ evidenceItems: deduped });
-    nextItems.forEach((item) => {
-      void addTranscriptEvent({ type: "photo", text: `Evidence captured: ${item.filename}`, occurredAt: item.capturedAt });
-    });
+    const accepted = deduped.slice(0, MAX_EVIDENCE_ITEMS_PER_INCIDENT);
+
+    if (deduped.length > MAX_EVIDENCE_ITEMS_PER_INCIDENT) {
+      const remaining = Math.max(
+        0,
+        MAX_EVIDENCE_ITEMS_PER_INCIDENT - state.evidenceItems.length,
+      );
+
+      toast.warning(
+        `Maximum ${MAX_EVIDENCE_ITEMS_PER_INCIDENT} evidence items per incident`,
+        {
+          description:
+            remaining > 0
+              ? `Only ${remaining} additional item${remaining === 1 ? "" : "s"} were accepted.`
+              : "Remove an existing evidence item before adding another.",
+        },
+      );
+    }
+
+    updateState({ evidenceItems: accepted });
+
+    const acceptedIds = new Set(accepted.map((item) => item.id));
+    nextItems
+      .filter((item) => acceptedIds.has(item.id))
+      .forEach((item) => {
+        void addTranscriptEvent({
+          type: "photo",
+          text: `Evidence captured: ${item.filename}`,
+          occurredAt: item.capturedAt,
+        });
+      });
   };
 
   const captureLocation = () => {

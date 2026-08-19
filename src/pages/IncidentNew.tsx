@@ -19,6 +19,7 @@ import { buildIncidentDraftFromLiveEvents, loadLiveIncidentEvents } from "@/lib/
 import { toast } from "sonner";
 import { canCreateIncident, FREE_INCIDENT_LIMIT_MESSAGE } from "@/lib/planLimits";
 import { trackProductEvent } from "@/lib/productAnalytics";
+import { MAX_EVIDENCE_ITEMS_PER_INCIDENT } from "@/lib/evidenceLimits";
 import { createSubmissionGuard } from "@/features/recording-v2/recordingUtils";
 
 function localDT() {
@@ -107,10 +108,39 @@ const IncidentNew = () => {
         timestamp: new Date(),
         location: location || null,
       });
-      setFiles((prev) => [...prev, ...renamed]);
+      setFiles((prev) => {
+        const remaining = MAX_EVIDENCE_ITEMS_PER_INCIDENT - prev.length;
+        if (remaining <= 0) {
+          toast.error(`Maximum ${MAX_EVIDENCE_ITEMS_PER_INCIDENT} evidence items per incident`);
+          return prev;
+        }
+
+        const accepted = renamed.slice(0, remaining);
+
+        if (accepted.length < renamed.length) {
+          toast.warning(`Only ${remaining} more evidence item${remaining === 1 ? "" : "s"} can be added`);
+        }
+
+        return [...prev, ...accepted];
+      });
       return;
     }
-    setFiles((prev) => [...prev, ...incoming]);
+    setFiles((prev) => {
+      const remaining = MAX_EVIDENCE_ITEMS_PER_INCIDENT - prev.length;
+
+      if (remaining <= 0) {
+        toast.error(`Maximum ${MAX_EVIDENCE_ITEMS_PER_INCIDENT} evidence items per incident`);
+        return prev;
+      }
+
+      const accepted = incoming.slice(0, remaining);
+
+      if (accepted.length < incoming.length) {
+        toast.warning(`Only ${remaining} more evidence item${remaining === 1 ? "" : "s"} can be added`);
+      }
+
+      return [...prev, ...accepted];
+    });
   };
 
   const submit = async () => {
