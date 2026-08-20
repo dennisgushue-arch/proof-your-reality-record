@@ -33,3 +33,8 @@ android/app/upload-keystore-*.jks
 
 # Supabase local state
 supabase/.branches/
+
+# Never commit Android signing keys
+*.jks
+*.keystore
+android/key.properties
