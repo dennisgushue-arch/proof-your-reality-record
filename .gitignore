@@ -38,3 +38,6 @@ supabase/.branches/
 *.jks
 *.keystore
 android/key.properties
+
+# Local Google Play upload certificate
+android/proof-upload-2026.pem
