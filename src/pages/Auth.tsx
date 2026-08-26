@@ -9,6 +9,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { isJsonParseResponseError } from "@/lib/isJsonParseResponseError";
+import { trackProductEvent } from "@/lib/productAnalytics";
 
 type AuthMode = "signin" | "signup" | "forgot" | "reset-password";
 
@@ -250,6 +251,9 @@ const Auth = () => {
           options: { emailRedirectTo: `${window.location.origin}/dashboard` },
         }));
         if (error) throw error;
+        void trackProductEvent("signup_completed", {
+          source: "auth_page",
+        });
         toast.success("Account created. Welcome to Proof.");
       } else {
         const { error } = await withJsonParseRetry(() => supabase.auth.signInWithPassword({
@@ -269,6 +273,9 @@ const Auth = () => {
             }));
 
             if (!signInError) {
+              void trackProductEvent("signup_completed", {
+                source: "auth_page_recovery",
+              });
               toast.success("Account created. Welcome to Proof.");
               nav("/dashboard", { replace: true });
               return;

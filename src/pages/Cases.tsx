@@ -104,6 +104,14 @@ const Cases = () => {
       toast.error(error?.message ?? "Failed to create case.");
       return;
     }
+
+    if (cases.length === 0) {
+      void trackProductEvent("first_case_created", {
+        source: "cases_page",
+        case_id: data.id,
+      });
+    }
+
     setOpen(false);
     setTitle("");
     setDescription("");
