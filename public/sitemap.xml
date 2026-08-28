@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    <url>
-       <loc>https://www.proofrealityrecord.xyz/</loc>
-        <changefreq>weekly</changefreq>
-        <priority>1.0</priority>
-    </url>
+  <url><loc>https://www.proofrealityrecord.xyz/</loc></url>
+  <url><loc>https://www.proofrealityrecord.xyz/co-parenting-documentation/</loc></url>
+  <url><loc>https://www.proofrealityrecord.xyz/workplace-harassment-documentation/</loc></url>
+  <url><loc>https://www.proofrealityrecord.xyz/landlord-dispute-documentation/</loc></url>
+  <url><loc>https://www.proofrealityrecord.xyz/how-to-document-incidents/</loc></url>
+  <url><loc>https://www.proofrealityrecord.xyz/organize-evidence-timeline/</loc></url>
 </urlset>
