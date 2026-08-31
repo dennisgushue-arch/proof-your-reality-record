@@ -1,4 +1,3 @@
-PS C:\Users\denni\StudioProjects\proof-your-reality-record> Get-Content src\pages\Index.tsx
 import { Link } from "react-router-dom";
 import { ArrowRight, Mic, FileText, Sparkles, ShieldCheck, Lock, Clock, Users, Home, Hammer, Briefcase, Building, Check, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
