@@ -47,7 +47,7 @@ export const BILLING_OFFERS: BillingOffer[] = [
     badge: "7-day trial",
     shortCopy: "Full access with automatic monthly renewal and launch discount eligibility.",
     features: PRO_SUBSCRIPTION_FEATURES,
-    priceText: "$7.99",
+    priceText: "$4.99",
     cadenceText: "/month",
     cta: "Start 7-day trial",
     priceEnvKey: "STRIPE_PRICE_ID_PREMIUM_MONTHLY",
@@ -69,7 +69,7 @@ export const BILLING_OFFERS: BillingOffer[] = [
       "Lower effective monthly cost",
       "Longer uninterrupted access",
     ],
-    priceText: "$87.00",
+    priceText: "$39.99",
     cadenceText: "/year",
     cta: "Choose annual",
     priceEnvKey: "STRIPE_PRICE_ID_PREMIUM_ANNUAL",
@@ -134,3 +134,4 @@ export function describeBillingAccess(subscription: BillingSubscription | null |
 
   return "No active paid access";
 }
+

@@ -75,7 +75,7 @@ const Pricing = () => {
 
   const premiumOffers = BILLING_OFFERS.filter(
     (offer) =>
-      offer.id === "premium-monthly" &&
+      (offer.id === "premium-monthly" || offer.id === "premium-annual") &&
       offer.billingMode === "subscription" &&
       (!usesGooglePlay ||
         Boolean(offer.playProductId && offer.playBasePlanId)),
@@ -407,7 +407,7 @@ const Pricing = () => {
               );
 
               const displayPrice =
-                playProduct?.priceText ?? "$7.99";
+                playProduct?.priceText ?? offer.priceText;
 
               return (
                 <div
@@ -449,7 +449,7 @@ const Pricing = () => {
                         {displayPrice}
                       </span>
                       <span className="mb-1 text-muted-foreground">
-                        / month
+                        {offer.cadenceText}
                       </span>
                     </div>
 
@@ -489,7 +489,7 @@ const Pricing = () => {
                             : "Opening secure checkout..."
                           : usesGooglePlay && !playProduct
                             ? "Unavailable in Google Play"
-                            : "Get Proof Plus — $7.99/month"}
+                            : offer.cta}
                     </Button>
 
                     <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -561,7 +561,7 @@ const Pricing = () => {
           </h2>
 
           <p className="mx-auto mt-6 max-w-xl text-muted-foreground">
-            Start free. Upgrade to Proof Plus for $7.99/month when you
+            Start free. Upgrade to Proof Plus when you
             need your complete record and deeper intelligence.
           </p>
 
@@ -593,3 +593,5 @@ const Pricing = () => {
 };
 
 export default Pricing;
+
+
