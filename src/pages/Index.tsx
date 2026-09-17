@@ -14,7 +14,7 @@ const useCases = [
   { icon: Home, title: "Tenant disputes", body: "Track repair requests, habitability issues, and every landlord communication." },
   { icon: Hammer, title: "Contractor work", body: "Capture promises, change orders, and incomplete work before memory fades." },
   { icon: Briefcase, title: "Workplace incidents", body: "Record conduct, conversations, and patterns over time. Structured and neutral." },
-  { icon: Building, title: "Small business disputes", body: "Vendor failures, customer escalations, supplier issues â€” all in one place." },
+  { icon: Building, title: "Small business disputes", body: "Vendor failures, customer escalations, supplier issues - all in one place." },
 ];
 
 const Index = () => (
@@ -31,19 +31,19 @@ const Index = () => (
       <div className="container py-12 max-w-5xl">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-border bg-card px-5 py-4">
-            <div className="text-xs font-mono text-muted-foreground mb-2">5:42 PM â€” Incident Logged</div>
+            <div className="text-xs font-mono text-muted-foreground mb-2">5:42 PM - Incident Logged</div>
             <div className="h-1.5 w-full rounded-full bg-border">
               <div className="h-1.5 rounded-full bg-accent" style={{ width: "100%" }} />
             </div>
           </div>
           <div className="rounded-lg border border-border bg-card px-5 py-4">
-            <div className="text-xs font-mono text-muted-foreground mb-2">5:45 PM â€” Screenshot Uploaded</div>
+            <div className="text-xs font-mono text-muted-foreground mb-2">5:45 PM - Screenshot Uploaded</div>
             <div className="h-1.5 w-full rounded-full bg-border">
               <div className="h-1.5 rounded-full bg-success" style={{ width: "100%" }} />
             </div>
           </div>
           <div className="rounded-lg border border-border bg-card px-5 py-4 contradiction-card rounded-l-none">
-            <div className="text-xs font-mono text-muted-foreground mb-2">5:47 PM â€” Contradiction Found</div>
+            <div className="text-xs font-mono text-muted-foreground mb-2">5:47 PM - Contradiction Found</div>
             <div className="h-1.5 w-full rounded-full bg-border">
               <div className="h-1.5 rounded-full bg-destructive" style={{ width: "100%" }} />
             </div>
@@ -59,7 +59,7 @@ const Index = () => (
           <p className="text-xs font-semibold text-accent uppercase tracking-widest">Contradiction Detection</p>
           <h2 className="mt-3 text-3xl md:text-4xl">Catch the lies you forgot to write down.</h2>
           <p className="mt-4 text-muted-foreground" style={{ lineHeight: 1.6 }}>
-            Proof cross-references everything said across every incident. When stories shift, you'll know â€” with exact dates and quotes.
+            Proof cross-references everything said across every incident. When stories shift, you'll know - with exact dates and quotes.
           </p>
         </div>
         <div className="contradiction-card rounded-lg border border-border px-6 py-5">
@@ -130,7 +130,7 @@ const Index = () => (
             <p className="text-xs font-semibold text-accent uppercase tracking-widest">Why Proof</p>
             <h2 className="mt-3 text-3xl md:text-4xl">Never argue about what actually happened again.</h2>
             <p className="mt-4 text-muted-foreground" style={{ lineHeight: 1.6 }}>
-              Memory fades and stories shift. Proof gives you a single, organized record of what happened, when, and who was involved â€” so the facts are already there when you need them.
+              Memory fades and stories shift. Proof gives you a single, organized record of what happened, when, and who was involved - so the facts are already there when you need them.
             </p>
           </div>
           <ul className="space-y-3">
@@ -260,7 +260,7 @@ const Index = () => (
         <a href="/legal/cookie-notice.html" className="legal-link px-2 py-0.5 text-center">Cookie Notice</a>
         <a href="/legal/data-deletion.html" className="legal-link px-2 py-0.5 text-center">Data Deletion</a>
       </div>
-      <p className="mt-6 text-center text-xs text-muted-foreground">Â© {new Date().getFullYear()} Proof. All rights reserved.</p>
+      <p className="mt-6 text-center text-xs text-muted-foreground">(c) {new Date().getFullYear()} Proof. All rights reserved.</p>
     </footer>
   </div>
 );
