@@ -48,11 +48,16 @@ const Hero = () => {
               <Link to="/auth?mode=signup">Start Documenting <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" /></Link>
             </Button>
             <Button
-              asChild
               variant="outline"
+              onClick={() =>
+                document.getElementById("how-it-works")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                })
+              }
               className="h-14 rounded-xl border-white/25 bg-[#101C2C]/90 px-8 text-base font-bold text-[#F8FAFC] shadow-lg shadow-black/20 transition-all hover:-translate-y-1 hover:border-blue-300/50 hover:bg-[#172A42] hover:text-white motion-reduce:transform-none"
             >
-              <a href="#how-it-works"><CirclePlay className="mr-2 h-5 w-5 text-blue-300" aria-hidden="true" /> See How It Works</a>
+              <><CirclePlay className="mr-2 h-5 w-5 text-blue-300" aria-hidden="true" /> See How It Works</>
             </Button>
           </div>
 

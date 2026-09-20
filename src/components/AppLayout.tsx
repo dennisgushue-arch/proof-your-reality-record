@@ -89,9 +89,9 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-[#070b12] text-slate-100">
-      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-xl focus:bg-blue-500 focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white">
+      <button type="button" onClick={() => document.getElementById("main-content")?.focus()} className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-xl focus:bg-blue-500 focus:px-4 focus:py-2 focus:text-sm focus:font-bold focus:text-white">
         Skip to content
-      </a>
+      </button>
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0"

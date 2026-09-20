@@ -19,6 +19,13 @@ const navItems = [
   { label: "Pricing", href: "#pricing" },
 ];
 
+const scrollToSection = (id: string) => {
+  document.getElementById(id)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
+};
+
 const LandingHeader = () => (
   <header className="sticky top-0 z-50 border-b border-blue-300/20 bg-[#050D19]/90 shadow-[0_10px_40px_-24px_rgba(37,99,235,0.65)] backdrop-blur-xl">
     <div className="mx-auto flex h-20 max-w-[1440px] items-center justify-between px-4 sm:px-6 lg:h-[88px] lg:px-5 xl:px-6">
@@ -34,9 +41,9 @@ const LandingHeader = () => (
 
       <nav className="hidden items-center gap-0.5 lg:flex xl:gap-1" aria-label="Primary navigation">
         {navItems.map((item) => (
-          <a key={item.href} href={item.href} className="rounded-lg px-2.5 py-2.5 text-[15px] font-semibold text-slate-300 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 xl:px-3.5">
+          <button type="button" key={item.href} onClick={() => scrollToSection(item.href.slice(1))} className="rounded-lg px-2.5 py-2.5 text-[15px] font-semibold text-slate-300 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 xl:px-3.5">
             {item.label}
-          </a>
+          </button>
         ))}
       </nav>
 
@@ -70,9 +77,9 @@ const LandingHeader = () => (
           <nav className="mt-8 flex flex-col gap-1" aria-label="Mobile navigation">
             {navItems.map((item) => (
               <SheetClose asChild key={item.href}>
-                <a href={item.href} className="rounded-xl px-4 py-3 text-base font-medium text-slate-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+                <button type="button" onClick={() => scrollToSection(item.href.slice(1))} className="rounded-xl px-4 py-3 text-base font-medium text-slate-200 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
                   {item.label}
-                </a>
+                </button>
               </SheetClose>
             ))}
           </nav>
