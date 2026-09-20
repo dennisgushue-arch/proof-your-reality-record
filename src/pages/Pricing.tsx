@@ -242,7 +242,7 @@ const Pricing = () => {
 
         toast.success("Subscription active", {
           description:
-            "Google Play verified your Proof Plus access.",
+            "Google Play verified your Premium access.",
         });
 
         navigate(redirectAfterUpgrade ?? "/account");
@@ -341,7 +341,7 @@ const Pricing = () => {
           <div className="container mx-auto mt-8 max-w-3xl px-6">
             <div className="rounded-xl border border-primary/40 bg-primary/10 p-4 text-sm">
               <p className="font-medium">
-                Proof Plus is required to continue.
+                Premium is required to continue.
               </p>
 
               <p className="mt-1 text-muted-foreground">
@@ -417,7 +417,7 @@ const Pricing = () => {
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2">
                     <div className="flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-bold text-primary-foreground shadow-lg">
                       <Sparkles className="h-4 w-4" />
-                      PROOF PLUS
+                      PREMIUM
                     </div>
                   </div>
 
@@ -429,7 +429,7 @@ const Pricing = () => {
 
                       <div>
                         <h2 className="text-2xl font-bold">
-                          Proof Plus
+                          Premium
                         </h2>
                         <p className="text-sm text-muted-foreground">
                           Build the complete record
@@ -439,7 +439,7 @@ const Pricing = () => {
 
                     <p className="mt-6 text-muted-foreground">
                       Don&apos;t rely on memory when the details matter.
-                      Proof Plus helps preserve your complete record,
+                      Premium helps preserve your complete record,
                       uncover patterns across events, and keep important
                       evidence organized over time.
                     </p>
@@ -561,7 +561,7 @@ const Pricing = () => {
           </h2>
 
           <p className="mx-auto mt-6 max-w-xl text-muted-foreground">
-            Start free. Upgrade to Proof Plus when you
+            Start free. Upgrade to Premium when you
             need your complete record and deeper intelligence.
           </p>
 

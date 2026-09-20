@@ -65,7 +65,7 @@ export const BILLING_OFFERS: BillingOffer[] = [
     badge: "Best value",
     shortCopy: "A lower-maintenance annual subscription for long-running documentation needs.",
     features: [
-      "Everything in Pro Subscription",
+      "Everything in Premium",
       "Lower effective monthly cost",
       "Longer uninterrupted access",
     ],

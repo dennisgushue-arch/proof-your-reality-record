@@ -40,7 +40,7 @@ vi.mock("@capgo/native-purchases", () => {
       getProducts: vi.fn().mockResolvedValue({
         products: [{
           title: "Premium Monthly",
-          priceString: "$7.99",
+          priceString: "$4.99",
           identifier: "proof01",
           planIdentifier: "proof01",
           offerId: null,
@@ -58,7 +58,7 @@ vi.mock("@/lib/googlePlayBilling.ts", async () => {
   return {
     ...actual,
     isGooglePlayApp: () => true,
-    loadGooglePlayProducts: async () => [{ offerId: "premium-monthly", priceText: "$7.99", title: "Premium Monthly" }],
+    loadGooglePlayProducts: async () => [{ offerId: "premium-monthly", priceText: "$4.99", title: "Premium Monthly" }],
   };
 });
 
