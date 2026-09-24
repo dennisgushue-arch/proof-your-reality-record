@@ -237,7 +237,7 @@ const Index = () => (
         <h2 className="text-3xl md:text-4xl">Personal evidence infrastructure.<br />Yours, when it matters.</h2>
         <p className="mt-4 text-muted-foreground">
           Free Plan: Create 1 case, record 10 incidents total, basic timeline, and view saved records.
-          Pro Subscription: Unlock unlimited cases, unlimited incidents, AI Incident Analysis, Entity Intelligence, Timeline Intelligence, professional PDF exports, unlimited evidence uploads, priority support, and future AI features.
+          Premium: Unlock unlimited cases, unlimited incidents, AI Incident Analysis, Entity Intelligence, Timeline Intelligence, professional PDF exports, unlimited evidence uploads, priority support, and future AI features.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link to="/auth?mode=signup">
