@@ -318,13 +318,13 @@ const PrepareInteraction = () => {
             <div className="flex items-start gap-3">
               <Lock className="h-5 w-5 text-accent mt-0.5" />
               <div>
-                <h2 className="text-xl font-semibold">Prepare Me is a Pro feature</h2>
+                <h2 className="text-xl font-semibold">Prepare Me is a Premium feature</h2>
                 <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
                   People don’t pay for storage — they pay to walk into a difficult conversation already prepared. Upgrade to unlock AI briefings, contradictions, evidence gaps, and guided questions.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Link to="/pricing">
-                    <Button className="bg-accent hover:bg-accent/90 text-white">See Pro plans</Button>
+                    <Button className="bg-accent hover:bg-accent/90 text-white">See Premium plans</Button>
                   </Link>
                   <Link to={`/cases/${caseRow.id}`}>
                     <Button variant="outline" className="border-border">Back to case</Button>
